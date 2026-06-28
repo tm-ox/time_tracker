@@ -26,7 +26,7 @@ class TimerControls extends StatelessWidget {
           icon: Icon(running ? Icons.pause : Icons.play_arrow),
           label: Text(running ? 'Pause' : (counter > 0 ? 'Resume' : 'Start')),
           style: FilledButton.styleFrom(
-            fixedSize: const Size(120, 40),
+            fixedSize: const Size(140, 40),
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.horizontal(
                 left: Radius.circular(8), // outer edge — rounded
@@ -40,7 +40,7 @@ class TimerControls extends StatelessWidget {
           icon: const Icon(Icons.stop),
           label: const Text('Finish'),
           style: OutlinedButton.styleFrom(
-            fixedSize: const Size(120, 40),
+            fixedSize: const Size(140, 40),
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.horizontal(
                 left: Radius.circular(0), // inner edge — near-square
