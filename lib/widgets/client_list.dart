@@ -13,7 +13,7 @@ class ClientList extends StatelessWidget {
           subtitle: c.email == null ? null : Text(c.email!),
           trailing: c.defaultRate == null
               ? null
-              : Text('\$${c.defaultRate}/hr'),
+              : Text('\$${c.defaultRate!.toStringAsFixed(2)}/hr'),
         ),
     ],
   );

@@ -104,7 +104,7 @@ class _JobsScreenState extends State<JobsScreen> {
                           subtitle: Text(r.job.code),
                           trailing: Text(
                             r.effectiveRate != null
-                                ? '\$${r.effectiveRate}/hr'
+                                ? '\$${r.effectiveRate!.toStringAsFixed(2)}/hr'
                                 : 'no rate set',
                           ), // null = un-billable, surface it
                         ),
