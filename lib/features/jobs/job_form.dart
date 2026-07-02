@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
+import 'package:time_tracker/util/parse_rate.dart';
+import 'package:time_tracker/widgets/confirm_dialog.dart';
 
 class JobForm extends StatefulWidget {
   const JobForm({
@@ -45,18 +47,13 @@ class _JobFormState extends State<JobForm> {
         _clientId == null) {
       return;
     }
-    // Rate is optional, but a non-empty value must be a valid number —
-    // don't silently drop "5o" to null.
-    final rateText = _rate.text.trim();
-    double? rate;
-    if (rateText.isNotEmpty) {
-      rate = double.tryParse(rateText);
-      if (rate == null) {
-        setState(() => _rateError = 'Enter a number, or leave blank');
-        return;
-      }
+    final parsed = parseRate(_rate.text);
+    if (parsed.error != null) {
+      setState(() => _rateError = parsed.error);
+      return;
     }
     setState(() => _rateError = null);
+    final rate = parsed.value;
 
     try {
       if (_isEdit) {
@@ -88,39 +85,26 @@ class _JobFormState extends State<JobForm> {
   }
 
   Future<void> _confirmDelete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete job?'),
-        content: Text('"${widget.initial!.title}" will be removed.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final ok = await confirmDelete(
+      context,
+      title: 'Delete job?',
+      message: '"${widget.initial!.title}" will be removed.',
     );
-    if (ok == true) {
-      try {
-        await widget.db.deleteJob(widget.initial!.id);
-      } catch (e) {
-        // FK restrict: the job has time entries recorded against it.
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Cannot delete a job that has time entries.'),
-            ),
-          );
-        }
-        return;
+    if (!ok) return;
+    try {
+      await widget.db.deleteJob(widget.initial!.id);
+    } catch (e) {
+      // FK restrict: the job has time entries recorded against it.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cannot delete a job that has time entries.'),
+          ),
+        );
       }
-      if (mounted) widget.onDone();
+      return;
     }
+    if (mounted) widget.onDone();
   }
 
   @override

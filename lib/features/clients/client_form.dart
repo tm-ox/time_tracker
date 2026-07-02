@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
+import 'package:time_tracker/util/parse_rate.dart';
+import 'package:time_tracker/widgets/confirm_dialog.dart';
 
 class ClientForm extends StatefulWidget {
   const ClientForm({
@@ -37,17 +39,13 @@ class _ClientFormState extends State<ClientForm> {
   Future<void> _submit() async {
     if (_name.text.trim().isEmpty) return;
 
-    // Rate is optional, but a non-empty value must parse.
-    final rateText = _rate.text.trim();
-    double? rate;
-    if (rateText.isNotEmpty) {
-      rate = double.tryParse(rateText);
-      if (rate == null) {
-        setState(() => _rateError = 'Enter a number, or leave blank');
-        return;
-      }
+    final parsed = parseRate(_rate.text);
+    if (parsed.error != null) {
+      setState(() => _rateError = parsed.error);
+      return;
     }
     setState(() => _rateError = null);
+    final rate = parsed.value;
 
     final email = _email.text.trim().isEmpty ? null : _email.text.trim();
     try {
@@ -77,39 +75,26 @@ class _ClientFormState extends State<ClientForm> {
   }
 
   Future<void> _confirmDelete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete client?'),
-        content: Text('"${widget.initial!.name}" will be removed.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final ok = await confirmDelete(
+      context,
+      title: 'Delete client?',
+      message: '"${widget.initial!.name}" will be removed.',
     );
-    if (ok == true) {
-      try {
-        await widget.db.deleteClient(widget.initial!.id);
-      } catch (e) {
-        // FK restrict: the client still has jobs.
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Cannot delete a client that still has jobs.'),
-            ),
-          );
-        }
-        return;
+    if (!ok) return;
+    try {
+      await widget.db.deleteClient(widget.initial!.id);
+    } catch (e) {
+      // FK restrict: the client still has jobs.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cannot delete a client that still has jobs.'),
+          ),
+        );
       }
-      if (mounted) widget.onDone();
+      return;
     }
+    if (mounted) widget.onDone();
   }
 
   @override
