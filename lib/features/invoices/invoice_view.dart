@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/invoices/invoice_pdf.dart';
@@ -66,20 +66,25 @@ class _InvoiceViewState extends State<InvoiceView> {
 
   Future<void> _exportPdf(JobInvoice inv) async {
     try {
+      final safe = inv.job.code.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      // Let the user choose where to save (native file dialog).
+      final location = await getSaveLocation(
+        suggestedName: 'invoice_$safe.pdf',
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'PDF', extensions: ['pdf']),
+        ],
+      );
+      if (location == null) return; // cancelled
+
       final bytes = await buildInvoicePdf(
         inv: inv,
         from: _range.start,
         to: _range.end,
       );
-      final dir =
-          await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final safe = inv.job.code.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-      final file = File('${dir.path}/invoice_$safe.pdf');
-      await file.writeAsBytes(bytes);
+      await File(location.path).writeAsBytes(bytes);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved to ${file.path}')),
+          SnackBar(content: Text('Saved to ${location.path}')),
         );
       }
     } catch (e) {
