@@ -31,8 +31,8 @@ class _EditClient extends _Detail {
 }
 
 class _Invoice extends _Detail {
-  final Client client;
-  const _Invoice(this.client);
+  final Job job;
+  const _Invoice(this.job);
 }
 
 class AdaptiveShell extends StatefulWidget {
@@ -57,7 +57,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       setState(() => _detail = _EditJob(clientId: clientId));
   void _editClient(Client c) => setState(() => _detail = _EditClient(client: c));
   void _addClient() => setState(() => _detail = const _EditClient());
-  void _invoiceClient(Client c) => setState(() => _detail = _Invoice(c));
+  void _invoiceJob(Job job) => setState(() => _detail = _Invoice(job));
 
   @override
   void initState() {
@@ -114,9 +114,9 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         initial: client,
         onDone: _showTracker,
       ),
-      _Invoice(:final client) => InvoiceView(
+      _Invoice(:final job) => InvoiceView(
         db: widget.db,
-        client: client,
+        job: job,
         onDone: _showTracker,
       ),
     };
@@ -139,7 +139,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         onAddJob: (cid) => run(() => _addJob(cid)),
         onEditClient: (c) => run(() => _editClient(c)),
         onAddClient: () => run(_addClient),
-        onInvoiceClient: (c) => run(() => _invoiceClient(c)),
+        onInvoiceJob: (j) => run(() => _invoiceJob(j)),
       );
     }
 

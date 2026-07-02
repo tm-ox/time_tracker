@@ -12,7 +12,7 @@ class SidePanel extends StatefulWidget {
     required this.onAddJob,
     required this.onEditClient,
     required this.onAddClient,
-    required this.onInvoiceClient,
+    required this.onInvoiceJob,
   });
   final AppDatabase db;
   final int? selectedJobId;
@@ -21,7 +21,7 @@ class SidePanel extends StatefulWidget {
   final void Function(int clientId) onAddJob; // add a job under this client
   final void Function(Client) onEditClient;
   final VoidCallback onAddClient;
-  final void Function(Client) onInvoiceClient;
+  final void Function(Job) onInvoiceJob; // invoice a single job
 
   @override
   State<SidePanel> createState() => _SidePanelState();
@@ -50,7 +50,7 @@ class _SidePanelState extends State<SidePanel> {
               onAddJob: widget.onAddJob,
               onEditClient: widget.onEditClient,
               onAddClient: widget.onAddClient,
-              onInvoiceClient: widget.onInvoiceClient,
+              onInvoiceJob: widget.onInvoiceJob,
             );
           },
         );
@@ -69,7 +69,7 @@ class _SidePanelListView extends StatelessWidget {
   final void Function(int clientId) onAddJob;
   final void Function(Client) onEditClient;
   final VoidCallback onAddClient;
-  final void Function(Client) onInvoiceClient;
+  final void Function(Job) onInvoiceJob;
 
   const _SidePanelListView({
     required this.clients,
@@ -80,7 +80,7 @@ class _SidePanelListView extends StatelessWidget {
     required this.onAddJob,
     required this.onEditClient,
     required this.onAddClient,
-    required this.onInvoiceClient,
+    required this.onInvoiceJob,
   });
 
   @override
@@ -102,7 +102,7 @@ class _SidePanelListView extends StatelessWidget {
             onEditJob: onEditJob,
             onAddJob: onAddJob,
             onEditClient: onEditClient,
-            onInvoiceClient: onInvoiceClient,
+            onInvoiceJob: onInvoiceJob,
           ),
         const SizedBox(height: AppTokens.space2xs),
         AddClientButton(onTap: onAddClient),
@@ -146,7 +146,7 @@ class ClientGroupTile extends StatefulWidget {
   final void Function(Job) onEditJob;
   final void Function(int clientId) onAddJob;
   final void Function(Client) onEditClient;
-  final void Function(Client) onInvoiceClient;
+  final void Function(Job) onInvoiceJob;
 
   const ClientGroupTile({
     super.key,
@@ -157,7 +157,7 @@ class ClientGroupTile extends StatefulWidget {
     required this.onEditJob,
     required this.onAddJob,
     required this.onEditClient,
-    required this.onInvoiceClient,
+    required this.onInvoiceJob,
   });
 
   @override
@@ -214,29 +214,14 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
               color: theme.colorScheme.onSurface,
             ),
           ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.receipt_long),
-                iconSize: AppTokens.iconSm,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                tooltip: 'Invoice client',
-                onPressed: () => widget.onInvoiceClient(widget.client),
-              ),
-              const SizedBox(width: AppTokens.space3xs),
-              IconButton(
-                icon: const Icon(Icons.edit_note),
-                iconSize: AppTokens.iconSm,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                tooltip: 'Edit client',
-                onPressed: () => widget.onEditClient(widget.client),
-              ),
-            ],
+          trailing: IconButton(
+            icon: const Icon(Icons.edit_note),
+            iconSize: AppTokens.iconSm,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Edit client',
+            onPressed: () => widget.onEditClient(widget.client),
           ),
         ),
         children: [
@@ -246,6 +231,7 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
               isSelected: j.id == widget.selectedJobId,
               onTap: () => widget.onSelectJob?.call(j.id),
               onEdit: () => widget.onEditJob(j),
+              onInvoice: () => widget.onInvoiceJob(j),
             ),
           ListTile(
             dense: true,
@@ -275,6 +261,7 @@ class JobRowItem extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onInvoice;
 
   const JobRowItem({
     super.key,
@@ -282,6 +269,7 @@ class JobRowItem extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.onEdit,
+    required this.onInvoice,
   });
 
   @override
@@ -297,14 +285,29 @@ class JobRowItem extends StatelessWidget {
         '${job.code} - ${job.title}',
         style: const TextStyle(fontSize: AppTokens.fontSizeXs),
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.edit_note),
-        iconSize: AppTokens.iconSm,
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        tooltip: 'Edit job',
-        onPressed: onEdit,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            iconSize: AppTokens.iconSm,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Invoice job',
+            onPressed: onInvoice,
+          ),
+          const SizedBox(width: AppTokens.space3xs),
+          IconButton(
+            icon: const Icon(Icons.edit_note),
+            iconSize: AppTokens.iconSm,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Edit job',
+            onPressed: onEdit,
+          ),
+        ],
       ),
       selected: isSelected,
       onTap: onTap,

@@ -12,17 +12,15 @@ const _months = [
 ];
 String _date(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 
-/// Build an invoice PDF for [client] over [from]..[to] from aggregated [lines].
-/// Pure: takes data in, returns bytes — no DB or UI dependency.
+/// Build an invoice PDF for a single job over [from]..[to] from [inv].
+/// Pure: data in, bytes out — no DB or UI dependency.
 Future<Uint8List> buildInvoicePdf({
-  required Client client,
-  required List<InvoiceLine> lines,
+  required JobInvoice inv,
   required DateTime from,
   required DateTime to,
 }) async {
   final doc = pw.Document();
-  final billable = lines.where((l) => l.amount != null);
-  final total = billable.fold<double>(0, (sum, l) => sum + l.amount!);
+  final rate = inv.rate;
 
   doc.addPage(
     pw.Page(
@@ -34,29 +32,34 @@ Future<Uint8List> buildInvoicePdf({
             'INVOICE',
             style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold),
           ),
-          pw.SizedBox(height: 4),
-          pw.Text('${client.name}${client.email != null ? ' · ${client.email}' : ''}'),
+          pw.SizedBox(height: 8),
+          pw.Text(
+            '${inv.job.code} · ${inv.job.title}',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Client: ${inv.client.name}'
+            '${inv.client.email != null ? ' · ${inv.client.email}' : ''}',
+          ),
           pw.Text('Period: ${_date(from)} – ${_date(to)}'),
+          pw.Text(rate == null ? 'Rate: not set' : 'Rate: ${_money(rate)}/hr'),
           pw.SizedBox(height: 24),
           pw.TableHelper.fromTextArray(
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            headerAlignment: pw.Alignment.centerLeft,
             cellAlignments: {
               0: pw.Alignment.centerLeft,
               1: pw.Alignment.centerLeft,
               2: pw.Alignment.centerRight,
               3: pw.Alignment.centerRight,
-              4: pw.Alignment.centerRight,
             },
-            headers: ['Code', 'Job', 'Hours', 'Rate', 'Amount'],
+            headers: ['Date', 'Task', 'Hours', 'Amount'],
             data: [
-              for (final l in lines)
+              for (final e in inv.entries)
                 [
-                  l.jobCode,
-                  l.jobTitle,
-                  _hours(l.seconds),
-                  l.rate == null ? '—' : _money(l.rate!),
-                  l.amount == null ? 'no rate' : _money(l.amount!),
+                  _date(e.startedAt),
+                  e.task,
+                  _hours(e.seconds),
+                  rate == null ? '—' : _money((e.seconds / 3600) * rate),
                 ],
             ],
           ),
@@ -64,17 +67,12 @@ Future<Uint8List> buildInvoicePdf({
           pw.Align(
             alignment: pw.Alignment.centerRight,
             child: pw.Text(
-              'Total: ${_money(total)}',
+              inv.total == null
+                  ? 'Total hours: ${_hours(inv.totalSeconds)} (no rate set)'
+                  : 'Total: ${_money(inv.total!)}',
               style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
             ),
           ),
-          if (lines.any((l) => l.amount == null)) ...[
-            pw.SizedBox(height: 8),
-            pw.Text(
-              'Lines marked "no rate" are excluded from the total.',
-              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-            ),
-          ],
         ],
       ),
     ),

@@ -1,20 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/invoices/invoice_pdf.dart';
 
-/// Read-only invoice builder for one client: pick a date range, preview the
-/// aggregated lines, export a PDF. Generates on demand — stores nothing.
+/// Read-only invoice builder for one job: pick a date range, preview the
+/// itemised entries, export a PDF. Generates on demand — stores nothing.
 class InvoiceView extends StatefulWidget {
   const InvoiceView({
     super.key,
     required this.db,
-    required this.client,
+    required this.job,
     required this.onDone,
   });
   final AppDatabase db;
-  final Client client;
+  final Job job;
   final VoidCallback onDone;
 
   @override
@@ -23,23 +24,28 @@ class InvoiceView extends StatefulWidget {
 
 class _InvoiceViewState extends State<InvoiceView> {
   late DateTimeRange _range;
-  late Future<List<InvoiceLine>> _future;
+  late Future<JobInvoice> _future;
 
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
-    // Default to the current month, month-start through today.
     _range = DateTimeRange(start: DateTime(now.year, now.month), end: now);
     _load();
   }
 
   void _load() {
-    _future = widget.db.invoiceLines(
-      clientId: widget.client.id,
+    _future = widget.db.jobInvoice(
+      jobId: widget.job.id,
       from: _range.start,
-      // include the whole end day
-      to: DateTime(_range.end.year, _range.end.month, _range.end.day, 23, 59, 59),
+      to: DateTime(
+        _range.end.year,
+        _range.end.month,
+        _range.end.day,
+        23,
+        59,
+        59,
+      ),
     );
   }
 
@@ -58,20 +64,34 @@ class _InvoiceViewState extends State<InvoiceView> {
     }
   }
 
-  Future<void> _exportPdf(List<InvoiceLine> lines) async {
-    final bytes = await buildInvoicePdf(
-      client: widget.client,
-      lines: lines,
-      from: _range.start,
-      to: _range.end,
-    );
-    // Opens the native print/preview dialog (save-as-PDF from there).
-    await Printing.layoutPdf(onLayout: (_) => bytes);
+  Future<void> _exportPdf(JobInvoice inv) async {
+    try {
+      final bytes = await buildInvoicePdf(
+        inv: inv,
+        from: _range.start,
+        to: _range.end,
+      );
+      final dir =
+          await getDownloadsDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final safe = inv.job.code.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      final file = File('${dir.path}/invoice_$safe.pdf');
+      await file.writeAsBytes(bytes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved to ${file.path}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not export PDF: $e')),
+        );
+      }
+    }
   }
 
-  String _fmtDate(DateTime d) =>
-      '${d.day}/${d.month}/${d.year}';
-
+  String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
   String _fmtHours(int seconds) => (seconds / 3600).toStringAsFixed(2);
 
   @override
@@ -82,7 +102,10 @@ class _InvoiceViewState extends State<InvoiceView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Invoice · ${widget.client.name}', style: theme.textTheme.titleLarge),
+          Text(
+            'Invoice · ${widget.job.code} — ${widget.job.title}',
+            style: theme.textTheme.titleLarge,
+          ),
           const SizedBox(height: AppTokens.spaceXs),
           Row(
             children: [
@@ -97,37 +120,45 @@ class _InvoiceViewState extends State<InvoiceView> {
           ),
           const SizedBox(height: AppTokens.spaceSm),
           Expanded(
-            child: FutureBuilder<List<InvoiceLine>>(
+            child: FutureBuilder<JobInvoice>(
               future: _future,
               builder: (context, snap) {
                 if (snap.connectionState != ConnectionState.done) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final lines = snap.data ?? [];
-                if (lines.isEmpty) {
+                if (snap.hasError) {
+                  return Center(child: Text('Error: ${snap.error}'));
+                }
+                final inv = snap.data!;
+                if (inv.entries.isEmpty) {
                   return const Center(
                     child: Text('No tracked time in this period.'),
                   );
                 }
-                final total = lines
-                    .where((l) => l.amount != null)
-                    .fold<double>(0, (sum, l) => sum + l.amount!);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (inv.rate == null)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppTokens.spaceXs,
+                        ),
+                        child: Text(
+                          'No rate set for this job or its client — amounts unavailable.',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
                     Expanded(
                       child: ListView(
                         children: [
-                          for (final l in lines)
+                          for (final e in inv.entries)
                             ListTile(
                               dense: true,
-                              title: Text('${l.jobCode} · ${l.jobTitle}'),
-                              subtitle: Text('${_fmtHours(l.seconds)} h'
-                                  '${l.rate == null ? '' : ' @ \$${l.rate!.toStringAsFixed(2)}/hr'}'),
+                              title: Text(e.task),
+                              subtitle: Text(_fmtDate(e.startedAt)),
                               trailing: Text(
-                                l.amount == null
-                                    ? 'no rate'
-                                    : '\$${l.amount!.toStringAsFixed(2)}',
+                                '${_fmtHours(e.seconds)} h'
+                                '${inv.rate == null ? '' : ' · \$${((e.seconds / 3600) * inv.rate!).toStringAsFixed(2)}'}',
                               ),
                             ),
                         ],
@@ -142,9 +173,14 @@ class _InvoiceViewState extends State<InvoiceView> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Total', style: theme.textTheme.titleMedium),
                           Text(
-                            '\$${total.toStringAsFixed(2)}',
+                            'Total (${_fmtHours(inv.totalSeconds)} h)',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          Text(
+                            inv.total == null
+                                ? '—'
+                                : '\$${inv.total!.toStringAsFixed(2)}',
                             style: theme.textTheme.titleMedium,
                           ),
                         ],
@@ -160,7 +196,7 @@ class _InvoiceViewState extends State<InvoiceView> {
                         ),
                         const SizedBox(width: AppTokens.spaceSm),
                         FilledButton.icon(
-                          onPressed: () => _exportPdf(lines),
+                          onPressed: () => _exportPdf(inv),
                           icon: const Icon(Icons.picture_as_pdf),
                           label: const Text('Export PDF'),
                         ),
