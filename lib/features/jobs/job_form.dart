@@ -125,9 +125,15 @@ class _JobFormState extends State<JobForm> {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
+    padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
     child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          _isEdit ? 'Edit job' : 'New job',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: AppTokens.spaceMd),
         StreamBuilder<List<Client>>(
           stream: _clientsStream,
           builder: (context, snap) {
@@ -135,17 +141,24 @@ class _JobFormState extends State<JobForm> {
             final value = clients.any((c) => c.id == _clientId)
                 ? _clientId
                 : null;
-            return DropdownButton<int>(
-              value: value,
-              hint: const Text('Client'),
-              items: [
-                for (final c in clients)
-                  DropdownMenuItem(value: c.id, child: Text(c.name)),
-              ],
-              onChanged: (id) => setState(() => _clientId = id),
+            return InputDecorator(
+              decoration: const InputDecoration(labelText: 'Client'),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  value: value,
+                  hint: const Text('Select a client'),
+                  items: [
+                    for (final c in clients)
+                      DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  ],
+                  onChanged: (id) => setState(() => _clientId = id),
+                ),
+              ),
             );
           },
         ),
+        const SizedBox(height: AppTokens.spaceXl),
         TextField(
           controller: _code,
           decoration: const InputDecoration(labelText: 'Code'),

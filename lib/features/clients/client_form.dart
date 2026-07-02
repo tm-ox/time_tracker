@@ -114,9 +114,15 @@ class _ClientFormState extends State<ClientForm> {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
+    padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
     child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          _isEdit ? 'Edit client' : 'New client',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: AppTokens.spaceMd),
         TextField(
           controller: _name,
           decoration: const InputDecoration(labelText: 'Name'),
