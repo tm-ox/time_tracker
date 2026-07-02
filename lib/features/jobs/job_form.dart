@@ -134,65 +134,78 @@ class _JobFormState extends State<JobForm> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        StreamBuilder<List<Client>>(
-          stream: _clientsStream,
-          builder: (context, snap) {
-            final clients = snap.data ?? [];
-            final value = clients.any((c) => c.id == _clientId)
-                ? _clientId
-                : null;
-            return InputDecorator(
-              decoration: const InputDecoration(labelText: 'Client'),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: value,
-                  hint: const Text('Select a client'),
-                  items: [
-                    for (final c in clients)
-                      DropdownMenuItem(value: c.id, child: Text(c.name)),
-                  ],
-                  onChanged: (id) => setState(() => _clientId = id),
+        // Title stays pinned at the top; the fields + actions center in the
+        // remaining vertical space.
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              StreamBuilder<List<Client>>(
+                stream: _clientsStream,
+                builder: (context, snap) {
+                  final clients = snap.data ?? [];
+                  final value = clients.any((c) => c.id == _clientId)
+                      ? _clientId
+                      : null;
+                  return InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Client'),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        isExpanded: true,
+                        value: value,
+                        hint: const Text('Select a client'),
+                        items: [
+                          for (final c in clients)
+                            DropdownMenuItem(value: c.id, child: Text(c.name)),
+                        ],
+                        onChanged: (id) => setState(() => _clientId = id),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: AppTokens.spaceXl),
+              TextField(
+                controller: _code,
+                decoration: const InputDecoration(labelText: 'Code'),
+              ),
+              const SizedBox(height: AppTokens.spaceXl),
+              TextField(
+                controller: _title,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: AppTokens.spaceXl),
+              TextField(
+                controller: _rate,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Rate',
+                  errorText: _rateError,
                 ),
               ),
-            );
-          },
-        ),
-        const SizedBox(height: AppTokens.spaceXl),
-        TextField(
-          controller: _code,
-          decoration: const InputDecoration(labelText: 'Code'),
-        ),
-        const SizedBox(height: AppTokens.spaceXl),
-        TextField(
-          controller: _title,
-          decoration: const InputDecoration(labelText: 'Title'),
-        ),
-        const SizedBox(height: AppTokens.spaceXl),
-        TextField(
-          controller: _rate,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: 'Rate', errorText: _rateError),
-        ),
-        const SizedBox(height: AppTokens.spaceXl),
-        Row(
-          children: [
-            if (_isEdit)
-              TextButton(
-                onPressed: _confirmDelete,
-                child: const Text('Delete'),
+              const SizedBox(height: AppTokens.spaceXl),
+              Row(
+                children: [
+                  if (_isEdit)
+                    TextButton(
+                      onPressed: _confirmDelete,
+                      child: const Text('Delete'),
+                    ),
+                  const Spacer(),
+                  OutlinedButton(
+                    onPressed: widget.onDone,
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: AppTokens.spaceSm),
+                  FilledButton(
+                    onPressed: _submit,
+                    child: Text(_isEdit ? 'Save' : 'Add'),
+                  ),
+                ],
               ),
-            const Spacer(),
-            OutlinedButton(
-              onPressed: widget.onDone,
-              child: const Text('Cancel'),
-            ),
-            const SizedBox(width: AppTokens.spaceSm),
-            FilledButton(
-              onPressed: _submit,
-              child: Text(_isEdit ? 'Save' : 'Add'),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     ),
