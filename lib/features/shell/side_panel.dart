@@ -45,17 +45,22 @@ class _SidePanelState extends State<SidePanel> {
   final _searchFocus = FocusNode(debugLabel: 'panelSearch');
   String _query = '';
 
-  // Manually expanded clients. Effective expansion also folds in the auto
-  // rules (searching, the selected job's client) — see [_effectiveExpanded].
+  // Manually expanded clients. Selecting a job seeds its client here once (so
+  // it opens but can still be collapsed); searching force-expands everything
+  // at the effective-expansion layer without touching this set.
   final Set<int> _expanded = {};
+  int? _seededSelection; // selectedJobId we last auto-expanded a client for
 
   // Row cursor over the flattened visible list (clients + jobs of expanded
   // clients). Kept valid against [_rows] after every rebuild.
   int _cursor = 0;
   bool _pendingG = false; // saw the first `g` of a `gg`
+  bool _pendingChord = false; // saw Ctrl-w, awaiting an h/l window motion
   List<PanelRow> _rows = const [];
   bool _searching = false;
   final _cursorKey = GlobalKey(); // rides the focused row for ensureVisible
+  final _scroll = ScrollController();
+  static const _estRowHeight = 40.0; // rough row height for off-screen jumps
 
   FocusNode? _internalFocus;
   FocusNode get _cursorNode =>
@@ -69,6 +74,10 @@ class _SidePanelState extends State<SidePanel> {
   }
 
   void _onFocusChanged() {
+    // A focus excursion (into search, out to the tracker) abandons any
+    // half-typed sequence — otherwise it would mis-fire on the next keypress.
+    _pendingG = false;
+    _pendingChord = false;
     if (mounted) setState(() {});
   }
 
@@ -78,6 +87,7 @@ class _SidePanelState extends State<SidePanel> {
     _internalFocus?.dispose();
     _searchFocus.dispose();
     _searchController.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -192,7 +202,24 @@ class _SidePanelState extends State<SidePanel> {
           alignment: 0.5,
           duration: const Duration(milliseconds: 120),
         );
+        return;
       }
+      // The row isn't laid out (ListView.builder skips off-screen items), so
+      // ensureVisible has nothing to target — e.g. G / gg jumping far. Jump to
+      // an estimated offset to bring the row into range, then refine next frame
+      // once it's actually built.
+      if (!_scroll.hasClients) return;
+      final approx = (_cursor * _estRowHeight).clamp(
+        0.0,
+        _scroll.position.maxScrollExtent,
+      );
+      _scroll.jumpTo(approx);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final refined = _cursorKey.currentContext;
+        if (refined != null) {
+          Scrollable.ensureVisible(refined, alignment: 0.5);
+        }
+      });
     });
   }
 
@@ -202,6 +229,42 @@ class _SidePanelState extends State<SidePanel> {
     if (_searchFocus.hasFocus) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    final right =
+        key == LogicalKeyboardKey.keyL || key == LogicalKeyboardKey.arrowRight;
+    final left =
+        key == LogicalKeyboardKey.keyH || key == LogicalKeyboardKey.arrowLeft;
+
+    // --- Pane switching (leave for the tracker) ---
+    // Handled here rather than left to bubble, because the bare l/h row-nav
+    // keys below would otherwise shadow both the Ctrl-combo and the Ctrl-w
+    // chord's second key. Only the panel→tracker direction lives here; the
+    // shell owns tracker→panel.
+    if (event is KeyDownEvent) {
+      if (ctrl && key == LogicalKeyboardKey.keyW) {
+        _pendingChord = true;
+        return KeyEventResult.handled;
+      }
+      if (_pendingChord) {
+        _pendingChord = false;
+        if (right) {
+          widget.onExitToTracker?.call();
+          return KeyEventResult.handled;
+        }
+        if (left) return KeyEventResult.handled; // Ctrl-w h → panel; already here
+        // any other key: abandon the chord, fall through to normal handling
+      } else {
+        if (ctrl && right) {
+          widget.onExitToTracker?.call();
+          return KeyEventResult.handled;
+        }
+        if (ctrl && left) return KeyEventResult.handled; // Ctrl-h → already here
+      }
+    }
+    // Any other Ctrl-combo isn't a row-nav key — let it bubble (Tab and the
+    // tracker→panel bindings are the shell's job).
+    if (ctrl) return KeyEventResult.ignored;
+
     // Movement repeats when held.
     if (key == LogicalKeyboardKey.keyJ || key == LogicalKeyboardKey.arrowDown) {
       _moveCursor(1);
@@ -231,14 +294,13 @@ class _SidePanelState extends State<SidePanel> {
     }
     _pendingG = false; // any other key breaks a half-typed gg
 
-    if (key == LogicalKeyboardKey.keyL ||
-        key == LogicalKeyboardKey.arrowRight ||
+    if (right ||
         key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
       _expandOrOpen();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.keyH || key == LogicalKeyboardKey.arrowLeft) {
+    if (left) {
       _collapseOrParent();
       return KeyEventResult.handled;
     }
@@ -250,7 +312,7 @@ class _SidePanelState extends State<SidePanel> {
       _jumpMatch(shift ? -1 : 1);
       return KeyEventResult.handled;
     }
-    // Pane-switch keys (Tab, Ctrl-*) are left for the shell — don't consume.
+    // Tab is left for the shell (tracker↔panel toggle) — don't consume.
     return KeyEventResult.ignored;
   }
 
@@ -295,12 +357,22 @@ class _SidePanelState extends State<SidePanel> {
   }
 
   Widget _buildList(List<Client> clients, List<Job> jobs) {
-    final selectedClientId = _selectedClientId(jobs);
+    // Drop expansion state for clients that no longer exist (deleted).
+    final clientIds = clients.map((c) => c.id).toSet();
+    _expanded.removeWhere((id) => !clientIds.contains(id));
+
+    // Seed the selected job's client into the expansion set once per selection
+    // change, so it opens on select but stays collapsible afterwards.
+    if (widget.selectedJobId != _seededSelection) {
+      _seededSelection = widget.selectedJobId;
+      final selectedClientId = _selectedClientId(jobs);
+      if (selectedClientId != null) _expanded.add(selectedClientId);
+    }
+
     _searching = _query.trim().isNotEmpty;
+    // Searching force-expands every visible client; otherwise the set decides.
     bool effectiveExpanded(int clientId) =>
-        _searching ||
-        clientId == selectedClientId ||
-        _expanded.contains(clientId);
+        _searching || _expanded.contains(clientId);
 
     _rows = buildPanelRows(
       clients: clients,
@@ -321,13 +393,14 @@ class _SidePanelState extends State<SidePanel> {
 
     final cursorActive = _cursorNode.hasPrimaryFocus;
     return ListView.builder(
+      controller: _scroll,
       padding: const EdgeInsets.symmetric(vertical: AppTokens.space4xs),
       itemCount: _rows.length,
       itemBuilder: (context, i) {
         final row = _rows[i];
         final focused = i == _cursor && cursorActive;
         final key = i == _cursor ? _cursorKey : null;
-        return _FocusRing(
+        final tile = _FocusRing(
           focused: focused,
           child: switch (row) {
             ClientRow() => _ClientHeaderTile(
@@ -347,6 +420,27 @@ class _SidePanelState extends State<SidePanel> {
             ),
           },
         );
+
+        // A divider above each client group (except the first), and breathing
+        // space after a client's last job — the visual grouping ExpansionTile
+        // used to provide.
+        final dividerBefore = i > 0 && row is ClientRow;
+        final lastJobOfClient =
+            row is JobRow && (i + 1 >= _rows.length || _rows[i + 1] is ClientRow);
+        if (!dividerBefore && !lastJobOfClient) return tile;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (dividerBefore)
+              const Divider(
+                height: AppTokens.strokeThin,
+                thickness: AppTokens.strokeThin,
+                color: AppTokens.colorBorder,
+              ),
+            tile,
+            if (lastJobOfClient) const SizedBox(height: AppTokens.spaceSm),
+          ],
+        );
       },
     );
   }
@@ -363,6 +457,7 @@ class _FocusRing extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return DecoratedBox(
+      // Square corners — the ring hugs the rectangular row edges.
       decoration: BoxDecoration(
         border: Border.all(
           color: focused
@@ -370,7 +465,6 @@ class _FocusRing extends StatelessWidget {
               : Colors.transparent,
           width: AppTokens.strokeThin,
         ),
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
       ),
       child: child,
     );
