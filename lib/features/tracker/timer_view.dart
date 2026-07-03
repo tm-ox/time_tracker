@@ -8,9 +8,15 @@ import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/tracker/time_entry_list.dart';
 
 class TimerView extends StatefulWidget {
-  const TimerView({super.key, required this.db, required this.jobId});
+  const TimerView({
+    super.key,
+    required this.db,
+    required this.jobId,
+    required this.onInvoice,
+  });
   final AppDatabase db;
   final int? jobId;
+  final void Function(Job) onInvoice; // open the invoice view for this job
 
   @override
   State<TimerView> createState() => _TimerViewState();
@@ -121,7 +127,7 @@ class _TimerViewState extends State<TimerView> {
           children: [
             // 1. Extracted Job Stream Element
             JobHeader(jobStream: _jobStream),
-            const SizedBox(height: AppTokens.spaceXl),
+            const SizedBox(height: AppTokens.spaceSm),
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
@@ -134,7 +140,7 @@ class _TimerViewState extends State<TimerView> {
                 ),
               ),
             ),
-            const SizedBox(height: AppTokens.spaceXs),
+            const SizedBox(height: AppTokens.spaceMd),
             TimerControls(
               running: _session.isRunning,
               hasSession: _session.hasSession,
@@ -146,7 +152,7 @@ class _TimerViewState extends State<TimerView> {
                   : (_session.isRunning ? _pause : _startOrResume),
               onFinish: _session.hasSession ? _finish : null,
             ),
-            const SizedBox(height: AppTokens.space2xl),
+            const SizedBox(height: AppTokens.space2xl), // match input→history
             if (widget.jobId == null) ...[
               Text(
                 'Select a job to start tracking',
@@ -164,8 +170,12 @@ class _TimerViewState extends State<TimerView> {
             ),
           ],
         ),
-        const SizedBox(height: AppTokens.spaceSm),
-        // 2. Extracted Historical Stream List
+        const SizedBox(height: AppTokens.space2xl),
+        // 2. Entries section: header (with the per-job Invoice action) + list
+        if (widget.jobId != null) ...[
+          _EntriesHeader(jobStream: _jobStream, onInvoice: widget.onInvoice),
+          const Divider(),
+        ],
         Expanded(child: EntryHistoryList(entriesStream: _entriesStream)),
       ],
     );
@@ -206,6 +216,46 @@ class JobHeader extends StatelessWidget {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+// --- Entries section header: label + per-job Invoice action ---
+class _EntriesHeader extends StatelessWidget {
+  final Stream<(Job, Client)?>? jobStream;
+  final void Function(Job) onInvoice;
+
+  const _EntriesHeader({required this.jobStream, required this.onInvoice});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return StreamBuilder<(Job, Client)?>(
+      stream: jobStream,
+      builder: (context, snap) {
+        final job = snap.data?.$1;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppTokens.spaceSm),
+          child: Row(
+            children: [
+              Text('Entries', style: theme.textTheme.titleMedium),
+              const Spacer(),
+              TextButton.icon(
+                // Disabled until the job has loaded.
+                onPressed: job == null ? null : () => onInvoice(job),
+                icon: const Icon(Icons.receipt_long, size: AppTokens.iconSm),
+                label: const Text('Invoice'),
+                // Strip padding so the label sits flush to the right edge.
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

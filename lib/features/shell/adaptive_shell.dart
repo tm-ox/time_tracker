@@ -103,7 +103,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   @override
   Widget build(BuildContext context) {
     final Widget detailView = switch (_detail) {
-      _Tracker() => TimerView(db: widget.db, jobId: _selectedJobId),
+      _Tracker() => TimerView(
+        db: widget.db,
+        jobId: _selectedJobId,
+        onInvoice: _invoiceJob,
+      ),
       _EditJob(:final job, :final clientId) => JobForm(
         db: widget.db,
         initial: job,
@@ -143,7 +147,6 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         onAddJob: (cid) => run(() => _addJob(cid)),
         onEditClient: (c) => run(() => _editClient(c)),
         onAddClient: () => run(_addClient),
-        onInvoiceJob: (j) => run(() => _invoiceJob(j)),
       );
     }
 
@@ -166,9 +169,27 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
           );
         }
         return Scaffold(
-          appBar: AppBar(title: const Text('Time Tracker')),
+          appBar: AppBar(
+            title: const Text('Time Tracker'),
+            // Explicit menu button (replacing the auto one) padded to sit at
+            // the same right inset as the content below.
+            actions: [
+              Builder(
+                builder: (context) => Padding(
+                  padding: const EdgeInsets.only(right: AppTokens.spaceLg),
+                  child: IconButton(
+                    icon: const Icon(Icons.menu),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Menu',
+                    onPressed: () => Scaffold.of(context).openEndDrawer(),
+                  ),
+                ),
+              ),
+            ],
+          ),
           endDrawer: Drawer(child: panel(before: () => Navigator.pop(context))),
-
           body: content,
         );
       },
