@@ -71,22 +71,44 @@ class EntryForm extends StatefulWidget {
 class _EntryFormState extends State<EntryForm> {
   late final _task = TextEditingController(text: widget.entry?.task ?? '');
   late DateTime _start = widget.entry?.startedAt ?? DateTime.now();
+  // Empty (with a '0' hint) when adding; prefilled from the entry when editing.
   late final _hours = TextEditingController(
-    text: '${(widget.entry?.seconds ?? 0) ~/ 3600}',
+    text: widget.entry == null ? '' : '${widget.entry!.seconds ~/ 3600}',
   );
   late final _minutes = TextEditingController(
-    text: '${((widget.entry?.seconds ?? 0) % 3600) ~/ 60}',
+    text: widget.entry == null ? '' : '${(widget.entry!.seconds % 3600) ~/ 60}',
   );
+  final _hoursFocus = FocusNode();
+  final _minutesFocus = FocusNode();
   String? _taskError;
   String? _durationError;
 
   bool get _isEdit => widget.entry != null;
 
   @override
+  void initState() {
+    super.initState();
+    // Focusing a duration field selects its contents so typing overwrites
+    // rather than appending (e.g. avoids "0" + "20" → "020").
+    _selectAllOnFocus(_hoursFocus, _hours);
+    _selectAllOnFocus(_minutesFocus, _minutes);
+  }
+
+  void _selectAllOnFocus(FocusNode node, TextEditingController c) {
+    node.addListener(() {
+      if (node.hasFocus) {
+        c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _task.dispose();
     _hours.dispose();
     _minutes.dispose();
+    _hoursFocus.dispose();
+    _minutesFocus.dispose();
     super.dispose();
   }
 
@@ -110,8 +132,11 @@ class _EntryFormState extends State<EntryForm> {
 
   Future<void> _submit() async {
     final task = _task.text.trim();
-    final h = int.tryParse(_hours.text.trim());
-    final m = int.tryParse(_minutes.text.trim());
+    // Empty means zero for that unit (validation still catches 0h 0m below).
+    final hText = _hours.text.trim();
+    final mText = _minutes.text.trim();
+    final h = hText.isEmpty ? 0 : int.tryParse(hText);
+    final m = mText.isEmpty ? 0 : int.tryParse(mText);
 
     setState(() {
       _taskError = task.isEmpty ? 'Enter a task' : null;
@@ -221,8 +246,10 @@ class _EntryFormState extends State<EntryForm> {
                 Expanded(
                   child: TextField(
                     controller: _hours,
+                    focusNode: _hoursFocus,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
+                      hintText: '0',
                       suffixText: 'h',
                       isDense: true,
                       border: InputBorder.none,
@@ -233,8 +260,10 @@ class _EntryFormState extends State<EntryForm> {
                 Expanded(
                   child: TextField(
                     controller: _minutes,
+                    focusNode: _minutesFocus,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
+                      hintText: '0',
                       suffixText: 'm',
                       isDense: true,
                       border: InputBorder.none,
