@@ -30,31 +30,118 @@ class SidePanel extends StatefulWidget {
 class _SidePanelState extends State<SidePanel> {
   late final Stream<List<Client>> _clientsStream = widget.db.watchClients();
   late final Stream<List<Job>> _jobsStream = widget.db.watchJobs();
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _query = '');
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Client>>(
-      stream: _clientsStream,
-      builder: (context, clientSnap) {
-        final clients = clientSnap.data ?? [];
-        return StreamBuilder<List<Job>>(
-          stream: _jobsStream,
-          builder: (context, jobSnap) {
-            final jobs = jobSnap.data ?? [];
-            return _SidePanelListView(
-              clients: clients,
-              jobs: jobs,
-              selectedJobId: widget.selectedJobId,
-              onSelectJob: widget.onSelect,
-              onEditJob: widget.onEditJob,
-              onAddJob: widget.onAddJob,
-              onEditClient: widget.onEditClient,
-              onAddClient: widget.onAddClient,
-              onInvoiceJob: widget.onInvoiceJob,
-            );
-          },
-        );
-      },
+    return Column(
+      children: [
+        _SearchHeader(
+          controller: _searchController,
+          onChanged: (v) => setState(() => _query = v),
+          onClear: _query.isEmpty ? null : _clearSearch,
+          onAddClient: widget.onAddClient,
+        ),
+        Expanded(
+          child: StreamBuilder<List<Client>>(
+            stream: _clientsStream,
+            builder: (context, clientSnap) {
+              final clients = clientSnap.data ?? [];
+              return StreamBuilder<List<Job>>(
+                stream: _jobsStream,
+                builder: (context, jobSnap) {
+                  final jobs = jobSnap.data ?? [];
+                  return _SidePanelListView(
+                    clients: clients,
+                    jobs: jobs,
+                    query: _query,
+                    selectedJobId: widget.selectedJobId,
+                    onSelectJob: widget.onSelect,
+                    onEditJob: widget.onEditJob,
+                    onAddJob: widget.onAddJob,
+                    onEditClient: widget.onEditClient,
+                    onInvoiceJob: widget.onInvoiceJob,
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// --- Search field + Add-client button, pinned to the top of the panel ---
+class _SearchHeader extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback? onClear; // null when there's nothing to clear
+  final VoidCallback onAddClient;
+
+  const _SearchHeader({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+    required this.onAddClient,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceSm,
+        AppTokens.spaceXs,
+        AppTokens.space3xs,
+        AppTokens.spaceXs,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(fontSize: AppTokens.fontSizeSm),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search',
+                prefixIcon: const Icon(Icons.search, size: AppTokens.iconSm),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 36,
+                  minHeight: 36,
+                ),
+                suffixIcon: onClear == null
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: AppTokens.iconSm),
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Clear search',
+                        onPressed: onClear,
+                      ),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            iconSize: AppTokens.iconMd,
+            tooltip: 'Add client',
+            onPressed: onAddClient,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -63,23 +150,23 @@ class _SidePanelState extends State<SidePanel> {
 class _SidePanelListView extends StatelessWidget {
   final List<Client> clients;
   final List<Job> jobs;
+  final String query;
   final int? selectedJobId;
   final void Function(int)? onSelectJob;
   final void Function(Job) onEditJob;
   final void Function(int clientId) onAddJob;
   final void Function(Client) onEditClient;
-  final VoidCallback onAddClient;
   final void Function(Job) onInvoiceJob;
 
   const _SidePanelListView({
     required this.clients,
     required this.jobs,
+    required this.query,
     required this.selectedJobId,
     required this.onSelectJob,
     required this.onEditJob,
     required this.onAddJob,
     required this.onEditClient,
-    required this.onAddClient,
     required this.onInvoiceJob,
   });
 
@@ -90,24 +177,44 @@ class _SidePanelListView extends StatelessWidget {
       jobsByClient.putIfAbsent(j.clientId, () => []).add(j);
     }
 
+    final q = query.trim().toLowerCase();
+    final searching = q.isNotEmpty;
+    bool jobMatches(Job j) => '${j.code} ${j.title}'.toLowerCase().contains(q);
+
+    // A client shows if its name matches, or any of its jobs do. On a name
+    // hit we keep all its jobs; otherwise only the jobs that match.
+    final visible = <(Client, List<Job>)>[];
+    for (final c in clients) {
+      final clientJobs = jobsByClient[c.id] ?? const <Job>[];
+      if (!searching) {
+        visible.add((c, clientJobs));
+        continue;
+      }
+      final nameHit = c.name.toLowerCase().contains(q);
+      final matched = clientJobs.where(jobMatches).toList();
+      if (nameHit || matched.isNotEmpty) {
+        visible.add((c, nameHit ? clientJobs : matched));
+      }
+    }
+
+    if (clients.isEmpty) {
+      return const _EmptyNote('No clients yet — add one above.');
+    }
+    if (visible.isEmpty) {
+      return _EmptyNote('No matches for "${query.trim()}".');
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.space4xs),
       children: [
-        if (clients.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMd,
-              vertical: AppTokens.spaceXs,
-            ),
-            child: Text(
-              'No clients yet — add one below.',
-              style: TextStyle(fontSize: AppTokens.fontSizeXs),
-            ),
-          ),
-        for (final c in clients)
+        for (final (c, clientJobs) in visible)
           ClientGroupTile(
+            // Key includes the search state so toggling search rebuilds the
+            // tile with the right initial expansion.
+            key: PageStorageKey('${c.id}:$searching'),
             client: c,
-            clientJobs: jobsByClient[c.id] ?? const <Job>[],
+            clientJobs: clientJobs,
+            initiallyExpanded: searching,
             selectedJobId: selectedJobId,
             onSelectJob: onSelectJob,
             onEditJob: onEditJob,
@@ -115,32 +222,27 @@ class _SidePanelListView extends StatelessWidget {
             onEditClient: onEditClient,
             onInvoiceJob: onInvoiceJob,
           ),
-        const SizedBox(height: AppTokens.space2xs),
-        AddClientButton(onTap: onAddClient),
       ],
     );
   }
 }
 
-// --- Extracted Add Client Button ---
-class AddClientButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const AddClientButton({super.key, required this.onTap});
+// --- Small centred note for empty / no-match states ---
+class _EmptyNote extends StatelessWidget {
+  final String message;
+  const _EmptyNote(this.message);
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      visualDensity: const VisualDensity(vertical: -4),
-      contentPadding: const EdgeInsets.all(AppTokens.spaceMd),
-      leading: const Icon(Icons.add, size: AppTokens.iconSm),
-      horizontalTitleGap: AppTokens.spaceXs,
-      title: const Text(
-        'Add client',
-        style: TextStyle(fontSize: AppTokens.fontSizeXs),
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceMd,
+        vertical: AppTokens.spaceXs,
       ),
-      onTap: onTap,
+      child: Text(
+        message,
+        style: const TextStyle(fontSize: AppTokens.fontSizeXs),
+      ),
     );
   }
 }
@@ -149,6 +251,7 @@ class AddClientButton extends StatelessWidget {
 class ClientGroupTile extends StatefulWidget {
   final Client client;
   final List<Job> clientJobs;
+  final bool initiallyExpanded;
   final int? selectedJobId;
   final void Function(int)? onSelectJob;
   final void Function(Job) onEditJob;
@@ -160,6 +263,7 @@ class ClientGroupTile extends StatefulWidget {
     super.key,
     required this.client,
     required this.clientJobs,
+    this.initiallyExpanded = false,
     required this.selectedJobId,
     required this.onSelectJob,
     required this.onEditJob,
@@ -173,7 +277,7 @@ class ClientGroupTile extends StatefulWidget {
 }
 
 class _ClientGroupTileState extends State<ClientGroupTile> {
-  bool _isExpanded = false;
+  late bool _isExpanded = widget.initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -189,7 +293,7 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
         ),
       ),
       child: ExpansionTile(
-        key: PageStorageKey(widget.client.id),
+        initiallyExpanded: widget.initiallyExpanded,
         expansionAnimationStyle: AnimationStyle.noAnimation,
         tilePadding: const EdgeInsets.symmetric(
           horizontal: AppTokens.spaceMd,
