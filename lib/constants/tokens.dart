@@ -35,6 +35,9 @@ abstract class AppTokens {
   static const Color colorSeed = Colors.lightGreenAccent;
   static const Color colorBrandPrimary = Colors.lightGreenAccent;
   static const Color colorBrandOnPrimary = Colors.black;
+  // Structural borders app-wide: dividers, app-bar hairline, input rest state,
+  // side-panel section/vertical dividers. The one knob — brighten/darken here.
+  static const Color colorBorder = Color(0xFF4A5142);
 
   // ── 6. Icon Sizes ──
   static const double iconXs = 14.0; // For tight sub-lists or inline indicators

@@ -10,10 +10,9 @@ ThemeData buildAppTheme(Brightness brightness) {
   );
 
   // One source of truth for structural borders (dividers, app-bar hairline,
-  // input rest state). Scheme-derived, so it can't be a const in AppTokens —
-  // this local is the single place to change it. Interactive outlines
-  // (outlined buttons, focused inputs) stay primary — see below.
-  final borderColor = scheme.surfaceContainerHighest;
+  // input rest state). Change it in AppTokens.colorBorder. Interactive
+  // outlines (outlined buttons, focused inputs) stay primary — see below.
+  const borderColor = AppTokens.colorBorder;
 
   final buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
