@@ -360,7 +360,6 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
               onEdit: () => widget.onEditJob(j),
               onInvoice: () => widget.onInvoiceJob(j),
             ),
-          const SizedBox(height: AppTokens.spaceXs),
         ],
       ),
     );
