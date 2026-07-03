@@ -140,7 +140,7 @@ class _TimerViewState extends State<TimerView> {
                 ),
               ),
             ),
-            const SizedBox(height: AppTokens.spaceXs),
+            const SizedBox(height: AppTokens.spaceXl), // match header→counter
             TimerControls(
               running: _session.isRunning,
               hasSession: _session.hasSession,
@@ -152,7 +152,7 @@ class _TimerViewState extends State<TimerView> {
                   : (_session.isRunning ? _pause : _startOrResume),
               onFinish: _session.hasSession ? _finish : null,
             ),
-            const SizedBox(height: AppTokens.space2xl),
+            const SizedBox(height: AppTokens.spaceSm), // match input→history
             if (widget.jobId == null) ...[
               Text(
                 'Select a job to start tracking',
@@ -245,6 +245,12 @@ class _EntriesHeader extends StatelessWidget {
               onPressed: job == null ? null : () => onInvoice(job),
               icon: const Icon(Icons.receipt_long, size: AppTokens.iconSm),
               label: const Text('Invoice'),
+              // Strip padding so the label sits flush to the right edge.
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
           ],
         );
