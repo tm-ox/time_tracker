@@ -285,7 +285,7 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
 
     return Theme(
       data: theme.copyWith(
-        dividerColor: theme.colorScheme.surfaceContainerHighest,
+        dividerColor: AppTokens.colorBorder,
         splashColor: Colors.transparent,
         expansionTileTheme: const ExpansionTileThemeData(
           tilePadding: EdgeInsets.zero,

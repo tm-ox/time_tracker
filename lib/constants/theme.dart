@@ -9,6 +9,11 @@ ThemeData buildAppTheme(Brightness brightness) {
     onPrimary: AppTokens.colorBrandOnPrimary,
   );
 
+  // One source of truth for structural borders (dividers, app-bar hairline,
+  // input rest state). Change it in AppTokens.colorBorder. Interactive
+  // outlines (outlined buttons, focused inputs) stay primary — see below.
+  const borderColor = AppTokens.colorBorder;
+
   final buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
   );
@@ -40,13 +45,15 @@ ThemeData buildAppTheme(Brightness brightness) {
           0, // M3 would otherwise lift/tint it when content scrolls under
       surfaceTintColor: Colors.transparent, // kill the M3 scroll tint overlay
       shape: Border(
-        bottom: BorderSide(color: scheme.primary, width: AppTokens.strokeThin),
+        bottom: BorderSide(color: borderColor, width: AppTokens.strokeThin),
       ),
     ),
 
     // --- Divider ---
+    // Top-level so ExpansionTile's expand borders inherit it too.
+    dividerColor: borderColor,
     dividerTheme: DividerThemeData(
-      color: scheme.primary,
+      color: borderColor,
       space: AppTokens.strokeThin,
       thickness: AppTokens.strokeThin,
     ),
@@ -103,9 +110,10 @@ ThemeData buildAppTheme(Brightness brightness) {
     // ── Text fields (ready for the TextField step) ──
     inputDecorationTheme: InputDecorationTheme(
       filled: false,
+      // Rest state uses the shared border colour; focusing brings in primary.
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        borderSide: BorderSide(color: scheme.primary),
+        borderSide: BorderSide(color: borderColor),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -133,7 +141,7 @@ ThemeData buildAppTheme(Brightness brightness) {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        side: BorderSide(color: scheme.primary, width: AppTokens.strokeThin),
+        side: BorderSide(color: borderColor, width: AppTokens.strokeThin),
       ),
     ),
 

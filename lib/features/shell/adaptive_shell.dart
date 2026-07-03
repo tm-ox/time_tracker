@@ -155,9 +155,9 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
               children: [
                 Expanded(child: content),
 
-                VerticalDivider(
+                const VerticalDivider(
                   width: AppTokens.strokeThick,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  color: AppTokens.colorBorder,
                 ),
 
                 SizedBox(width: 320, child: panel()),
