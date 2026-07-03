@@ -322,18 +322,33 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
             widget.client.name,
             style: TextStyle(
               fontSize: AppTokens.fontSizeSm,
-              fontWeight: FontWeight.w300,
+              fontWeight: FontWeight.w400,
               color: theme.colorScheme.onSurface,
             ),
           ),
-          trailing: IconButton(
-            icon: const Icon(Icons.edit_note),
-            iconSize: AppTokens.iconSm,
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            tooltip: 'Edit client',
-            onPressed: () => widget.onEditClient(widget.client),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_note),
+                iconSize: AppTokens.iconMd,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Edit client',
+                onPressed: () => widget.onEditClient(widget.client),
+              ),
+              const SizedBox(width: AppTokens.space3xs),
+              IconButton(
+                icon: const Icon(Icons.add),
+                iconSize: AppTokens.iconMd,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Add job',
+                onPressed: () => widget.onAddJob(widget.client.id),
+              ),
+            ],
           ),
         ),
         children: [
@@ -345,22 +360,6 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
               onEdit: () => widget.onEditJob(j),
               onInvoice: () => widget.onInvoiceJob(j),
             ),
-          ListTile(
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -4),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMd,
-              vertical: AppTokens.spaceXs,
-            ),
-            leading: const Icon(Icons.add, size: AppTokens.iconXs),
-            horizontalTitleGap: AppTokens.space2xs,
-            title: const Text(
-              'Add job',
-              style: TextStyle(fontSize: AppTokens.fontSizeXs),
-            ),
-            onTap: () => widget.onAddJob(widget.client.id),
-          ),
-          const SizedBox(height: AppTokens.spaceXs),
         ],
       ),
     );
@@ -390,20 +389,27 @@ class JobRowItem extends StatelessWidget {
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
       selected: isSelected,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceLg,
-        vertical: AppTokens.spaceXs,
+      // Left indent under the client; right inset matches the client header
+      // (spaceMd) so the action icons line up in a column.
+      contentPadding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceLg,
+        AppTokens.spaceXs,
+        AppTokens.spaceMd,
+        AppTokens.spaceXs,
       ),
       title: Text(
         '${job.code} - ${job.title}',
-        style: const TextStyle(fontSize: AppTokens.fontSizeXs),
+        style: const TextStyle(
+          fontSize: AppTokens.fontSizeXs,
+          fontWeight: FontWeight.w300,
+        ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
             icon: const Icon(Icons.receipt_long),
-            iconSize: AppTokens.iconSm,
+            iconSize: AppTokens.iconMd,
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
