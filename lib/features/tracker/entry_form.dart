@@ -271,9 +271,11 @@ class _EntryFormState extends State<EntryForm> {
               height: AppTokens.iconLg,
               child: Row(
                 children: [
-                  Expanded(child: _durationField(_hours, _hoursFocus, 'h')),
+                  Expanded(child: _durationField(_hours, _hoursFocus, 'hrs')),
                   const VerticalDivider(width: AppTokens.spaceLg),
-                  Expanded(child: _durationField(_minutes, _minutesFocus, 'm')),
+                  Expanded(
+                    child: _durationField(_minutes, _minutesFocus, 'mins'),
+                  ),
                 ],
               ),
             ),
