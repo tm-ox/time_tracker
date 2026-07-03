@@ -169,9 +169,27 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
           );
         }
         return Scaffold(
-          appBar: AppBar(title: const Text('Time Tracker')),
+          appBar: AppBar(
+            title: const Text('Time Tracker'),
+            // Explicit menu button (replacing the auto one) padded to sit at
+            // the same right inset as the content below.
+            actions: [
+              Builder(
+                builder: (context) => Padding(
+                  padding: const EdgeInsets.only(right: AppTokens.spaceLg),
+                  child: IconButton(
+                    icon: const Icon(Icons.menu),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Menu',
+                    onPressed: () => Scaffold.of(context).openEndDrawer(),
+                  ),
+                ),
+              ),
+            ],
+          ),
           endDrawer: Drawer(child: panel(before: () => Navigator.pop(context))),
-
           body: content,
         );
       },

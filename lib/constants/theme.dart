@@ -25,15 +25,17 @@ ThemeData buildAppTheme(Brightness brightness) {
     colorScheme: scheme,
 
     // ── Type scale: tweak roles once, applies everywhere ──
-    textTheme: const TextTheme(
-      headlineLarge: TextStyle(fontWeight: FontWeight.w300),
-      titleLarge: TextStyle(
+    textTheme: TextTheme(
+      headlineLarge: const TextStyle(fontWeight: FontWeight.w300),
+      titleLarge: const TextStyle(
         color: AppTokens.colorBrandPrimary,
         fontWeight: FontWeight.w600,
         letterSpacing: 1,
       ),
-      titleMedium: TextStyle(fontWeight: FontWeight.w600),
-      bodyMedium: TextStyle(height: AppTokens.fontHeightDefault),
+      titleMedium: const TextStyle(fontWeight: FontWeight.w600),
+      bodyMedium: const TextStyle(height: AppTokens.fontHeightDefault),
+      // Explainer / helper / empty-state text — muted throughout.
+      bodySmall: TextStyle(color: scheme.onSurfaceVariant),
     ),
 
     // ── App bar ── flat, same colour as the body, with a primary hairline under it

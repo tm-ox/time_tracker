@@ -98,10 +98,12 @@ class _SearchHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
+      // Right inset matches the client/job rows so the Add-client + lands in
+      // the same column as the edit buttons below.
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceSm,
         AppTokens.spaceXs,
-        AppTokens.space3xs,
+        AppTokens.spaceMd,
         AppTokens.spaceXs,
       ),
       child: Row(
@@ -131,9 +133,14 @@ class _SearchHeader extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: AppTokens.spaceSm),
+          // Tight, like the row edit buttons, so centres align in a column.
           IconButton(
             icon: const Icon(Icons.add),
             iconSize: AppTokens.iconMd,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
             tooltip: 'Add client',
             onPressed: onAddClient,
           ),
@@ -203,19 +210,26 @@ class _SidePanelListView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppTokens.space4xs),
       children: [
         for (final (c, clientJobs) in visible)
-          ClientGroupTile(
-            // Key includes the search state so toggling search rebuilds the
-            // tile with the right initial expansion.
-            key: PageStorageKey('${c.id}:$searching'),
-            client: c,
-            clientJobs: clientJobs,
-            initiallyExpanded: searching,
-            selectedJobId: selectedJobId,
-            onSelectJob: onSelectJob,
-            onEditJob: onEditJob,
-            onAddJob: onAddJob,
-            onEditClient: onEditClient,
-          ),
+          () {
+            // Auto-expand while searching, and for the client that owns the
+            // selected job — so a just-added (now-selected) job is visible
+            // even if its client was collapsed.
+            final hasSelected = clientJobs.any((j) => j.id == selectedJobId);
+            final expanded = searching || hasSelected;
+            return ClientGroupTile(
+              // Key encodes the expansion drivers so a change rebuilds the
+              // tile with the right initial state.
+              key: PageStorageKey('${c.id}:$expanded'),
+              client: c,
+              clientJobs: clientJobs,
+              initiallyExpanded: expanded,
+              selectedJobId: selectedJobId,
+              onSelectJob: onSelectJob,
+              onEditJob: onEditJob,
+              onAddJob: onAddJob,
+              onEditClient: onEditClient,
+            );
+          }(),
       ],
     );
   }
@@ -233,10 +247,7 @@ class _EmptyNote extends StatelessWidget {
         horizontal: AppTokens.spaceMd,
         vertical: AppTokens.spaceXs,
       ),
-      child: Text(
-        message,
-        style: const TextStyle(fontSize: AppTokens.fontSizeXs),
-      ),
+      child: Text(message, style: Theme.of(context).textTheme.bodySmall),
     );
   }
 }
@@ -292,6 +303,7 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
           vertical: 0,
         ),
         dense: true,
+        minTileHeight: 36, // tighter client header (default is ~48)
         showTrailingIcon: false,
         onExpansionChanged: (isExpanded) {
           setState(() {
@@ -322,16 +334,6 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                icon: const Icon(Icons.edit_note),
-                iconSize: AppTokens.iconMd,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                tooltip: 'Edit client',
-                onPressed: () => widget.onEditClient(widget.client),
-              ),
-              const SizedBox(width: AppTokens.space3xs),
-              IconButton(
                 icon: const Icon(Icons.add),
                 iconSize: AppTokens.iconMd,
                 visualDensity: VisualDensity.compact,
@@ -339,6 +341,17 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
                 constraints: const BoxConstraints(),
                 tooltip: 'Add job',
                 onPressed: () => widget.onAddJob(widget.client.id),
+              ),
+              const SizedBox(width: AppTokens.spaceSm),
+              // Edit sits rightmost, aligning with the job rows' edit icon.
+              IconButton(
+                icon: const Icon(Icons.edit_note),
+                iconSize: AppTokens.iconMd,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Edit client',
+                onPressed: () => widget.onEditClient(widget.client),
               ),
             ],
           ),
@@ -351,6 +364,8 @@ class _ClientGroupTileState extends State<ClientGroupTile> {
               onTap: () => widget.onSelectJob?.call(j.id),
               onEdit: () => widget.onEditJob(j),
             ),
+          // Breathing space after the last job, before the client divider.
+          const SizedBox(height: AppTokens.spaceSm),
         ],
       ),
     );
@@ -379,15 +394,18 @@ class JobRowItem extends StatelessWidget {
       visualDensity: const VisualDensity(vertical: -4),
       selected: isSelected,
       // Left indent under the client; right inset matches the client header
-      // (spaceMd) so the action icons line up in a column.
+      // (spaceMd) so the action icons line up in a column. Tight vertical
+      // padding keeps job rows close together.
       contentPadding: const EdgeInsets.fromLTRB(
         AppTokens.spaceLg,
-        AppTokens.spaceXs,
+        AppTokens.space3xs,
         AppTokens.spaceMd,
-        AppTokens.spaceXs,
+        AppTokens.space3xs,
       ),
       title: Text(
         '${job.code} - ${job.title}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           fontSize: AppTokens.fontSizeXs,
           fontWeight: FontWeight.w300,

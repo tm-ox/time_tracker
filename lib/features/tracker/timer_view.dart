@@ -127,7 +127,7 @@ class _TimerViewState extends State<TimerView> {
           children: [
             // 1. Extracted Job Stream Element
             JobHeader(jobStream: _jobStream),
-            const SizedBox(height: AppTokens.spaceXl),
+            const SizedBox(height: AppTokens.spaceSm),
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
@@ -140,7 +140,7 @@ class _TimerViewState extends State<TimerView> {
                 ),
               ),
             ),
-            const SizedBox(height: AppTokens.spaceXl), // match header→counter
+            const SizedBox(height: AppTokens.spaceMd), // match header→counter
             TimerControls(
               running: _session.isRunning,
               hasSession: _session.hasSession,
@@ -152,7 +152,7 @@ class _TimerViewState extends State<TimerView> {
                   : (_session.isRunning ? _pause : _startOrResume),
               onFinish: _session.hasSession ? _finish : null,
             ),
-            const SizedBox(height: AppTokens.spaceSm), // match input→history
+            const SizedBox(height: AppTokens.space2xl), // match input→history
             if (widget.jobId == null) ...[
               Text(
                 'Select a job to start tracking',
@@ -170,7 +170,7 @@ class _TimerViewState extends State<TimerView> {
             ),
           ],
         ),
-        const SizedBox(height: AppTokens.spaceSm),
+        const SizedBox(height: AppTokens.space2xl),
         // 2. Entries section: header (with the per-job Invoice action) + list
         if (widget.jobId != null) ...[
           _EntriesHeader(jobStream: _jobStream, onInvoice: widget.onInvoice),
@@ -236,23 +236,26 @@ class _EntriesHeader extends StatelessWidget {
       stream: jobStream,
       builder: (context, snap) {
         final job = snap.data?.$1;
-        return Row(
-          children: [
-            Text('Entries', style: theme.textTheme.titleMedium),
-            const Spacer(),
-            TextButton.icon(
-              // Disabled until the job has loaded.
-              onPressed: job == null ? null : () => onInvoice(job),
-              icon: const Icon(Icons.receipt_long, size: AppTokens.iconSm),
-              label: const Text('Invoice'),
-              // Strip padding so the label sits flush to the right edge.
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              Text('Entries', style: theme.textTheme.titleMedium),
+              const Spacer(),
+              TextButton.icon(
+                // Disabled until the job has loaded.
+                onPressed: job == null ? null : () => onInvoice(job),
+                icon: const Icon(Icons.receipt_long, size: AppTokens.iconSm),
+                label: const Text('Invoice'),
+                // Strip padding so the label sits flush to the right edge.
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
