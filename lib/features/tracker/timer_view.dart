@@ -54,6 +54,12 @@ class _TimerViewState extends State<TimerView> {
     super.initState();
     _updateJobStream();
     _cursorNode?.addListener(_onFocusChanged);
+    // The primary button's enabled state depends on the task text.
+    _taskController.addListener(_onTaskChanged);
+  }
+
+  void _onTaskChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -68,6 +74,7 @@ class _TimerViewState extends State<TimerView> {
 
   @override
   void dispose() {
+    _taskController.removeListener(_onTaskChanged);
     _taskController.dispose();
     _taskFocus.dispose();
     _entriesSub?.cancel();
@@ -164,10 +171,22 @@ class _TimerViewState extends State<TimerView> {
     showEntryEditor(context, db: widget.db, jobId: jobId, entry: entry);
   }
 
-  // The Space action mirrors the primary button: start/resume ⇄ pause, and a
-  // no-op when there's no job to track against.
+  // Can the primary action fire? Pause and resume are always allowed once a
+  // session exists; a *fresh* start needs a job AND a task, so we never spin up
+  // an "Untitled session" from an empty field.
+  bool get _canPrimary {
+    if (widget.jobId == null) return false;
+    if (_session.isRunning || _session.hasSession) return true;
+    return _taskController.text.trim().isNotEmpty;
+  }
+
+  // The Space action mirrors the primary button: start/resume ⇄ pause.
   void _primaryAction() {
-    if (widget.jobId == null) return;
+    if (!_canPrimary) {
+      // An empty task is the usual blocker — nudge focus into the field.
+      if (widget.jobId != null && !_session.hasSession) _focusTask();
+      return;
+    }
     _session.isRunning ? _pause() : _startOrResume();
   }
 
@@ -344,11 +363,11 @@ class _TimerViewState extends State<TimerView> {
               running: _session.isRunning,
               hasSession: _session.hasSession,
               counter: _session.elapsed,
-              // No job selected → disable start so time can't be tracked
-              // against nothing (and later silently discarded).
-              onPrimary: widget.jobId == null
-                  ? null
-                  : (_session.isRunning ? _pause : _startOrResume),
+              // Disabled until there's something to track: a job selected and,
+              // for a fresh start, a task typed (so no "Untitled session").
+              onPrimary: _canPrimary
+                  ? (_session.isRunning ? _pause : _startOrResume)
+                  : null,
               onFinish: _session.hasSession ? _finish : null,
             ),
             const SizedBox(height: AppTokens.space2xl), // match input→history
@@ -366,7 +385,9 @@ class _TimerViewState extends State<TimerView> {
                 labelText: 'Task',
               ),
               textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _session.isRunning ? null : _startOrResume(),
+              onSubmitted: (_) {
+                if (!_session.isRunning && _canPrimary) _startOrResume();
+              },
             ),
           ],
         ),

@@ -57,10 +57,13 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   // The tracker pane's own row cursor (its entry list). Owned here so the shell
   // can move focus straight onto it — mirrors _panelCursor. See TimerView.
   final FocusNode _trackerCursor = FocusNode(debugLabel: 'trackerCursor');
+  // Panel search field, owned here so `/` from any pane jumps into search.
+  final FocusNode _panelSearch = FocusNode(debugLabel: 'panelSearch');
   bool _pendingCtrlW = false; // saw Ctrl-w, awaiting an h/l
 
   void _focusPanel() => _panelCursor.requestFocus();
   void _focusTracker() => _trackerCursor.requestFocus();
+  void _focusSearch() => _panelSearch.requestFocus();
   void _togglePane() =>
       _panelCursor.hasFocus ? _focusTracker() : _focusPanel();
 
@@ -74,6 +77,14 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     }
     final key = event.logicalKey;
     final ctrl = HardwareKeyboard.instance.isControlPressed;
+
+    // `/` is global: focus the panel search from whichever pane has focus. A
+    // focused text field consumes `/` before it reaches here, so typing is safe.
+    if (!ctrl && key == LogicalKeyboardKey.slash) {
+      _focusSearch();
+      return KeyEventResult.handled;
+    }
+
     final left =
         key == LogicalKeyboardKey.keyH || key == LogicalKeyboardKey.arrowLeft;
     final right =
@@ -165,6 +176,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     _panelCursor.dispose();
     _trackerScope.dispose();
     _trackerCursor.dispose();
+    _panelSearch.dispose();
     super.dispose();
   }
 
@@ -220,6 +232,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         onAddClient: () => run(_addClient),
         // Keyboard nav is wired only where the panel is persistent (wide).
         cursorFocusNode: keyboardNav ? _panelCursor : null,
+        searchFocusNode: keyboardNav ? _panelSearch : null,
         onExitToTracker: keyboardNav ? _focusTracker : null,
         autofocus: keyboardNav,
       );

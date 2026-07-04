@@ -57,6 +57,7 @@ class TimeEntryList extends StatelessWidget {
           // The key rides the cursor row so ensureVisible can scroll to it.
           key: i == cursor ? cursorKey : null,
           focused: focused,
+          edgesOnly: true, // full-width rows: top/bottom rules, no side borders
           child: ListTile(
             title: Text(e.task),
             subtitle: Text(

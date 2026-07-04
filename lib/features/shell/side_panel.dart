@@ -16,6 +16,7 @@ class SidePanel extends StatefulWidget {
     required this.onEditClient,
     required this.onAddClient,
     this.cursorFocusNode,
+    this.searchFocusNode,
     this.onExitToTracker,
     this.autofocus = false,
   });
@@ -29,6 +30,9 @@ class SidePanel extends StatefulWidget {
   // Row-cursor focus, owned by the shell so it can move focus *into* the panel.
   // Null in layouts without keyboard nav (drawer) — an internal node is used.
   final FocusNode? cursorFocusNode;
+  // Search-field focus, owned by the shell so a global `/` (from any pane) can
+  // jump straight into search. Null → an internal node (drawer layout).
+  final FocusNode? searchFocusNode;
   // Called when the user asks to leave the panel for the tracker pane
   // (Tab / Ctrl-l / Ctrl-w l). Null when there's nowhere to go.
   final VoidCallback? onExitToTracker;
@@ -43,7 +47,9 @@ class _SidePanelState extends State<SidePanel> {
   late final Stream<List<Client>> _clientsStream = widget.db.watchClients();
   late final Stream<List<Job>> _jobsStream = widget.db.watchJobs();
   final _searchController = TextEditingController();
-  final _searchFocus = FocusNode(debugLabel: 'panelSearch');
+  FocusNode? _internalSearch;
+  FocusNode get _searchFocus =>
+      widget.searchFocusNode ?? (_internalSearch ??= FocusNode());
   String _query = '';
 
   // Manually expanded clients. Selecting a job seeds its client here once (so
@@ -86,7 +92,7 @@ class _SidePanelState extends State<SidePanel> {
   void dispose() {
     _cursorNode.removeListener(_onFocusChanged);
     _internalFocus?.dispose();
-    _searchFocus.dispose();
+    _internalSearch?.dispose();
     _searchController.dispose();
     _scroll.dispose();
     super.dispose();
@@ -404,6 +410,7 @@ class _SidePanelState extends State<SidePanel> {
         final key = i == _cursor ? _cursorKey : null;
         final tile = FocusRing(
           focused: focused,
+          edgesOnly: true, // top/bottom rules only, matching the entry list
           child: switch (row) {
             ClientRow() => _ClientHeaderTile(
               key: key,
