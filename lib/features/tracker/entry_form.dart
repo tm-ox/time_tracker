@@ -78,7 +78,9 @@ class _EntryFormState extends State<EntryForm> {
   // Which task this entry belongs to, chosen from a dropdown of the job's tasks.
   late int? _selectedTaskId = widget.entry?.taskId ?? widget.initialTaskId;
   List<Task> _tasks = const [];
-  late final _name = TextEditingController(text: widget.entry?.name ?? '');
+  late final _description = TextEditingController(
+    text: widget.entry?.description ?? '',
+  );
   late DateTime _start = widget.entry?.startedAt ?? DateTime.now();
   // Empty (with a '0' hint) when adding; prefilled from the entry when editing.
   late final _hours = TextEditingController(
@@ -117,7 +119,7 @@ class _EntryFormState extends State<EntryForm> {
 
   @override
   void dispose() {
-    _name.dispose();
+    _description.dispose();
     _hours.dispose();
     _minutes.dispose();
     _hoursFocus.dispose();
@@ -145,7 +147,7 @@ class _EntryFormState extends State<EntryForm> {
 
   Future<void> _submit() async {
     final taskId = _selectedTaskId;
-    final name = _name.text.trim();
+    final desc = _description.text.trim();
     // Empty means zero for that unit (validation still catches 0h 0m below).
     final hText = _hours.text.trim();
     final mText = _minutes.text.trim();
@@ -174,7 +176,7 @@ class _EntryFormState extends State<EntryForm> {
         await widget.db.updateEntry(
           id: widget.entry!.id,
           taskId: taskId!,
-          name: name.isEmpty ? null : name,
+          description: desc.isEmpty ? null : desc,
           startedAt: _start,
           endedAt: endedAt,
           seconds: seconds,
@@ -183,7 +185,7 @@ class _EntryFormState extends State<EntryForm> {
         await widget.db.addEntry(
           jobId: widget.jobId,
           taskId: taskId!,
-          name: name.isEmpty ? null : name,
+          description: desc.isEmpty ? null : desc,
           startedAt: _start,
           endedAt: endedAt,
           seconds: seconds,
@@ -201,7 +203,7 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Future<void> _confirmDelete() async {
-    final label = widget.entry!.name?.trim();
+    final label = widget.entry!.description?.trim();
     final ok = await confirmDelete(
       context,
       title: 'Delete entry?',
@@ -277,6 +279,11 @@ class _EntryFormState extends State<EntryForm> {
           DropdownButtonFormField<int>(
             initialValue: _selectedTaskId,
             isExpanded: true,
+            // Inset the arrow so it isn't flush against the field's edge.
+            icon: const Padding(
+              padding: EdgeInsets.only(right: AppTokens.spaceXs),
+              child: Icon(Icons.arrow_drop_down),
+            ),
             decoration: InputDecoration(
               labelText: 'Task',
               errorText: _taskError,
@@ -289,9 +296,9 @@ class _EntryFormState extends State<EntryForm> {
           ),
           const SizedBox(height: AppTokens.spaceXl),
           TextField(
-            controller: _name,
+            controller: _description,
             decoration: const InputDecoration(
-              labelText: 'Name (optional)',
+              labelText: 'Description (optional)',
               hintText: 'e.g. fixed the login bug',
             ),
           ),

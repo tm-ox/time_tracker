@@ -19,6 +19,9 @@ import 'package:time_tracker/features/tracker/entry_form.dart';
 class TimerController extends ChangeNotifier {
   final _session = TimerSession();
   Timer? _ticker;
+  // Optional description for the session in progress, becoming the finished
+  // entry's description. Lives here so it survives content-pane switches.
+  final description = TextEditingController();
 
   // Set by the mounted TimerView so a global Space can fire the primary action.
   // Null when no tracker is on screen.
@@ -57,12 +60,14 @@ class TimerController extends ChangeNotifier {
 
   void reset() {
     _session.reset();
+    description.clear();
     notifyListeners();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    description.dispose();
     super.dispose();
   }
 }
@@ -103,6 +108,7 @@ class _TimerViewState extends State<TimerView> {
   // The Start action is gated on this; a running session binds its task at
   // start, so changing this mid-run only affects the next session.
   int? _selectedTaskId;
+  final _descFocus = FocusNode(debugLabel: 'sessionDescription');
 
   // The cursor navigates a flattened task/entry row list (mirrors the side
   // panel). _tasks/_entries mirror the latest stream emissions; _rows is
@@ -147,6 +153,7 @@ class _TimerViewState extends State<TimerView> {
 
   @override
   void dispose() {
+    _descFocus.dispose();
     _entriesSub?.cancel();
     _tasksSub?.cancel();
     _scroll.dispose();
@@ -213,12 +220,13 @@ class _TimerViewState extends State<TimerView> {
       return;
     }
 
+    final desc = _c.description.text.trim();
     try {
-      // Await the write so a failure is caught rather than silently lost. A
-      // timed segment has no per-entry name — it inherits the task's.
+      // Await the write so a failure is caught rather than silently lost.
       await widget.db.addEntry(
         jobId: result.jobId,
         taskId: result.taskId,
+        description: desc.isEmpty ? null : desc,
         startedAt: result.startedAt,
         endedAt: result.endedAt,
         seconds: result.seconds,
@@ -334,6 +342,9 @@ class _TimerViewState extends State<TimerView> {
     }
   }
 
+  void _focusDescription() => _descFocus.requestFocus();
+  void _blurToCursor() => _cursorNode?.requestFocus();
+
   // e : edit the focused row (task or entry).
   void _editCursor() {
     if (_cursor >= _rows.length) return;
@@ -402,6 +413,10 @@ class _TimerViewState extends State<TimerView> {
     // tracker is in view), so it isn't bound here — it bubbles up.
     if (key == LogicalKeyboardKey.keyF) {
       if (_c.hasSession) _finish();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyI) {
+      _focusDescription(); // jump into the session description field
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyE) {
@@ -548,6 +563,27 @@ class _TimerViewState extends State<TimerView> {
             ),
             const SizedBox(height: AppTokens.spaceLg),
             _armedLabel(context),
+            const SizedBox(height: AppTokens.spaceMd),
+            // Optional note for this session; becomes the entry's description on
+            // finish. Esc returns to the row cursor; Enter starts if armed.
+            CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.escape): _blurToCursor,
+              },
+              child: TextField(
+                controller: _c.description,
+                focusNode: _descFocus,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  hintText: 'What are you working on?',
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  if (!_c.isRunning && _canPrimary) _startOrResume();
+                  _blurToCursor();
+                },
+              ),
+            ),
           ],
         ),
         const SizedBox(height: AppTokens.space2xl),

@@ -39,11 +39,11 @@ class Tasks extends Table {
 class TimeEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get jobId => integer().references(Jobs, #id)();
-  // An entry belongs to a task; [name] is an optional per-segment label
+  // An entry belongs to a task; [description] is an optional per-segment note
   // (e.g. "fixed the login bug"). Nullable — most entries just inherit the
-  // task's name in the UI.
+  // task's title in the UI.
   IntColumn get taskId => integer().nullable().references(Tasks, #id)();
-  TextColumn get name => text().nullable()();
+  TextColumn get description => text().nullable()();
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn get endedAt => dateTime()();
   IntColumn get seconds =>
@@ -97,9 +97,9 @@ class JobInvoice {
 
   String _labelFor(TimeEntry e) {
     final task = e.taskId == null ? null : taskTitles[e.taskId];
-    final name = e.name?.trim();
-    if (task == null) return name == null || name.isEmpty ? '—' : name;
-    return name == null || name.isEmpty ? task : '$task · $name';
+    final desc = e.description?.trim();
+    if (task == null) return desc == null || desc.isEmpty ? '—' : desc;
+    return desc == null || desc.isEmpty ? task : '$task · $desc';
   }
 
   int get totalSeconds => entries.fold(0, (sum, e) => sum + e.seconds);
@@ -145,10 +145,10 @@ class AppDatabase extends _$AppDatabase {
       // Rebuild time_entries to drop it and add an optional per-entry `name`
       // (starts null — names are set explicitly, not inherited from the task).
       if (from < 3) {
-        // `name` is nullable, so it needs no transformer — the rebuild adds it
-        // as NULL and drops the old `task` column (absent from the new schema).
+        // `description` is nullable, so it needs no transformer — the rebuild
+        // adds it as NULL and drops the old `task` column (gone from v3).
         await m.alterTable(
-          TableMigration(timeEntries, newColumns: [timeEntries.name]),
+          TableMigration(timeEntries, newColumns: [timeEntries.description]),
         );
       }
     },
@@ -183,7 +183,7 @@ class AppDatabase extends _$AppDatabase {
   Future<void> addEntry({
     required int jobId,
     required int taskId,
-    String? name,
+    String? description,
     required DateTime startedAt,
     required DateTime endedAt,
     required int seconds,
@@ -191,7 +191,7 @@ class AppDatabase extends _$AppDatabase {
     TimeEntriesCompanion.insert(
       jobId: jobId,
       taskId: Value(taskId),
-      name: Value(name),
+      description: Value(description),
       startedAt: startedAt,
       endedAt: endedAt,
       seconds: seconds,
@@ -201,14 +201,14 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateEntry({
     required int id,
     required int taskId,
-    String? name,
+    String? description,
     required DateTime startedAt,
     required DateTime endedAt,
     required int seconds,
   }) => (update(timeEntries)..where((t) => t.id.equals(id))).write(
     TimeEntriesCompanion(
       taskId: Value(taskId),
-      name: Value(name),
+      description: Value(description),
       startedAt: Value(startedAt),
       endedAt: Value(endedAt),
       seconds: Value(seconds),

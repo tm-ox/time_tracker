@@ -177,8 +177,8 @@ class TaskList extends StatelessWidget {
     final when =
         '${loc.formatMediumDate(e.startedAt)} · '
         '${time(e.startedAt)} – ${time(e.endedAt)}';
-    final name = e.name?.trim();
-    final hasName = name != null && name.isNotEmpty;
+    final desc = e.description?.trim();
+    final hasName = desc != null && desc.isNotEmpty;
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
@@ -190,7 +190,7 @@ class TaskList extends StatelessWidget {
       leading: const SizedBox(width: AppTokens.iconSm),
       onTap: () => onEditEntry(e),
       title: Text(
-        hasName ? name : when,
+        hasName ? desc : when,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(

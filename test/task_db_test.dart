@@ -16,7 +16,7 @@ void main() {
     await db.addEntry(
       jobId: jobId,
       taskId: taskId,
-      name: 'first pass',
+      description: 'first pass',
       startedAt: DateTime(2026),
       endedAt: DateTime(2026),
       seconds: 60,
@@ -24,7 +24,7 @@ void main() {
 
     final entries = await db.select(db.timeEntries).get();
     expect(entries.single.taskId, taskId);
-    expect(entries.single.name, 'first pass');
+    expect(entries.single.description, 'first pass');
   });
 
   test('deleteTask removes the task and cascades to its entries', () async {

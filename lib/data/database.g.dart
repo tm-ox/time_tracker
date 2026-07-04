@@ -1325,10 +1325,12 @@ class $TimeEntriesTable extends TimeEntries
       'REFERENCES tasks (id)',
     ),
   );
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
   @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -1372,7 +1374,7 @@ class $TimeEntriesTable extends TimeEntries
     id,
     jobId,
     taskId,
-    name,
+    description,
     startedAt,
     endedAt,
     seconds,
@@ -1406,10 +1408,13 @@ class $TimeEntriesTable extends TimeEntries
         taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta),
       );
     }
-    if (data.containsKey('name')) {
+    if (data.containsKey('description')) {
       context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
       );
     }
     if (data.containsKey('started_at')) {
@@ -1457,9 +1462,9 @@ class $TimeEntriesTable extends TimeEntries
         DriftSqlType.int,
         data['${effectivePrefix}task_id'],
       ),
-      name: attachedDatabase.typeMapping.read(
+      description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}name'],
+        data['${effectivePrefix}description'],
       ),
       startedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -1486,7 +1491,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
   final int id;
   final int jobId;
   final int? taskId;
-  final String? name;
+  final String? description;
   final DateTime startedAt;
   final DateTime endedAt;
   final int seconds;
@@ -1494,7 +1499,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
     required this.id,
     required this.jobId,
     this.taskId,
-    this.name,
+    this.description,
     required this.startedAt,
     required this.endedAt,
     required this.seconds,
@@ -1507,8 +1512,8 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
     if (!nullToAbsent || taskId != null) {
       map['task_id'] = Variable<int>(taskId);
     }
-    if (!nullToAbsent || name != null) {
-      map['name'] = Variable<String>(name);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
     }
     map['started_at'] = Variable<DateTime>(startedAt);
     map['ended_at'] = Variable<DateTime>(endedAt);
@@ -1523,7 +1528,9 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
       taskId: taskId == null && nullToAbsent
           ? const Value.absent()
           : Value(taskId),
-      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
       startedAt: Value(startedAt),
       endedAt: Value(endedAt),
       seconds: Value(seconds),
@@ -1539,7 +1546,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
       id: serializer.fromJson<int>(json['id']),
       jobId: serializer.fromJson<int>(json['jobId']),
       taskId: serializer.fromJson<int?>(json['taskId']),
-      name: serializer.fromJson<String?>(json['name']),
+      description: serializer.fromJson<String?>(json['description']),
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       endedAt: serializer.fromJson<DateTime>(json['endedAt']),
       seconds: serializer.fromJson<int>(json['seconds']),
@@ -1552,7 +1559,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
       'id': serializer.toJson<int>(id),
       'jobId': serializer.toJson<int>(jobId),
       'taskId': serializer.toJson<int?>(taskId),
-      'name': serializer.toJson<String?>(name),
+      'description': serializer.toJson<String?>(description),
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'endedAt': serializer.toJson<DateTime>(endedAt),
       'seconds': serializer.toJson<int>(seconds),
@@ -1563,7 +1570,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
     int? id,
     int? jobId,
     Value<int?> taskId = const Value.absent(),
-    Value<String?> name = const Value.absent(),
+    Value<String?> description = const Value.absent(),
     DateTime? startedAt,
     DateTime? endedAt,
     int? seconds,
@@ -1571,7 +1578,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
     id: id ?? this.id,
     jobId: jobId ?? this.jobId,
     taskId: taskId.present ? taskId.value : this.taskId,
-    name: name.present ? name.value : this.name,
+    description: description.present ? description.value : this.description,
     startedAt: startedAt ?? this.startedAt,
     endedAt: endedAt ?? this.endedAt,
     seconds: seconds ?? this.seconds,
@@ -1581,7 +1588,9 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
       id: data.id.present ? data.id.value : this.id,
       jobId: data.jobId.present ? data.jobId.value : this.jobId,
       taskId: data.taskId.present ? data.taskId.value : this.taskId,
-      name: data.name.present ? data.name.value : this.name,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
       endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
       seconds: data.seconds.present ? data.seconds.value : this.seconds,
@@ -1594,7 +1603,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
           ..write('id: $id, ')
           ..write('jobId: $jobId, ')
           ..write('taskId: $taskId, ')
-          ..write('name: $name, ')
+          ..write('description: $description, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('seconds: $seconds')
@@ -1604,7 +1613,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
 
   @override
   int get hashCode =>
-      Object.hash(id, jobId, taskId, name, startedAt, endedAt, seconds);
+      Object.hash(id, jobId, taskId, description, startedAt, endedAt, seconds);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1612,7 +1621,7 @@ class TimeEntry extends DataClass implements Insertable<TimeEntry> {
           other.id == this.id &&
           other.jobId == this.jobId &&
           other.taskId == this.taskId &&
-          other.name == this.name &&
+          other.description == this.description &&
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
           other.seconds == this.seconds);
@@ -1622,7 +1631,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
   final Value<int> id;
   final Value<int> jobId;
   final Value<int?> taskId;
-  final Value<String?> name;
+  final Value<String?> description;
   final Value<DateTime> startedAt;
   final Value<DateTime> endedAt;
   final Value<int> seconds;
@@ -1630,7 +1639,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
     this.id = const Value.absent(),
     this.jobId = const Value.absent(),
     this.taskId = const Value.absent(),
-    this.name = const Value.absent(),
+    this.description = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.endedAt = const Value.absent(),
     this.seconds = const Value.absent(),
@@ -1639,7 +1648,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
     this.id = const Value.absent(),
     required int jobId,
     this.taskId = const Value.absent(),
-    this.name = const Value.absent(),
+    this.description = const Value.absent(),
     required DateTime startedAt,
     required DateTime endedAt,
     required int seconds,
@@ -1651,7 +1660,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
     Expression<int>? id,
     Expression<int>? jobId,
     Expression<int>? taskId,
-    Expression<String>? name,
+    Expression<String>? description,
     Expression<DateTime>? startedAt,
     Expression<DateTime>? endedAt,
     Expression<int>? seconds,
@@ -1660,7 +1669,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
       if (id != null) 'id': id,
       if (jobId != null) 'job_id': jobId,
       if (taskId != null) 'task_id': taskId,
-      if (name != null) 'name': name,
+      if (description != null) 'description': description,
       if (startedAt != null) 'started_at': startedAt,
       if (endedAt != null) 'ended_at': endedAt,
       if (seconds != null) 'seconds': seconds,
@@ -1671,7 +1680,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
     Value<int>? id,
     Value<int>? jobId,
     Value<int?>? taskId,
-    Value<String?>? name,
+    Value<String?>? description,
     Value<DateTime>? startedAt,
     Value<DateTime>? endedAt,
     Value<int>? seconds,
@@ -1680,7 +1689,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
       id: id ?? this.id,
       jobId: jobId ?? this.jobId,
       taskId: taskId ?? this.taskId,
-      name: name ?? this.name,
+      description: description ?? this.description,
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
       seconds: seconds ?? this.seconds,
@@ -1699,8 +1708,8 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
     if (taskId.present) {
       map['task_id'] = Variable<int>(taskId.value);
     }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
     }
     if (startedAt.present) {
       map['started_at'] = Variable<DateTime>(startedAt.value);
@@ -1720,7 +1729,7 @@ class TimeEntriesCompanion extends UpdateCompanion<TimeEntry> {
           ..write('id: $id, ')
           ..write('jobId: $jobId, ')
           ..write('taskId: $taskId, ')
-          ..write('name: $name, ')
+          ..write('description: $description, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('seconds: $seconds')
@@ -3015,7 +3024,7 @@ typedef $$TimeEntriesTableCreateCompanionBuilder =
       Value<int> id,
       required int jobId,
       Value<int?> taskId,
-      Value<String?> name,
+      Value<String?> description,
       required DateTime startedAt,
       required DateTime endedAt,
       required int seconds,
@@ -3025,7 +3034,7 @@ typedef $$TimeEntriesTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> jobId,
       Value<int?> taskId,
-      Value<String?> name,
+      Value<String?> description,
       Value<DateTime> startedAt,
       Value<DateTime> endedAt,
       Value<int> seconds,
@@ -3084,8 +3093,8 @@ class $$TimeEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3165,8 +3174,8 @@ class $$TimeEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -3244,8 +3253,10 @@ class $$TimeEntriesTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get startedAt =>
       $composableBuilder(column: $table.startedAt, builder: (column) => column);
@@ -3334,7 +3345,7 @@ class $$TimeEntriesTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> jobId = const Value.absent(),
                 Value<int?> taskId = const Value.absent(),
-                Value<String?> name = const Value.absent(),
+                Value<String?> description = const Value.absent(),
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime> endedAt = const Value.absent(),
                 Value<int> seconds = const Value.absent(),
@@ -3342,7 +3353,7 @@ class $$TimeEntriesTableTableManager
                 id: id,
                 jobId: jobId,
                 taskId: taskId,
-                name: name,
+                description: description,
                 startedAt: startedAt,
                 endedAt: endedAt,
                 seconds: seconds,
@@ -3352,7 +3363,7 @@ class $$TimeEntriesTableTableManager
                 Value<int> id = const Value.absent(),
                 required int jobId,
                 Value<int?> taskId = const Value.absent(),
-                Value<String?> name = const Value.absent(),
+                Value<String?> description = const Value.absent(),
                 required DateTime startedAt,
                 required DateTime endedAt,
                 required int seconds,
@@ -3360,7 +3371,7 @@ class $$TimeEntriesTableTableManager
                 id: id,
                 jobId: jobId,
                 taskId: taskId,
-                name: name,
+                description: description,
                 startedAt: startedAt,
                 endedAt: endedAt,
                 seconds: seconds,
