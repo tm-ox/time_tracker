@@ -206,24 +206,37 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   // A borderless number field for the Duration box (hours or minutes).
+  // The unit is a static trailing Text, not suffixText: InputDecoration's
+  // suffixText is only opaque once the label floats (field focused or
+  // non-empty), so an empty unfocused field would hide the unit entirely.
   Widget _durationField(
     TextEditingController c,
     FocusNode f,
-    String suffix,
-  ) => TextField(
-    controller: c,
-    focusNode: f,
-    keyboardType: TextInputType.number,
-    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-    decoration: InputDecoration(
-      hintText: '0',
-      suffixText: suffix,
-      isDense: true,
-      border: InputBorder.none,
-      enabledBorder: InputBorder.none,
-      focusedBorder: InputBorder.none,
-      contentPadding: EdgeInsets.zero,
-    ),
+    String unit,
+  ) => Row(
+    children: [
+      Expanded(
+        child: TextField(
+          controller: c,
+          focusNode: f,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            hintText: '0',
+            isDense: true,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ),
+      const SizedBox(width: AppTokens.spaceXs),
+      Text(
+        unit,
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
+    ],
   );
 
   @override
