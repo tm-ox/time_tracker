@@ -10,7 +10,6 @@ import 'package:time_tracker/features/tracker/task_rows.dart';
 import 'package:time_tracker/features/tracker/task_list.dart';
 import 'package:time_tracker/features/tracker/task_editor.dart';
 import 'package:time_tracker/features/tracker/entry_form.dart';
-import 'package:time_tracker/features/deletions.dart';
 
 /// Owns the running timer so it survives content-pane switches. Editing a
 /// client/job or invoicing unmounts the tracker view, but the session and its
@@ -438,23 +437,7 @@ class _TimerViewState extends State<TimerView> {
       }
       return KeyEventResult.handled;
     }
-    // d = delete the focused task or entry (confirmed).
-    if (key == LogicalKeyboardKey.keyD) {
-      _deleteCursor();
-      return KeyEventResult.handled;
-    }
     return KeyEventResult.ignored;
-  }
-
-  // d : delete the focused row's task or entry (confirmed).
-  void _deleteCursor() {
-    if (_cursor >= _rows.length) return;
-    switch (_rows[_cursor]) {
-      case TaskHeaderRow(:final task):
-        confirmDeleteTask(context, widget.db, task);
-      case TaskEntryRow(:final entry):
-        confirmDeleteEntry(context, widget.db, entry);
-    }
   }
 
   // A : add an entry to the focused row's task (task header or one of its

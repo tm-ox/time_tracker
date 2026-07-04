@@ -1,6 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/widgets/confirm_dialog.dart';
+
+/// Wraps an edit modal so pressing `d` runs [onDelete] (its Delete flow). A
+/// focused text field consumes the keypress first, so `d` types normally while
+/// editing a field and only deletes when focus is elsewhere in the modal.
+class DeleteHotkey extends StatelessWidget {
+  const DeleteHotkey({super.key, required this.onDelete, required this.child});
+  final VoidCallback onDelete;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => CallbackShortcuts(
+    bindings: {const SingleActivator(LogicalKeyboardKey.keyD): onDelete},
+    child: child,
+  );
+}
 
 // Confirm-then-delete for each entity, shared by the edit modals' Delete button
 // and the app-wide `d` key. Each shows the warning, attempts the delete, and on

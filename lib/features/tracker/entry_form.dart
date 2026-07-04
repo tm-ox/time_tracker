@@ -254,7 +254,7 @@ class _EntryFormState extends State<EntryForm> {
         '${loc.formatMediumDate(_start)} · '
         '${loc.formatTimeOfDay(TimeOfDay.fromDateTime(_start))}';
 
-    return SingleChildScrollView(
+    final form = SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -348,5 +348,10 @@ class _EntryFormState extends State<EntryForm> {
         ],
       ),
     );
+
+    // In edit mode, `d` triggers Delete (a focused field eats it while typing).
+    return _isEdit
+        ? DeleteHotkey(onDelete: _confirmDelete, child: form)
+        : form;
   }
 }

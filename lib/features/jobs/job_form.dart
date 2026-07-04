@@ -131,15 +131,16 @@ class _JobFormState extends State<JobForm> {
   }
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          _isEdit ? 'Edit job' : 'New job',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+  Widget build(BuildContext context) {
+    final form = SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _isEdit ? 'Edit job' : 'New job',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
         const SizedBox(height: AppTokens.spaceXl),
         StreamBuilder<List<Client>>(
           stream: _clientsStream,
@@ -210,4 +211,10 @@ class _JobFormState extends State<JobForm> {
       ],
     ),
   );
+
+    // In edit mode, `d` triggers Delete (a focused field eats it while typing).
+    return _isEdit
+        ? DeleteHotkey(onDelete: _confirmDelete, child: form)
+        : form;
+  }
 }

@@ -18,6 +18,7 @@ Future<bool> confirmDelete(
           child: const Text('Cancel'),
         ),
         FilledButton(
+          autofocus: true, // Enter confirms
           onPressed: () => Navigator.pop(ctx, true),
           child: const Text('Delete'),
         ),
@@ -40,6 +41,7 @@ Future<void> showInfoDialog(
     content: Text(message),
     actions: [
       FilledButton(
+        autofocus: true, // Enter dismisses
         onPressed: () => Navigator.pop(ctx),
         child: const Text('OK'),
       ),

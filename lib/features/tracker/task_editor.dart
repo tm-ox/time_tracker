@@ -108,7 +108,7 @@ class _TaskFormState extends State<TaskForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final form = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -157,5 +157,10 @@ class _TaskFormState extends State<TaskForm> {
         ),
       ],
     );
+
+    // In edit mode, `d` triggers Delete (a focused field eats it while typing).
+    return _isEdit
+        ? DeleteHotkey(onDelete: _confirmDelete, child: form)
+        : form;
   }
 }

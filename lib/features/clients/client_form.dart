@@ -113,15 +113,16 @@ class _ClientFormState extends State<ClientForm> {
   }
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          _isEdit ? 'Edit client' : 'New client',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+  Widget build(BuildContext context) {
+    final form = SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _isEdit ? 'Edit client' : 'New client',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
         const SizedBox(height: AppTokens.spaceXl),
         TextField(
           controller: _name,
@@ -167,4 +168,10 @@ class _ClientFormState extends State<ClientForm> {
       ],
     ),
   );
+
+    // In edit mode, `d` triggers Delete (a focused field eats it while typing).
+    return _isEdit
+        ? DeleteHotkey(onDelete: _confirmDelete, child: form)
+        : form;
+  }
 }
