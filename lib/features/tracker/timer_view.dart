@@ -719,7 +719,7 @@ class _TasksHeader extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
-                tooltip: 'Add task',
+                tooltip: 'Add task (a)',
               ),
               const SizedBox(width: AppTokens.spaceMd),
               TextButton.icon(

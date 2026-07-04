@@ -156,10 +156,12 @@ class TaskList extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            tooltip: 'Edit task',
+            tooltip: 'Edit task (e)',
             onPressed: () => onEditTask(row.task),
           ),
-          const SizedBox(width: AppTokens.spaceSm),
+          // Wider gap before the time so its column aligns with the "Tasks"
+          // header (add button → Invoice uses spaceMd).
+          const SizedBox(width: AppTokens.spaceMd),
           Text(
             Duration(seconds: row.totalSeconds).hms,
             style: const TextStyle(
