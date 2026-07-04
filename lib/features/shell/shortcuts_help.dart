@@ -70,6 +70,24 @@ class _ShortcutsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Wide: two columns so the whole map fits without scrolling. Narrow: a
+    // single scrolling column. Groups split 2 / 2 (Panes + Side panel |
+    // Tracker + Editors) — close to balanced by row count.
+    final wide = MediaQuery.sizeOf(context).width >= AppTokens.breakpointMd;
+    final Widget body;
+    if (wide) {
+      body = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: _column(theme, _keymap.sublist(0, 2))),
+          const SizedBox(width: AppTokens.space2xl),
+          Expanded(child: _column(theme, _keymap.sublist(2))),
+        ],
+      );
+    } else {
+      body = _column(theme, _keymap);
+    }
+
     return CallbackShortcuts(
       // Explicit Esc-to-close (showDialog doesn't bind it by default).
       bindings: {
@@ -80,7 +98,7 @@ class _ShortcutsDialog extends StatelessWidget {
         autofocus: true,
         child: Dialog(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
+            constraints: BoxConstraints(maxWidth: wide ? 720 : 460),
             child: Padding(
               padding: const EdgeInsets.all(AppTokens.spaceXl),
               child: SingleChildScrollView(
@@ -95,24 +113,11 @@ class _ShortcutsDialog extends StatelessWidget {
                           style: theme.textTheme.titleLarge,
                         ),
                         const Spacer(),
-                        Text(
-                          'Esc to close',
-                          style: theme.textTheme.bodySmall,
-                        ),
+                        Text('Esc to close', style: theme.textTheme.bodySmall),
                       ],
                     ),
                     const SizedBox(height: AppTokens.spaceLg),
-                    for (final group in _keymap) ...[
-                      Text(
-                        group.title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: AppTokens.spaceXs),
-                      for (final s in group.shortcuts) _row(theme, s),
-                      const SizedBox(height: AppTokens.spaceLg),
-                    ],
+                    body,
                   ],
                 ),
               ),
@@ -122,6 +127,25 @@ class _ShortcutsDialog extends StatelessWidget {
       ),
     );
   }
+
+  // A vertical stack of groups (title + rows) — one modal column.
+  Widget _column(ThemeData theme, List<_Group> groups) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final group in groups) ...[
+        Text(
+          group.title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: AppTokens.spaceXs),
+        for (final s in group.shortcuts) _row(theme, s),
+        const SizedBox(height: AppTokens.spaceLg),
+      ],
+    ],
+  );
 
   Widget _row(ThemeData theme, _Shortcut s) => Padding(
     padding: const EdgeInsets.only(bottom: AppTokens.spaceXs),
