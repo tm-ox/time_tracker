@@ -159,7 +159,7 @@ class _InvoiceViewState extends State<InvoiceView> {
                           for (final line in inv.lines)
                             ListTile(
                               dense: true,
-                              title: Text(line.entry.task),
+                              title: Text(line.label),
                               subtitle: Text(_fmtDate(line.entry.startedAt)),
                               trailing: Text(
                                 '${formatHours(line.hours)} h'

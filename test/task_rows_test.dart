@@ -14,7 +14,6 @@ Task _task(int id, String title) => Task(
 TimeEntry _entry(int id, int taskId, int seconds) => TimeEntry(
   id: id,
   jobId: 1,
-  task: 'x',
   taskId: taskId,
   startedAt: DateTime(2026),
   endedAt: DateTime(2026),

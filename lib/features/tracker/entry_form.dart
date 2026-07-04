@@ -12,6 +12,7 @@ Future<void> showEntryEditor(
   required AppDatabase db,
   required int jobId,
   TimeEntry? entry,
+  int? initialTaskId, // preselect the task when adding under a specific one
 }) {
   final wide = MediaQuery.sizeOf(context).width >= AppTokens.breakpointMd;
   if (wide) {
@@ -26,6 +27,7 @@ Future<void> showEntryEditor(
               db: db,
               jobId: jobId,
               entry: entry,
+              initialTaskId: initialTaskId,
               onClose: () => Navigator.pop(ctx),
             ),
           ),
@@ -45,6 +47,7 @@ Future<void> showEntryEditor(
           db: db,
           jobId: jobId,
           entry: entry,
+          initialTaskId: initialTaskId,
           onClose: () => Navigator.pop(ctx),
         ),
       ),
@@ -58,11 +61,13 @@ class EntryForm extends StatefulWidget {
     required this.db,
     required this.jobId,
     this.entry,
+    this.initialTaskId,
     required this.onClose,
   });
   final AppDatabase db;
   final int jobId;
   final TimeEntry? entry; // null = create, set = edit
+  final int? initialTaskId; // preselected task when adding
   final VoidCallback onClose; // pop the dialog/sheet (save, delete, or cancel)
 
   @override
@@ -70,7 +75,10 @@ class EntryForm extends StatefulWidget {
 }
 
 class _EntryFormState extends State<EntryForm> {
-  late final _task = TextEditingController(text: widget.entry?.task ?? '');
+  // Which task this entry belongs to, chosen from a dropdown of the job's tasks.
+  late int? _selectedTaskId = widget.entry?.taskId ?? widget.initialTaskId;
+  List<Task> _tasks = const [];
+  late final _name = TextEditingController(text: widget.entry?.name ?? '');
   late DateTime _start = widget.entry?.startedAt ?? DateTime.now();
   // Empty (with a '0' hint) when adding; prefilled from the entry when editing.
   late final _hours = TextEditingController(
@@ -93,6 +101,10 @@ class _EntryFormState extends State<EntryForm> {
     // rather than appending (e.g. avoids "0" + "20" → "020").
     _selectAllOnFocus(_hoursFocus, _hours);
     _selectAllOnFocus(_minutesFocus, _minutes);
+    // Load the job's tasks for the dropdown (they don't change mid-dialog).
+    widget.db.watchTasksForJob(widget.jobId).first.then((tasks) {
+      if (mounted) setState(() => _tasks = tasks);
+    });
   }
 
   void _selectAllOnFocus(FocusNode node, TextEditingController c) {
@@ -105,7 +117,7 @@ class _EntryFormState extends State<EntryForm> {
 
   @override
   void dispose() {
-    _task.dispose();
+    _name.dispose();
     _hours.dispose();
     _minutes.dispose();
     _hoursFocus.dispose();
@@ -132,7 +144,8 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Future<void> _submit() async {
-    final task = _task.text.trim();
+    final taskId = _selectedTaskId;
+    final name = _name.text.trim();
     // Empty means zero for that unit (validation still catches 0h 0m below).
     final hText = _hours.text.trim();
     final mText = _minutes.text.trim();
@@ -140,7 +153,7 @@ class _EntryFormState extends State<EntryForm> {
     final m = mText.isEmpty ? 0 : int.tryParse(mText);
 
     setState(() {
-      _taskError = task.isEmpty ? 'Enter a task' : null;
+      _taskError = taskId == null ? 'Pick a task' : null;
       if (h == null || h < 0 || m == null || m < 0 || m > 59) {
         _durationError = 'Enter a valid duration';
       } else if (h == 0 && m == 0) {
@@ -152,7 +165,7 @@ class _EntryFormState extends State<EntryForm> {
     if (_taskError != null || _durationError != null) return;
 
     // The form edits whole minutes only; keep the original sub-minute seconds
-    // when editing so renaming a timer entry doesn't truncate its duration.
+    // when editing so re-saving a timer entry doesn't truncate its duration.
     final remainder = _isEdit ? widget.entry!.seconds % 60 : 0;
     final seconds = (h! * 60 + m!) * 60 + remainder;
     final endedAt = _start.add(Duration(seconds: seconds));
@@ -160,7 +173,8 @@ class _EntryFormState extends State<EntryForm> {
       if (_isEdit) {
         await widget.db.updateEntry(
           id: widget.entry!.id,
-          task: task,
+          taskId: taskId!,
+          name: name.isEmpty ? null : name,
           startedAt: _start,
           endedAt: endedAt,
           seconds: seconds,
@@ -168,7 +182,8 @@ class _EntryFormState extends State<EntryForm> {
       } else {
         await widget.db.addEntry(
           jobId: widget.jobId,
-          task: task,
+          taskId: taskId!,
+          name: name.isEmpty ? null : name,
           startedAt: _start,
           endedAt: endedAt,
           seconds: seconds,
@@ -186,10 +201,13 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Future<void> _confirmDelete() async {
+    final label = widget.entry!.name?.trim();
     final ok = await confirmDelete(
       context,
       title: 'Delete entry?',
-      message: '"${widget.entry!.task}" will be removed.',
+      message: label == null || label.isEmpty
+          ? 'This time entry will be removed.'
+          : '"$label" will be removed.',
     );
     if (!ok) return;
     try {
@@ -256,12 +274,25 @@ class _EntryFormState extends State<EntryForm> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: AppTokens.spaceXl),
-          TextField(
-            controller: _task,
-            autofocus: !_isEdit,
+          DropdownButtonFormField<int>(
+            initialValue: _selectedTaskId,
+            isExpanded: true,
             decoration: InputDecoration(
               labelText: 'Task',
               errorText: _taskError,
+            ),
+            items: [
+              for (final t in _tasks)
+                DropdownMenuItem(value: t.id, child: Text(t.title)),
+            ],
+            onChanged: (v) => setState(() => _selectedTaskId = v),
+          ),
+          const SizedBox(height: AppTokens.spaceXl),
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(
+              labelText: 'Name (optional)',
+              hintText: 'e.g. fixed the login bug',
             ),
           ),
           const SizedBox(height: AppTokens.spaceXl),

@@ -67,7 +67,7 @@ Future<Uint8List> buildInvoicePdf({
               for (final line in inv.lines)
                 [
                   _date(line.entry.startedAt),
-                  line.entry.task,
+                  line.label,
                   formatHours(line.hours),
                   line.amount == null ? '—' : formatMoney(line.amount!),
                 ],
