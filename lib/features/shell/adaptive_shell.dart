@@ -59,6 +59,8 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   final FocusNode _trackerCursor = FocusNode(debugLabel: 'trackerCursor');
   // Panel search field, owned here so `/` from any pane jumps into search.
   final FocusNode _panelSearch = FocusNode(debugLabel: 'panelSearch');
+  // Lets a global Space toggle the timer from any pane while it's in view.
+  final TimerController _timer = TimerController();
   bool _pendingCtrlW = false; // saw Ctrl-w, awaiting an h/l
 
   void _focusPanel() => _panelCursor.requestFocus();
@@ -82,6 +84,14 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     // focused text field consumes `/` before it reaches here, so typing is safe.
     if (!ctrl && key == LogicalKeyboardKey.slash) {
       _focusSearch();
+      return KeyEventResult.handled;
+    }
+
+    // Space is global while the tracker is in view: toggle start/pause/resume
+    // from any pane. Fires once per press (repeats are swallowed, not repeated);
+    // a focused text field consumes Space before it reaches here.
+    if (!ctrl && key == LogicalKeyboardKey.space && _detail is _Tracker) {
+      if (event is KeyDownEvent) _timer.primary?.call();
       return KeyEventResult.handled;
     }
 
@@ -190,6 +200,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         // Keyboard cursor for the entry list; only ever focused in the wide
         // layout (Tab / Ctrl-h / Ctrl-w h), inert in the drawer.
         cursorFocusNode: _trackerCursor,
+        controller: _timer,
       ),
       _EditJob(:final job, :final clientId) => JobForm(
         db: widget.db,

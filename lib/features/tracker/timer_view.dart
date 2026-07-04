@@ -9,6 +9,14 @@ import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/tracker/time_entry_list.dart';
 import 'package:time_tracker/features/tracker/entry_form.dart';
 
+/// Lets the shell fire the timer's primary action (start/pause/resume) while
+/// the tracker is in view, so Space can toggle it globally — from whichever
+/// pane holds focus. The mounted TimerView populates [primary]; it's null when
+/// no tracker is on screen.
+class TimerController {
+  VoidCallback? primary;
+}
+
 class TimerView extends StatefulWidget {
   const TimerView({
     super.key,
@@ -16,6 +24,7 @@ class TimerView extends StatefulWidget {
     required this.jobId,
     required this.onInvoice,
     this.cursorFocusNode,
+    this.controller,
   });
   final AppDatabase db;
   final int? jobId;
@@ -23,6 +32,8 @@ class TimerView extends StatefulWidget {
   // Keyboard cursor for the entry list (wide layout). When null, the pane has
   // no keymap — used by the narrow drawer layout, which is mouse-first.
   final FocusNode? cursorFocusNode;
+  // Lets the shell trigger the primary action for a global Space binding.
+  final TimerController? controller;
 
   @override
   State<TimerView> createState() => _TimerViewState();
@@ -54,6 +65,7 @@ class _TimerViewState extends State<TimerView> {
     super.initState();
     _updateJobStream();
     _cursorNode?.addListener(_onFocusChanged);
+    widget.controller?.primary = _primaryAction;
   }
 
   @override
@@ -64,6 +76,10 @@ class _TimerViewState extends State<TimerView> {
       old.cursorFocusNode?.removeListener(_onFocusChanged);
       _cursorNode?.addListener(_onFocusChanged);
     }
+    if (old.controller != widget.controller) {
+      if (old.controller?.primary == _primaryAction) old.controller?.primary = null;
+      widget.controller?.primary = _primaryAction;
+    }
   }
 
   @override
@@ -73,6 +89,9 @@ class _TimerViewState extends State<TimerView> {
     _entriesSub?.cancel();
     _scroll.dispose();
     _cursorNode?.removeListener(_onFocusChanged);
+    if (widget.controller?.primary == _primaryAction) {
+      widget.controller?.primary = null;
+    }
     _timer?.cancel();
     super.dispose();
   }
@@ -258,10 +277,8 @@ class _TimerViewState extends State<TimerView> {
       _openCursorEntry();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.space) {
-      _primaryAction();
-      return KeyEventResult.handled;
-    }
+    // Space is handled globally at the shell (works from any pane while the
+    // tracker is in view), so it isn't bound here — it bubbles up.
     if (key == LogicalKeyboardKey.keyF) {
       if (_session.hasSession) _finish();
       return KeyEventResult.handled;
