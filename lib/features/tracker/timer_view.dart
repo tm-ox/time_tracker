@@ -19,21 +19,22 @@ import 'package:time_tracker/features/tracker/entry_form.dart';
 class TimerController extends ChangeNotifier {
   final _session = TimerSession();
   Timer? _ticker;
-  // In-progress task title; kept here so a running session holds its label even
-  // while the tracker is off-screen.
-  final task = TextEditingController();
+  // Optional description for the session in progress, becoming the finished
+  // entry's description. Lives here so it survives content-pane switches.
+  final description = TextEditingController();
 
-  // Set by the mounted TimerView so a global Space can fire the primary action
-  // (with its focus-nudge). Null when no tracker is on screen.
+  // Set by the mounted TimerView so a global Space can fire the primary action.
+  // Null when no tracker is on screen.
   VoidCallback? primary;
 
   int get elapsed => _session.elapsed;
   bool get isRunning => _session.isRunning;
   bool get hasSession => _session.hasSession;
+  int? get boundTaskId => _session.boundTaskId;
 
-  void startOrResume(int? jobId) {
+  void startOrResume(int? jobId, int? taskId) {
     if (_session.isRunning) return;
-    _session.start(jobId, now: DateTime.now());
+    _session.start(jobId, taskId, now: DateTime.now());
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       _session.tick();
@@ -59,14 +60,14 @@ class TimerController extends ChangeNotifier {
 
   void reset() {
     _session.reset();
-    task.clear();
+    description.clear();
     notifyListeners();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
-    task.dispose();
+    description.dispose();
     super.dispose();
   }
 }
@@ -99,10 +100,15 @@ class _TimerViewState extends State<TimerView> {
   TimerController? _internalController;
   TimerController get _c =>
       widget.controller ?? (_internalController ??= TimerController());
-  final _taskFocus = FocusNode(debugLabel: 'taskField');
   Stream<List<TimeEntry>>? _entriesStream; // entries for the selected job
   Stream<List<Task>>? _tasksStream; // tasks for the selected job
   Stream<(Job, Client)?>? _jobStream;
+
+  // The task the timer will track against (armed by selecting it in the list).
+  // The Start action is gated on this; a running session binds its task at
+  // start, so changing this mid-run only affects the next session.
+  int? _selectedTaskId;
+  final _descFocus = FocusNode(debugLabel: 'sessionDescription');
 
   // The cursor navigates a flattened task/entry row list (mirrors the side
   // panel). _tasks/_entries mirror the latest stream emissions; _rows is
@@ -147,7 +153,7 @@ class _TimerViewState extends State<TimerView> {
 
   @override
   void dispose() {
-    _taskFocus.dispose();
+    _descFocus.dispose();
     _entriesSub?.cancel();
     _tasksSub?.cancel();
     _scroll.dispose();
@@ -179,6 +185,7 @@ class _TimerViewState extends State<TimerView> {
     _entries = const [];
     _tasks = const [];
     _expanded.clear();
+    _selectedTaskId = null; // a different job means a different task set
     _cursor = 0;
     _entriesSub = _entriesStream?.listen((rows) {
       if (mounted) setState(() => _entries = rows);
@@ -189,29 +196,37 @@ class _TimerViewState extends State<TimerView> {
         _tasks = rows;
         final ids = rows.map((t) => t.id).toSet();
         _expanded.removeWhere((id) => !ids.contains(id)); // drop deleted tasks
+        // Disarm a task that no longer exists.
+        if (_selectedTaskId != null && !ids.contains(_selectedTaskId)) {
+          _selectedTaskId = null;
+        }
       });
     });
   }
 
-  void _startOrResume() => _c.startOrResume(widget.jobId);
+  void _selectTask(int taskId) =>
+      setState(() => _selectedTaskId = taskId); // arm for the timer
+
+  void _startOrResume() => _c.startOrResume(widget.jobId, _selectedTaskId);
 
   void _pause() => _c.pause();
 
   Future<void> _finish() async {
     final result = _c.stop();
 
-    // Nothing to record (empty session, or no job was ever bound).
+    // Nothing to record (empty session, or no job/task was ever bound).
     if (result == null) {
       _c.reset();
       return;
     }
 
-    final text = _c.task.text.trim();
+    final desc = _c.description.text.trim();
     try {
       // Await the write so a failure is caught rather than silently lost.
       await widget.db.addEntry(
         jobId: result.jobId,
-        task: text.isEmpty ? 'Untitled session' : text,
+        taskId: result.taskId,
+        description: desc.isEmpty ? null : desc,
         startedAt: result.startedAt,
         endedAt: result.endedAt,
         seconds: result.seconds,
@@ -227,11 +242,18 @@ class _TimerViewState extends State<TimerView> {
     }
   }
 
-  // Open the add/edit-entry editor (adaptive modal/sheet). entry == null adds.
-  void _openEntryEditor(TimeEntry? entry) {
+  // Open the add/edit-entry editor (adaptive modal/sheet). entry == null adds;
+  // taskId preselects the task when adding under a specific one.
+  void _openEntryEditor(TimeEntry? entry, {int? taskId}) {
     final jobId = widget.jobId;
     if (jobId == null) return;
-    showEntryEditor(context, db: widget.db, jobId: jobId, entry: entry);
+    showEntryEditor(
+      context,
+      db: widget.db,
+      jobId: jobId,
+      entry: entry,
+      initialTaskId: taskId,
+    );
   }
 
   // Open the add/edit-task editor. task == null adds.
@@ -241,21 +263,17 @@ class _TimerViewState extends State<TimerView> {
     showTaskEditor(context, db: widget.db, jobId: jobId, task: task);
   }
 
-  // The Space action mirrors the primary button (start/resume ⇄ pause) with one
-  // extra guard: a *fresh* keyboard start needs a task, so Space can't quietly
-  // create an "Untitled session". Pause/resume of an existing session is fine.
-  // (The Start button itself is intentionally not gated — Space only.)
+  // Whether Start/Space can fire: pause/resume of an existing session is always
+  // allowed; a fresh start needs a job and an armed task.
+  bool get _canPrimary =>
+      _c.isRunning ||
+      _c.hasSession ||
+      (widget.jobId != null && _selectedTaskId != null);
+
+  // Start/resume ⇄ pause, mirroring the primary button.
   void _primaryAction() {
-    if (widget.jobId == null) return;
-    if (_c.isRunning) {
-      _pause();
-      return;
-    }
-    if (!_c.hasSession && _c.task.text.trim().isEmpty) {
-      _focusTask(); // nudge into the field instead of starting untitled
-      return;
-    }
-    _startOrResume();
+    if (!_canPrimary) return;
+    _c.isRunning ? _pause() : _startOrResume();
   }
 
   // --- Task/entry row cursor (wide layout) ---
@@ -313,16 +331,19 @@ class _TimerViewState extends State<TimerView> {
     }
   }
 
-  // Enter : toggle a task's expansion; open an entry.
+  // Enter : arm a task for the timer; open an entry for editing.
   void _activateCursor() {
     if (_cursor >= _rows.length) return;
     switch (_rows[_cursor]) {
       case TaskHeaderRow(:final taskId):
-        _toggleTask(taskId);
+        _selectTask(taskId);
       case TaskEntryRow(:final entry):
         _openEntryEditor(entry);
     }
   }
+
+  void _focusDescription() => _descFocus.requestFocus();
+  void _blurToCursor() => _cursorNode?.requestFocus();
 
   // e : edit the focused row (task or entry).
   void _editCursor() {
@@ -335,20 +356,13 @@ class _TimerViewState extends State<TimerView> {
     }
   }
 
-  void _focusTask() => _taskFocus.requestFocus();
-  void _blurToCursor() {
-    final node = _cursorNode;
-    // Wide layout: return to the entry cursor. Narrow (no cursor) just drops
-    // focus so Esc still dismisses the field.
-    node != null ? node.requestFocus() : _taskFocus.unfocus();
-  }
-
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
 
-    // While typing in the task field, keys belong to it. Esc is handled by the
-    // CallbackShortcuts wrapping the field (reliable, like the panel's search).
-    if (_taskFocus.hasFocus) return KeyEventResult.ignored;
+    // While typing in the description field, keys belong to it — printable keys
+    // bubble up here otherwise (e would fire edit, Enter would arm the cursor).
+    // Esc is handled by the CallbackShortcuts wrapping the field.
+    if (_descFocus.hasFocus) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
     // Ctrl-combos (pane switching, Ctrl-w chord) are the shell's job — bubble.
@@ -407,7 +421,7 @@ class _TimerViewState extends State<TimerView> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyI) {
-      _focusTask();
+      _focusDescription(); // jump into the session description field
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyE) {
@@ -485,6 +499,41 @@ class _TimerViewState extends State<TimerView> {
     );
   }
 
+  Task? _taskById(int? id) {
+    if (id == null) return null;
+    for (final t in _tasks) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  // Which task the timer is (or would be) tracking: the live session's bound
+  // task, else the armed selection.
+  int? get _activeTaskId => _c.hasSession ? _c.boundTaskId : _selectedTaskId;
+
+  Widget _armedLabel(BuildContext context) {
+    final theme = Theme.of(context);
+    if (widget.jobId == null) {
+      return Text(
+        'Select a job to start tracking',
+        style: theme.textTheme.bodySmall,
+      );
+    }
+    final task = _taskById(_activeTaskId);
+    if (task == null) {
+      return Text(
+        'Pick a task below to start tracking',
+        style: theme.textTheme.bodySmall,
+      );
+    }
+    return Text(
+      '${_c.hasSession ? 'Tracking' : 'Ready'} · ${task.title}',
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.primary,
+      ),
+    );
+  }
+
   Widget _body(BuildContext context, double counterSize) {
     return Column(
       children: [
@@ -510,39 +559,32 @@ class _TimerViewState extends State<TimerView> {
               running: _c.isRunning,
               hasSession: _c.hasSession,
               counter: _c.elapsed,
-              // No job selected → disable start so time can't be tracked
-              // against nothing (and later silently discarded).
-              onPrimary: widget.jobId == null
-                  ? null
-                  : (_c.isRunning ? _pause : _startOrResume),
+              // Gated on an armed task (except pause/resume of a live session),
+              // so time is always tracked against a chosen task.
+              onPrimary: _canPrimary
+                  ? (_c.isRunning ? _pause : _startOrResume)
+                  : null,
               onFinish: _c.hasSession ? _finish : null,
             ),
-            const SizedBox(height: AppTokens.space2xl), // match input→history
-            if (widget.jobId == null) ...[
-              Text(
-                'Select a job to start tracking',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            // Esc blurs the field back to the entry cursor (mirrors the panel).
+            const SizedBox(height: AppTokens.spaceLg),
+            _armedLabel(context),
+            const SizedBox(height: AppTokens.spaceMd),
+            // Optional note for this session; becomes the entry's description on
+            // finish. Esc returns to the row cursor; Enter starts if armed.
             CallbackShortcuts(
               bindings: {
                 const SingleActivator(LogicalKeyboardKey.escape): _blurToCursor,
               },
               child: TextField(
-                controller: _c.task,
-                focusNode: _taskFocus,
+                controller: _c.description,
+                focusNode: _descFocus,
                 decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
                   hintText: 'What are you working on?',
-                  labelText: 'Task',
                 ),
                 textInputAction: TextInputAction.done,
-                // Return starts (if idle) and hands focus back to the entry
-                // cursor, so Space immediately pauses/resumes from there.
                 onSubmitted: (_) {
-                  // Guard jobId like _primaryAction: starting with no job bound
-                  // would produce a session finish() silently discards.
-                  if (widget.jobId != null && !_c.isRunning) _startOrResume();
+                  if (!_c.isRunning && _canPrimary) _startOrResume();
                   _blurToCursor();
                 },
               ),
@@ -571,11 +613,15 @@ class _TimerViewState extends State<TimerView> {
               return TaskList(
                 rows: _rows,
                 rate: rate,
+                selectedTaskId: _activeTaskId,
                 cursor: _cursor,
                 cursorActive: _cursorActive,
                 cursorKey: _cursorKey,
                 scrollController: _scroll,
+                onSelectTask: _selectTask,
                 onToggle: _toggleTask,
+                onAddEntryToTask: (taskId) =>
+                    _openEntryEditor(null, taskId: taskId),
                 onEditTask: _openTaskEditor,
                 onEditEntry: _openEntryEditor,
               );

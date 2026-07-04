@@ -23,7 +23,7 @@ Job _job({double? rate}) => Job(
 TimeEntry _entry(int seconds) => TimeEntry(
   id: 1,
   jobId: 1,
-  task: 'task',
+  taskId: 1,
   startedAt: _t,
   endedAt: _t.add(Duration(seconds: seconds)),
   seconds: seconds,
@@ -38,6 +38,7 @@ JobInvoice _invoice({
   client: _client(defaultRate: clientRate),
   rate: jobRate ?? clientRate,
   entries: [for (final s in secs) _entry(s)],
+  taskTitles: const {1: 'task'},
 );
 
 void main() {

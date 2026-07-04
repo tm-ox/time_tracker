@@ -39,10 +39,11 @@ class Tasks extends Table {
 class TimeEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get jobId => integer().references(Jobs, #id)();
-  TextColumn get task => text()(); // DEAD once #57 lands — taskId is the source
-  // Nullable only to allow the ALTER TABLE add during the v1→v2 migration; the
-  // add/update bridge always sets it, so in practice every row has a task.
+  // An entry belongs to a task; [description] is an optional per-segment note
+  // (e.g. "fixed the login bug"). Nullable — most entries just inherit the
+  // task's title in the UI.
   IntColumn get taskId => integer().nullable().references(Tasks, #id)();
+  TextColumn get description => text().nullable()();
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn get endedAt => dateTime()();
   IntColumn get seconds =>
@@ -53,9 +54,15 @@ class TimeEntries extends Table {
 /// `amount` is null when the invoice has no effective rate (un-billable).
 class InvoiceLine {
   final TimeEntry entry;
+  final String label; // task title, plus the entry's own name when set
   final double hours;
   final double? amount;
-  InvoiceLine({required this.entry, required this.hours, required this.amount});
+  InvoiceLine({
+    required this.entry,
+    required this.label,
+    required this.hours,
+    required this.amount,
+  });
 }
 
 /// An invoice for a single job over a period: the job, its client, the
@@ -68,11 +75,13 @@ class JobInvoice {
   final Client client;
   final double? rate; // effective: job.rate ?? client.defaultRate
   final List<TimeEntry> entries;
+  final Map<int, String> taskTitles; // taskId → title, for line labels
   JobInvoice({
     required this.job,
     required this.client,
     required this.rate,
     required this.entries,
+    required this.taskTitles,
   });
 
   /// The itemised lines: hours and (rate-permitting) amount per entry.
@@ -80,10 +89,18 @@ class JobInvoice {
     for (final e in entries)
       InvoiceLine(
         entry: e,
+        label: _labelFor(e),
         hours: e.seconds / 3600,
         amount: rate == null ? null : (e.seconds / 3600) * rate!,
       ),
   ];
+
+  String _labelFor(TimeEntry e) {
+    final task = e.taskId == null ? null : taskTitles[e.taskId];
+    final desc = e.description?.trim();
+    if (task == null) return desc == null || desc.isEmpty ? '—' : desc;
+    return desc == null || desc.isEmpty ? task : '$task · $desc';
+  }
 
   int get totalSeconds => entries.fold(0, (sum, e) => sum + e.seconds);
   double get totalHours => totalSeconds / 3600;
@@ -96,7 +113,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   // drift doesn't enforce foreign keys unless we turn the pragma on per
   // connection. With it on, deleting a job that has time entries (or a client
@@ -122,6 +139,16 @@ class AppDatabase extends _$AppDatabase {
           'UPDATE time_entries SET task_id = ('
           'SELECT t.id FROM tasks t '
           'WHERE t.job_id = time_entries.job_id AND t.title = time_entries.task)',
+        );
+      }
+      // v2 → v3: the free-text `task` string is now redundant with taskId.
+      // Rebuild time_entries to drop it and add an optional per-entry `name`
+      // (starts null — names are set explicitly, not inherited from the task).
+      if (from < 3) {
+        // `description` is nullable, so it needs no transformer — the rebuild
+        // adds it as NULL and drops the old `task` column (gone from v3).
+        await m.alterTable(
+          TableMigration(timeEntries, newColumns: [timeEntries.description]),
         );
       }
     },
@@ -153,60 +180,40 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  // Bridge until #56 passes a real taskId: resolve the free-text task to a Task
-  // row (creating it once per job+title), so every entry links to a task while
-  // callers still speak in strings.
-  Future<int> _getOrCreateTask(int jobId, String title) async {
-    final existing =
-        await (select(tasks)
-              ..where((t) => t.jobId.equals(jobId) & t.title.equals(title)))
-            .getSingleOrNull();
-    if (existing != null) return existing.id;
-    return into(tasks).insert(TasksCompanion.insert(jobId: jobId, title: title));
-  }
-
   Future<void> addEntry({
     required int jobId,
-    required String task,
+    required int taskId,
+    String? description,
     required DateTime startedAt,
     required DateTime endedAt,
     required int seconds,
-  }) async {
-    final taskId = await _getOrCreateTask(jobId, task);
-    await into(timeEntries).insert(
-      TimeEntriesCompanion.insert(
-        jobId: jobId,
-        task: task,
-        taskId: Value(taskId),
-        startedAt: startedAt,
-        endedAt: endedAt,
-        seconds: seconds,
-      ),
-    );
-  }
+  }) => into(timeEntries).insert(
+    TimeEntriesCompanion.insert(
+      jobId: jobId,
+      taskId: Value(taskId),
+      description: Value(description),
+      startedAt: startedAt,
+      endedAt: endedAt,
+      seconds: seconds,
+    ),
+  );
 
   Future<void> updateEntry({
     required int id,
-    required String task,
+    required int taskId,
+    String? description,
     required DateTime startedAt,
     required DateTime endedAt,
     required int seconds,
-  }) async {
-    // Editing the label may re-point the entry to a different task under the
-    // same job — keep task_id consistent with the string.
-    final row =
-        await (select(timeEntries)..where((t) => t.id.equals(id))).getSingle();
-    final taskId = await _getOrCreateTask(row.jobId, task);
-    await (update(timeEntries)..where((t) => t.id.equals(id))).write(
-      TimeEntriesCompanion(
-        task: Value(task),
-        taskId: Value(taskId),
-        startedAt: Value(startedAt),
-        endedAt: Value(endedAt),
-        seconds: Value(seconds),
-      ),
-    );
-  }
+  }) => (update(timeEntries)..where((t) => t.id.equals(id))).write(
+    TimeEntriesCompanion(
+      taskId: Value(taskId),
+      description: Value(description),
+      startedAt: Value(startedAt),
+      endedAt: Value(endedAt),
+      seconds: Value(seconds),
+    ),
+  );
 
   Future<void> deleteEntry(int id) =>
       (delete(timeEntries)..where((t) => t.id.equals(id))).go();
@@ -369,11 +376,14 @@ class AppDatabase extends _$AppDatabase {
               )
               ..orderBy([(t) => OrderingTerm.asc(t.startedAt)]))
             .get();
+    final taskRows =
+        await (select(tasks)..where((t) => t.jobId.equals(jobId))).get();
     return JobInvoice(
       job: job,
       client: client,
       rate: job.rate ?? client.defaultRate,
       entries: entries,
+      taskTitles: {for (final t in taskRows) t.id: t.title},
     );
   }
 }

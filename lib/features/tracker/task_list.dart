@@ -13,11 +13,14 @@ import 'package:time_tracker/widgets/focus_ring.dart';
 class TaskList extends StatelessWidget {
   final List<TaskListRow> rows;
   final double? rate; // effective job/client rate; a task may override it
+  final int? selectedTaskId; // the task the timer is armed on / tracking
   final int cursor;
   final bool cursorActive;
   final Key? cursorKey; // rides the cursor row for ensureVisible
   final ScrollController? scrollController;
-  final void Function(int taskId) onToggle;
+  final void Function(int taskId) onSelectTask; // arm for the timer
+  final void Function(int taskId) onToggle; // expand/collapse
+  final void Function(int taskId) onAddEntryToTask;
   final void Function(Task) onEditTask;
   final void Function(TimeEntry) onEditEntry;
 
@@ -25,9 +28,12 @@ class TaskList extends StatelessWidget {
     super.key,
     required this.rows,
     required this.rate,
+    required this.onSelectTask,
     required this.onToggle,
+    required this.onAddEntryToTask,
     required this.onEditTask,
     required this.onEditEntry,
+    this.selectedTaskId,
     this.cursor = 0,
     this.cursorActive = false,
     this.cursorKey,
@@ -94,15 +100,20 @@ class TaskList extends StatelessWidget {
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
+      selected: row.taskId == selectedTaskId, // armed/tracking → green pill
       contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
       horizontalTitleGap: AppTokens.space2xs,
-      onTap: () => onToggle(row.taskId),
-      leading: Icon(
-        row.expanded ? Icons.expand_more : Icons.chevron_right,
-        size: AppTokens.iconSm,
-        color: row.expanded
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant,
+      // Tapping the row arms the task for the timer; the chevron toggles expand.
+      onTap: () => onSelectTask(row.taskId),
+      leading: GestureDetector(
+        onTap: () => onToggle(row.taskId),
+        child: Icon(
+          row.expanded ? Icons.expand_more : Icons.chevron_right,
+          size: AppTokens.iconSm,
+          color: row.expanded
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
+        ),
       ),
       title: Text(
         row.task.title,
@@ -122,11 +133,21 @@ class TaskList extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
-      // Edit sits to the LEFT of the time so the fixed-width time column stays
-      // clean and the edit icons line up (matching the side panel's caps).
+      // Add-entry then edit sit to the LEFT of the fixed-width time so the time
+      // column stays aligned and the action icons line up (like the panel caps).
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            iconSize: AppTokens.iconMd,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Add entry',
+            onPressed: () => onAddEntryToTask(row.taskId),
+          ),
+          const SizedBox(width: AppTokens.spaceSm),
           IconButton(
             icon: const Icon(Icons.edit_note),
             iconSize: AppTokens.iconMd,
@@ -149,32 +170,45 @@ class TaskList extends StatelessWidget {
   }
 
   Widget _entryTile(BuildContext context, TaskEntryRow row) {
+    final theme = Theme.of(context);
     final e = row.entry;
     final loc = MaterialLocalizations.of(context);
     String time(DateTime d) => loc.formatTimeOfDay(TimeOfDay.fromDateTime(d));
     final when =
         '${loc.formatMediumDate(e.startedAt)} · '
         '${time(e.startedAt)} – ${time(e.endedAt)}';
+    final desc = e.description?.trim();
+    final hasName = desc != null && desc.isNotEmpty;
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
-      // Indent under the task header; right inset matches so the time column
-      // lines up with the task rows' time.
-      contentPadding: const EdgeInsets.fromLTRB(
-        AppTokens.space2xl,
-        AppTokens.space3xs,
-        AppTokens.spaceMd,
-        AppTokens.space3xs,
-      ),
+      // A transparent leading spacer the width of the task chevron + the same
+      // gap and padding, so the entry text lines up exactly under the task
+      // title; the time column still aligns on the right.
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
+      horizontalTitleGap: AppTokens.space2xs,
+      leading: const SizedBox(width: AppTokens.iconSm),
       onTap: () => onEditEntry(e),
       title: Text(
-        when,
+        hasName ? desc : when,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: AppTokens.fontSizeXs,
           fontWeight: FontWeight.w300,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
+      subtitle: hasName
+          ? Text(
+              when,
+              style: TextStyle(
+                fontSize: AppTokens.fontSizeXs,
+                fontWeight: FontWeight.w300,
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+            )
+          : null,
       trailing: Text(
         Duration(seconds: e.seconds).hms,
         style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),

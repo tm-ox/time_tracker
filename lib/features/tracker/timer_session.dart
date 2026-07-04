@@ -1,11 +1,13 @@
 /// What a finished session should be persisted as.
 class FinishedSession {
   final int jobId;
+  final int taskId;
   final DateTime startedAt;
   final DateTime endedAt;
   final int seconds;
   const FinishedSession({
     required this.jobId,
+    required this.taskId,
     required this.startedAt,
     required this.endedAt,
     required this.seconds,
@@ -27,17 +29,21 @@ class TimerSession {
   bool _running = false;
   DateTime? _startedAt;
   int? _boundJobId;
+  int? _boundTaskId;
 
   int get elapsed => _elapsed;
   bool get isRunning => _running;
   int? get boundJobId => _boundJobId;
+  int? get boundTaskId => _boundTaskId;
   bool get hasSession => _running || _elapsed > 0;
 
-  /// Start or resume. Binds [jobId] at first start; a no-op while running.
-  void start(int? jobId, {required DateTime now}) {
+  /// Start or resume. Binds [jobId]/[taskId] at first start so a selection
+  /// change mid-session can't misattribute time; a no-op while running.
+  void start(int? jobId, int? taskId, {required DateTime now}) {
     if (_running) return;
     _startedAt ??= now;
     _boundJobId ??= jobId;
+    _boundTaskId ??= taskId;
     _running = true;
   }
 
@@ -50,9 +56,12 @@ class TimerSession {
   /// (empty session, or no job was ever bound). Does not clear.
   FinishedSession? finish({required DateTime now}) {
     _running = false;
-    if (_elapsed == 0 || _boundJobId == null) return null;
+    if (_elapsed == 0 || _boundJobId == null || _boundTaskId == null) {
+      return null;
+    }
     return FinishedSession(
       jobId: _boundJobId!,
+      taskId: _boundTaskId!,
       startedAt: _startedAt ?? now,
       endedAt: now,
       seconds: _elapsed,
@@ -64,5 +73,6 @@ class TimerSession {
     _running = false;
     _startedAt = null;
     _boundJobId = null;
+    _boundTaskId = null;
   }
 }

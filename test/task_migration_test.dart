@@ -58,4 +58,52 @@ void main() {
     expect(taskOf(3).jobId, 2); // job-2 Design
     expect(taskOf(0).id, isNot(taskOf(3).id));
   });
+
+  test('v2→v3 drops task, adds description, and inserts still work', () async {
+    // Hand-build a schema-v2 database (has tasks + time_entries.task_id and the
+    // old NOT NULL `task` column; no `description`), user_version = 2.
+    final raw = sqlite3.openInMemory();
+    raw.execute('''
+      CREATE TABLE clients (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL, email TEXT, address TEXT, abn TEXT,
+        default_rate REAL, archived_at INTEGER);
+      CREATE TABLE jobs (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL REFERENCES clients (id), code TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL, rate REAL, status TEXT NOT NULL DEFAULT 'active',
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')));
+      CREATE TABLE tasks (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL REFERENCES jobs (id), title TEXT NOT NULL,
+        rate REAL, status TEXT NOT NULL DEFAULT 'active',
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')));
+      CREATE TABLE time_entries (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL REFERENCES jobs (id), task TEXT NOT NULL,
+        task_id INTEGER REFERENCES tasks (id),
+        started_at INTEGER NOT NULL, ended_at INTEGER NOT NULL, seconds INTEGER NOT NULL);
+      INSERT INTO clients (id, name) VALUES (1, 'Acme');
+      INSERT INTO jobs (id, client_id, code, title) VALUES (1, 1, 'J1', 'Job One');
+      INSERT INTO tasks (id, job_id, title) VALUES (1, 1, 'Design');
+      INSERT INTO time_entries (job_id, task, task_id, started_at, ended_at, seconds)
+        VALUES (1, 'Design', 1, 100, 200, 100);
+      PRAGMA user_version = 2;
+    ''');
+
+    final db = AppDatabase(NativeDatabase.opened(raw));
+    addTearDown(db.close);
+
+    // Existing entry survives with its taskId; description starts null.
+    final migrated = await db.select(db.timeEntries).get();
+    expect(migrated.single.taskId, 1);
+    expect(migrated.single.description, isNull);
+
+    // A fresh insert (what "finish" does) succeeds against the migrated schema.
+    await db.addEntry(
+      jobId: 1,
+      taskId: 1,
+      description: 'a note',
+      startedAt: DateTime(2026),
+      endedAt: DateTime(2026),
+      seconds: 60,
+    );
+    expect((await db.select(db.timeEntries).get()).length, 2);
+  });
 }
