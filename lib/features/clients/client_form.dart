@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/util/parse_rate.dart';
-import 'package:time_tracker/widgets/confirm_dialog.dart';
+import 'package:time_tracker/features/deletions.dart';
 
 // Add/edit/delete a client. Presented adaptively — a modal dialog on wide
 // windows, a bottom sheet on narrow — mirroring showTaskEditor / showJobEditor.
@@ -104,26 +104,12 @@ class _ClientFormState extends State<ClientForm> {
   }
 
   Future<void> _confirmDelete() async {
-    final ok = await confirmDelete(
+    final deleted = await confirmDeleteClient(
       context,
-      title: 'Delete client?',
-      message: '"${widget.initial!.name}" will be removed.',
+      widget.db,
+      widget.initial!,
     );
-    if (!ok) return;
-    try {
-      await widget.db.deleteClient(widget.initial!.id);
-    } catch (e) {
-      // FK restrict: the client still has jobs.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cannot delete a client that still has jobs.'),
-          ),
-        );
-      }
-      return;
-    }
-    if (mounted) Navigator.pop(context);
+    if (deleted && mounted) Navigator.pop(context);
   }
 
   @override

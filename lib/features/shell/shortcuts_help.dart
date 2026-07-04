@@ -30,6 +30,7 @@ const List<_Group> _keymap = [
     _Shortcut(['H', '←'], 'Collapse / parent'),
     _Shortcut(['Enter'], 'Select / activate'),
     _Shortcut(['e'], 'Edit focused item'),
+    _Shortcut(['d'], 'Delete focused item'),
     _Shortcut(['Esc'], 'Back to list'),
   ]),
   _Group('Panes', [

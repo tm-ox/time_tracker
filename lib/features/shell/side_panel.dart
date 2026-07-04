@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/shell/panel_rows.dart';
+import 'package:time_tracker/features/deletions.dart';
 import 'package:time_tracker/widgets/focus_ring.dart';
 
 class SidePanel extends StatefulWidget {
@@ -364,6 +365,11 @@ class _SidePanelState extends State<SidePanel> {
       }
       return KeyEventResult.handled;
     }
+    // d = delete the focused row (with a confirmation).
+    if (key == LogicalKeyboardKey.keyD) {
+      _deleteCurrent();
+      return KeyEventResult.handled;
+    }
     // Tab is left for the shell (tracker↔panel toggle) — don't consume.
     return KeyEventResult.ignored;
   }
@@ -372,6 +378,17 @@ class _SidePanelState extends State<SidePanel> {
   void _addJobCurrent() {
     if (_cursor >= _rows.length) return;
     widget.onAddJob(_rows[_cursor].clientId);
+  }
+
+  // d : delete the focused client or job (confirmed).
+  void _deleteCurrent() {
+    if (_cursor >= _rows.length) return;
+    final row = _rows[_cursor];
+    if (row is ClientRow) {
+      confirmDeleteClient(context, widget.db, row.client);
+    } else if (row is JobRow) {
+      confirmDeleteJob(context, widget.db, row.job);
+    }
   }
 
   @override

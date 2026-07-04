@@ -26,3 +26,23 @@ Future<bool> confirmDelete(
   );
   return ok ?? false;
 }
+
+/// A single-button information dialog — used to surface errors that a SnackBar
+/// would hide behind an open modal (e.g. a blocked delete).
+Future<void> showInfoDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+}) => showDialog<void>(
+  context: context,
+  builder: (ctx) => AlertDialog(
+    title: Text(title),
+    content: Text(message),
+    actions: [
+      FilledButton(
+        onPressed: () => Navigator.pop(ctx),
+        child: const Text('OK'),
+      ),
+    ],
+  ),
+);

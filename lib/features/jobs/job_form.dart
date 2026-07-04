@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/util/parse_rate.dart';
-import 'package:time_tracker/widgets/confirm_dialog.dart';
+import 'package:time_tracker/features/deletions.dart';
 
 // Add/edit/delete a job. Presented adaptively — a modal dialog on wide windows,
 // a bottom sheet on narrow — mirroring showTaskEditor / showEntryEditor.
@@ -126,26 +126,8 @@ class _JobFormState extends State<JobForm> {
   }
 
   Future<void> _confirmDelete() async {
-    final ok = await confirmDelete(
-      context,
-      title: 'Delete job?',
-      message: '"${widget.initial!.title}" will be removed.',
-    );
-    if (!ok) return;
-    try {
-      await widget.db.deleteJob(widget.initial!.id);
-    } catch (e) {
-      // FK restrict: the job has time entries recorded against it.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cannot delete a job that has time entries.'),
-          ),
-        );
-      }
-      return;
-    }
-    if (mounted) Navigator.pop(context);
+    final deleted = await confirmDeleteJob(context, widget.db, widget.initial!);
+    if (deleted && mounted) Navigator.pop(context);
   }
 
   @override
