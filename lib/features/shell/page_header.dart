@@ -51,7 +51,7 @@ class PageHeader extends StatelessWidget {
             // The horizontal logo already carries the "timedart" wordmark.
             child: SvgPicture.asset(
               'assets/logo/timedart_logo_horizontal.svg',
-              height: 20,
+              height: 18,
             ),
           ),
         );
