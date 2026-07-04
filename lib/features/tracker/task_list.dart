@@ -53,15 +53,8 @@ class TaskList extends StatelessWidget {
     return ListView.builder(
       controller: scrollController,
       // No top padding: the first task's focus ring sits flush against the
-      // section divider above. A little breathing room at the bottom, plus a
-      // hair of horizontal inset so the armed-task background doesn't run flush
-      // to the content edge.
-      padding: const EdgeInsets.fromLTRB(
-        AppTokens.space3xs,
-        0,
-        AppTokens.space3xs,
-        AppTokens.space4xs,
-      ),
+      // section divider above. A little breathing room at the bottom only.
+      padding: const EdgeInsets.only(bottom: AppTokens.space4xs),
       itemCount: rows.length,
       itemBuilder: (context, i) {
         final row = rows[i];
@@ -108,7 +101,9 @@ class TaskList extends StatelessWidget {
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
       selected: row.taskId == selectedTaskId, // armed/tracking → green pill
-      contentPadding: EdgeInsets.zero,
+      // A hair of horizontal content inset so text/actions aren't flush to the
+      // edge; the selected fill still spans the full tile width.
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.space3xs),
       horizontalTitleGap: AppTokens.space2xs,
       // Tapping the row arms the task for the timer; the chevron toggles expand.
       onTap: () => onSelectTask(row.taskId),
@@ -192,7 +187,7 @@ class TaskList extends StatelessWidget {
       // A transparent leading spacer the width of the task chevron + the same
       // gap and padding, so the entry text lines up exactly under the task
       // title; the time column still aligns on the right.
-      contentPadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.space3xs),
       horizontalTitleGap: AppTokens.space2xs,
       leading: const SizedBox(width: AppTokens.iconSm),
       onTap: () => onEditEntry(e),
