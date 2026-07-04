@@ -6,56 +6,60 @@ import 'package:time_tracker/constants/tokens.dart';
 /// side-panel's search field: same fill and height, sitting at the same top
 /// inset so the two bars bracket the divider.
 ///
-/// Its left edge lands on the content pane's inset (matching [ContentBody]'s
-/// centred, [AppTokens.maxContentWidth]-capped block) and its right edge runs
-/// to the divider. The rounded corner is on the left — the edge away from the
-/// divider — mirroring the search field, whose rounded corner is on the right.
+/// The bar runs to the divider on the right, with a left gap that mirrors the
+/// space between the panel's search input and its right edge (the trailing gap
+/// + add button + panel right padding). The rounded corner is on the left —
+/// the edge away from the divider — mirroring the search field. The logo is
+/// centred to the content pane (which is itself centred within the region), so
+/// it sits over the timer/content column below.
 class PageHeader extends StatelessWidget {
   const PageHeader({super.key});
+
+  // Left gap = the panel's search-input-to-right-edge space: the SizedBox gap,
+  // the add button (iconMd), and the panel's right padding (spaceMd).
+  static const double _leftGap =
+      AppTokens.spaceSm + AppTokens.iconMd + AppTokens.spaceMd;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, c) {
-        // Reproduce ContentBody's geometry to find the content pane's left
-        // inset: the block is centred and capped at maxContentWidth, then inset
-        // by spaceLg.
-        final region = c.maxWidth;
-        final block = region < AppTokens.maxContentWidth
-            ? region
-            : AppTokens.maxContentWidth;
-        final leftInset = (region - block) / 2 + AppTokens.spaceLg;
-
-        return Padding(
-          // Top/bottom inset matches the search field so the bars line up and
-          // the gap below them equals the gap above; right runs to the divider.
-          padding: EdgeInsets.only(
-            left: leftInset,
-            top: AppTokens.spaceLg,
-            bottom: AppTokens.spaceLg,
-          ),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 36),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceSm,
-              vertical: AppTokens.spaceXs,
-            ),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(AppTokens.radiusSm),
+    return Padding(
+      // Top/bottom inset matches the search field so the bars line up and the
+      // gap below equals the gap above.
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceLg),
+      child: SizedBox(
+        height: 36,
+        child: Stack(
+          children: [
+            // The bar itself: from the left gap across to the divider.
+            Positioned(
+              left: _leftGap,
+              top: 0,
+              bottom: 0,
+              right: 0,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(AppTokens.radiusSm),
+                  ),
+                ),
               ),
             ),
-            // The horizontal logo already carries the "timedart" wordmark.
-            child: SvgPicture.asset(
-              'assets/logo/timedart_logo_horizontal.svg',
-              height: 18,
+            // Logo centred to the content pane (region centre), so it lines up
+            // over the centred content column below. The horizontal logo
+            // already carries the "timedart" wordmark.
+            Positioned.fill(
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/logo/timedart_logo_horizontal.svg',
+                  height: 18,
+                ),
+              ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }
