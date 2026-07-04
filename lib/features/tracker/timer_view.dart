@@ -359,6 +359,11 @@ class _TimerViewState extends State<TimerView> {
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
 
+    // While typing in the description field, keys belong to it — printable keys
+    // bubble up here otherwise (e would fire edit, Enter would arm the cursor).
+    // Esc is handled by the CallbackShortcuts wrapping the field.
+    if (_descFocus.hasFocus) return KeyEventResult.ignored;
+
     final key = event.logicalKey;
     // Ctrl-combos (pane switching, Ctrl-w chord) are the shell's job — bubble.
     if (HardwareKeyboard.instance.isControlPressed) {
