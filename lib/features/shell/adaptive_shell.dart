@@ -66,6 +66,15 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   void _focusPanel() => _panelCursor.requestFocus();
   void _focusTracker() => _trackerCursor.requestFocus();
   void _focusSearch() => _panelSearch.requestFocus();
+
+  // Is a text field currently focused? EditableText wraps its focusNode in a
+  // Focus whose context sits under the EditableText widget, so the primary
+  // focus resolves an EditableText ancestor exactly when we're typing.
+  bool _isEditing() {
+    final ctx = FocusManager.instance.primaryFocus?.context;
+    return ctx != null &&
+        ctx.findAncestorWidgetOfExactType<EditableText>() != null;
+  }
   void _togglePane() =>
       _panelCursor.hasFocus ? _focusTracker() : _focusPanel();
 
@@ -80,17 +89,20 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     final key = event.logicalKey;
     final ctrl = HardwareKeyboard.instance.isControlPressed;
 
-    // `/` is global: focus the panel search from whichever pane has focus. A
-    // focused text field consumes `/` before it reaches here, so typing is safe.
-    if (!ctrl && key == LogicalKeyboardKey.slash) {
+    // Global single-key bindings (`/`, Space) must stand down while a text
+    // field is focused — printable-key events still bubble up here even as the
+    // field is receiving them, so without this guard they'd double-fire.
+    final editing = _isEditing();
+
+    // `/` is global: focus the panel search from whichever pane has focus.
+    if (!ctrl && !editing && key == LogicalKeyboardKey.slash) {
       _focusSearch();
       return KeyEventResult.handled;
     }
 
     // Space is global while the tracker is in view: toggle start/pause/resume
-    // from any pane. Fires once per press (repeats are swallowed, not repeated);
-    // a focused text field consumes Space before it reaches here.
-    if (!ctrl && key == LogicalKeyboardKey.space && _detail is _Tracker) {
+    // from any pane. Fires once per press (repeats are swallowed, not repeated).
+    if (!ctrl && !editing && key == LogicalKeyboardKey.space && _detail is _Tracker) {
       if (event is KeyDownEvent) _timer.primary?.call();
       return KeyEventResult.handled;
     }
