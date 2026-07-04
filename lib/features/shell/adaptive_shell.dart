@@ -54,10 +54,13 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   // is a follow-up, see issue).
   final FocusNode _panelCursor = FocusNode(debugLabel: 'panelCursor');
   final FocusScopeNode _trackerScope = FocusScopeNode(debugLabel: 'trackerScope');
+  // The tracker pane's own row cursor (its entry list). Owned here so the shell
+  // can move focus straight onto it — mirrors _panelCursor. See TimerView.
+  final FocusNode _trackerCursor = FocusNode(debugLabel: 'trackerCursor');
   bool _pendingCtrlW = false; // saw Ctrl-w, awaiting an h/l
 
   void _focusPanel() => _panelCursor.requestFocus();
-  void _focusTracker() => _trackerScope.requestFocus();
+  void _focusTracker() => _trackerCursor.requestFocus();
   void _togglePane() =>
       _panelCursor.hasFocus ? _focusTracker() : _focusPanel();
 
@@ -161,6 +164,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     _jobsSub?.cancel();
     _panelCursor.dispose();
     _trackerScope.dispose();
+    _trackerCursor.dispose();
     super.dispose();
   }
 
@@ -171,6 +175,9 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         db: widget.db,
         jobId: _selectedJobId,
         onInvoice: _invoiceJob,
+        // Keyboard cursor for the entry list; only ever focused in the wide
+        // layout (Tab / Ctrl-h / Ctrl-w h), inert in the drawer.
+        cursorFocusNode: _trackerCursor,
       ),
       _EditJob(:final job, :final clientId) => JobForm(
         db: widget.db,

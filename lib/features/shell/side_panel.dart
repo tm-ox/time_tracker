@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/shell/panel_rows.dart';
+import 'package:time_tracker/widgets/focus_ring.dart';
 
 class SidePanel extends StatefulWidget {
   const SidePanel({
@@ -401,7 +402,7 @@ class _SidePanelState extends State<SidePanel> {
         final row = _rows[i];
         final focused = i == _cursor && cursorActive;
         final key = i == _cursor ? _cursorKey : null;
-        final tile = _FocusRing(
+        final tile = FocusRing(
           focused: focused,
           child: switch (row) {
             ClientRow() => _ClientHeaderTile(
@@ -449,29 +450,6 @@ class _SidePanelState extends State<SidePanel> {
 
 // A subtle inset ring on the keyboard-focused row — deliberately distinct from
 // the green *selected*-job tint so both can show at once.
-class _FocusRing extends StatelessWidget {
-  final bool focused;
-  final Widget child;
-  const _FocusRing({required this.focused, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      // Square corners — the ring hugs the rectangular row edges.
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: focused
-              ? scheme.onSurfaceVariant.withValues(alpha: 0.7)
-              : Colors.transparent,
-          width: AppTokens.strokeThin,
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
 // --- Search field + Add-client button, pinned to the top of the panel ---
 class _SearchHeader extends StatelessWidget {
   final TextEditingController controller;

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/features/tracker/timer_controls.dart';
 import 'package:time_tracker/features/tracker/timer_session.dart';
@@ -14,10 +15,14 @@ class TimerView extends StatefulWidget {
     required this.db,
     required this.jobId,
     required this.onInvoice,
+    this.cursorFocusNode,
   });
   final AppDatabase db;
   final int? jobId;
   final void Function(Job) onInvoice; // open the invoice view for this job
+  // Keyboard cursor for the entry list (wide layout). When null, the pane has
+  // no keymap — used by the narrow drawer layout, which is mouse-first.
+  final FocusNode? cursorFocusNode;
 
   @override
   State<TimerView> createState() => _TimerViewState();
@@ -27,32 +32,75 @@ class _TimerViewState extends State<TimerView> {
   final _session = TimerSession();
   Timer? _timer;
   final _taskController = TextEditingController();
+  final _taskFocus = FocusNode(debugLabel: 'taskField');
   Stream<List<TimeEntry>>? _entriesStream; // entries for the selected job
   Stream<(Job, Client)?>? _jobStream;
+
+  // Keyboard cursor over the entry list. _entries mirrors the latest stream
+  // emission so the key handler can index into it outside of build.
+  List<TimeEntry> _entries = const [];
+  StreamSubscription<List<TimeEntry>>? _entriesSub;
+  int _cursor = 0;
+  final _cursorKey = GlobalKey(); // rides the focused row for ensureVisible
+  final _scroll = ScrollController();
+  static const _estRowHeight = 64.0; // rough row height for off-screen jumps
+  bool _pendingG = false; // saw a bare 'g', awaiting the second for gg
+
+  FocusNode? get _cursorNode => widget.cursorFocusNode;
+  bool get _cursorActive => _cursorNode?.hasPrimaryFocus ?? false;
 
   @override
   void initState() {
     super.initState();
     _updateJobStream();
+    _cursorNode?.addListener(_onFocusChanged);
   }
 
   @override
   void didUpdateWidget(TimerView old) {
     super.didUpdateWidget(old);
     if (old.jobId != widget.jobId) _updateJobStream();
+    if (old.cursorFocusNode != widget.cursorFocusNode) {
+      old.cursorFocusNode?.removeListener(_onFocusChanged);
+      _cursorNode?.addListener(_onFocusChanged);
+    }
   }
 
   @override
   void dispose() {
     _taskController.dispose();
+    _taskFocus.dispose();
+    _entriesSub?.cancel();
+    _scroll.dispose();
+    _cursorNode?.removeListener(_onFocusChanged);
     _timer?.cancel();
     super.dispose();
+  }
+
+  // Repaint the focus ring when the cursor gains/loses focus.
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
   }
 
   void _updateJobStream() {
     final id = widget.jobId;
     _jobStream = id == null ? null : widget.db.watchJobWithClient(id);
     _entriesStream = id == null ? null : widget.db.watchEntriesForJob(id);
+
+    // Cache entries so the keyboard cursor can index them. Clamp the cursor as
+    // the list grows/shrinks (e.g. after a delete or a new finished session).
+    _entriesSub?.cancel();
+    _entries = const [];
+    _cursor = 0;
+    _entriesSub = _entriesStream?.listen((rows) {
+      if (!mounted) return;
+      setState(() {
+        _entries = rows;
+        if (_cursor >= _entries.length) {
+          _cursor = _entries.isEmpty ? 0 : _entries.length - 1;
+        }
+      });
+    });
   }
 
   void _startOrResume() {
@@ -116,9 +164,147 @@ class _TimerViewState extends State<TimerView> {
     showEntryEditor(context, db: widget.db, jobId: jobId, entry: entry);
   }
 
+  // The Space action mirrors the primary button: start/resume ⇄ pause, and a
+  // no-op when there's no job to track against.
+  void _primaryAction() {
+    if (widget.jobId == null) return;
+    _session.isRunning ? _pause() : _startOrResume();
+  }
+
+  // --- Entry-list keyboard cursor (wide layout) ---
+
+  void _moveCursor(int delta) {
+    if (_entries.isEmpty) return;
+    final next = (_cursor + delta).clamp(0, _entries.length - 1);
+    if (next != _cursor) {
+      setState(() => _cursor = next);
+      _ensureVisible();
+    }
+  }
+
+  void _jumpTo(int index) {
+    if (_entries.isEmpty) return;
+    final next = index.clamp(0, _entries.length - 1);
+    if (next != _cursor) {
+      setState(() => _cursor = next);
+      _ensureVisible();
+    }
+  }
+
+  void _openCursorEntry() {
+    if (_cursor < _entries.length) _openEntryEditor(_entries[_cursor]);
+  }
+
+  void _focusTask() => _taskFocus.requestFocus();
+  void _blurToCursor() => _cursorNode?.requestFocus();
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+
+    // While typing in the task field, keys belong to it — except Esc, which
+    // pulls focus back out to the entry cursor (mirrors the panel's search).
+    if (_taskFocus.hasFocus) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.escape) {
+        _blurToCursor();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
+    final key = event.logicalKey;
+    // Ctrl-combos (pane switching, Ctrl-w chord) are the shell's job — bubble.
+    if (HardwareKeyboard.instance.isControlPressed) {
+      return KeyEventResult.ignored;
+    }
+
+    // Movement repeats when held.
+    if (key == LogicalKeyboardKey.keyJ || key == LogicalKeyboardKey.arrowDown) {
+      _moveCursor(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyK || key == LogicalKeyboardKey.arrowUp) {
+      _moveCursor(-1);
+      return KeyEventResult.handled;
+    }
+
+    // The rest fire once per press.
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+
+    // gg / G — handle before the pending-g reset below.
+    if (key == LogicalKeyboardKey.keyG) {
+      if (shift) {
+        _pendingG = false;
+        _jumpTo(_entries.length - 1);
+      } else if (_pendingG) {
+        _pendingG = false;
+        _jumpTo(0);
+      } else {
+        _pendingG = true;
+      }
+      return KeyEventResult.handled;
+    }
+    _pendingG = false; // any other key breaks a half-typed gg
+
+    // Open the focused entry: Enter / l / →.
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.keyL ||
+        key == LogicalKeyboardKey.arrowRight) {
+      _openCursorEntry();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.space) {
+      _primaryAction();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyF) {
+      if (_session.hasSession) _finish();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyI) {
+      _focusTask();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyA) {
+      _openEntryEditor(null);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _ensureVisible() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _cursorKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 120),
+        );
+        return;
+      }
+      // Row isn't laid out (ListView.builder skips off-screen items) — e.g. a
+      // gg/G jump. Approximate the offset, then refine once the row is built.
+      if (!_scroll.hasClients) return;
+      final approx = (_cursor * _estRowHeight).clamp(
+        0.0,
+        _scroll.position.maxScrollExtent,
+      );
+      _scroll.jumpTo(approx);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final refined = _cursorKey.currentContext;
+        if (refined != null) {
+          Scrollable.ensureVisible(refined, alignment: 0.5);
+        }
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
+    final layout = LayoutBuilder(
       builder: (context, constraints) {
         // Size the counter to the content area (not the whole window), so it
         // isn't oversized next to the side panel.
@@ -126,6 +312,11 @@ class _TimerViewState extends State<TimerView> {
         return _body(context, counterSize);
       },
     );
+    // Wide layout: hang the pane keymap off the shell-owned cursor node. Narrow
+    // (drawer) has no cursor node, so the pane stays mouse-first.
+    final node = _cursorNode;
+    if (node == null) return layout;
+    return Focus(focusNode: node, onKeyEvent: _onKey, child: layout);
   }
 
   Widget _body(BuildContext context, double counterSize) {
@@ -169,6 +360,7 @@ class _TimerViewState extends State<TimerView> {
             ],
             TextField(
               controller: _taskController,
+              focusNode: _taskFocus,
               decoration: const InputDecoration(
                 hintText: 'What are you working on?',
                 labelText: 'Task',
@@ -190,9 +382,13 @@ class _TimerViewState extends State<TimerView> {
         ],
         Expanded(
           child: EntryHistoryList(
-            entriesStream: _entriesStream,
+            entries: _entries,
             jobStream: _jobStream,
             onEditEntry: _openEntryEditor,
+            cursor: _cursor,
+            cursorActive: _cursorActive,
+            cursorKey: _cursorKey,
+            scrollController: _scroll,
           ),
         ),
       ],
@@ -296,15 +492,23 @@ class _EntriesHeader extends StatelessWidget {
 
 // --- Component 2: Isolated Entries List ---
 class EntryHistoryList extends StatelessWidget {
-  final Stream<List<TimeEntry>>? entriesStream; // null when no job selected
+  final List<TimeEntry> entries; // cached by TimerView (drives the key cursor)
   final Stream<(Job, Client)?>? jobStream; // for the effective rate
   final void Function(TimeEntry) onEditEntry;
+  final int cursor; // index of the keyboard cursor
+  final bool cursorActive; // whether the cursor's focus ring should show
+  final Key? cursorKey; // rides the cursor row for ensureVisible
+  final ScrollController? scrollController;
 
   const EntryHistoryList({
     super.key,
-    required this.entriesStream,
+    required this.entries,
     required this.jobStream,
     required this.onEditEntry,
+    this.cursor = 0,
+    this.cursorActive = false,
+    this.cursorKey,
+    this.scrollController,
   });
 
   @override
@@ -315,15 +519,14 @@ class EntryHistoryList extends StatelessWidget {
         final data = jobSnap.data;
         // Effective rate: the job's own rate, else the client default.
         final rate = data == null ? null : (data.$1.rate ?? data.$2.defaultRate);
-        return StreamBuilder<List<TimeEntry>>(
-          stream: entriesStream,
-          builder: (context, snapshot) {
-            return TimeEntryList(
-              entries: snapshot.data ?? [],
-              rate: rate,
-              onEditEntry: onEditEntry,
-            );
-          },
+        return TimeEntryList(
+          entries: entries,
+          rate: rate,
+          onEditEntry: onEditEntry,
+          cursor: cursor,
+          cursorActive: cursorActive,
+          cursorKey: cursorKey,
+          scrollController: scrollController,
         );
       },
     );
