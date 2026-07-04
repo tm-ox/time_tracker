@@ -23,7 +23,7 @@ class _Group {
 const List<_Group> _keymap = [
   // Movement, open/collapse, edit and Enter behave the same in both the side
   // panel and the tracker, so they live here once instead of per pane.
-  _Group('Navigation (both panes)', [
+  _Group('Navigation', [
     _Shortcut(['J', 'K', '↓', '↑'], 'Move'),
     _Shortcut(['g', 'g', 'G'], 'Top / bottom'),
     _Shortcut(['L', '→'], 'Open / expand'),
