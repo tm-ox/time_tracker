@@ -119,7 +119,6 @@ class _TimerViewState extends State<TimerView> {
     super.initState();
     _updateJobStream();
     _cursorNode?.addListener(_onFocusChanged);
-    _c.addListener(_onTimerChanged);
     _c.primary = _primaryAction;
   }
 
@@ -133,9 +132,7 @@ class _TimerViewState extends State<TimerView> {
     }
     if (old.controller != widget.controller) {
       final prev = old.controller ?? _internalController;
-      prev?.removeListener(_onTimerChanged);
       if (prev?.primary == _primaryAction) prev?.primary = null;
-      _c.addListener(_onTimerChanged);
       _c.primary = _primaryAction;
     }
   }
@@ -146,7 +143,6 @@ class _TimerViewState extends State<TimerView> {
     _entriesSub?.cancel();
     _scroll.dispose();
     _cursorNode?.removeListener(_onFocusChanged);
-    _c.removeListener(_onTimerChanged);
     if (_c.primary == _primaryAction) _c.primary = null;
     // Only the internal fallback is ours to dispose; a shell-owned controller
     // outlives this view (that's the whole point).
@@ -156,11 +152,6 @@ class _TimerViewState extends State<TimerView> {
 
   // Repaint the focus ring when the cursor gains/loses focus.
   void _onFocusChanged() {
-    if (mounted) setState(() {});
-  }
-
-  // The controller drives per-second repaints and start/pause/finish state.
-  void _onTimerChanged() {
     if (mounted) setState(() {});
   }
 
@@ -367,19 +358,27 @@ class _TimerViewState extends State<TimerView> {
 
   @override
   Widget build(BuildContext context) {
-    final layout = LayoutBuilder(
-      builder: (context, constraints) {
-        // Size the counter to the content area (not the whole window), so it
-        // isn't oversized next to the side panel.
-        final counterSize = (constraints.maxWidth * 0.16).clamp(72.0, 128.0);
-        return _body(context, counterSize);
+    // Rebuild on every controller change (per-second tick, start/pause/finish).
+    // Subscribing here in build — rather than a manual addListener in initState
+    // — keeps the binding declarative and survives hot reload.
+    return ListenableBuilder(
+      listenable: _c,
+      builder: (context, _) {
+        final layout = LayoutBuilder(
+          builder: (context, constraints) {
+            // Size the counter to the content area (not the whole window), so
+            // it isn't oversized next to the side panel.
+            final counterSize = (constraints.maxWidth * 0.16).clamp(72.0, 128.0);
+            return _body(context, counterSize);
+          },
+        );
+        // Wide layout: hang the pane keymap off the shell-owned cursor node.
+        // Narrow (drawer) has no cursor node, so the pane stays mouse-first.
+        final node = _cursorNode;
+        if (node == null) return layout;
+        return Focus(focusNode: node, onKeyEvent: _onKey, child: layout);
       },
     );
-    // Wide layout: hang the pane keymap off the shell-owned cursor node. Narrow
-    // (drawer) has no cursor node, so the pane stays mouse-first.
-    final node = _cursorNode;
-    if (node == null) return layout;
-    return Focus(focusNode: node, onKeyEvent: _onKey, child: layout);
   }
 
   Widget _body(BuildContext context, double counterSize) {
