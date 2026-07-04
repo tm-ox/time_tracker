@@ -28,14 +28,18 @@ class PageHeader extends StatelessWidget {
         final leftInset = (region - block) / 2 + AppTokens.spaceLg;
 
         return Padding(
-          // Top inset matches the search field so the bars line up; right runs
-          // to the divider (no inset).
-          padding: EdgeInsets.only(left: leftInset, top: AppTokens.spaceLg),
+          // Top/bottom inset matches the search field so the bars line up and
+          // the gap below them equals the gap above; right runs to the divider.
+          padding: EdgeInsets.only(
+            left: leftInset,
+            top: AppTokens.spaceLg,
+            bottom: AppTokens.spaceLg,
+          ),
           child: Container(
             constraints: const BoxConstraints(minHeight: 36),
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMd,
+              horizontal: AppTokens.spaceSm,
               vertical: AppTokens.spaceXs,
             ),
             decoration: BoxDecoration(
