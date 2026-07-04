@@ -394,6 +394,10 @@ class _SidePanelState extends State<SidePanel> {
               },
             ),
           ),
+          // A quiet hint at the base — opens the same help as `?`. Only where
+          // keyboard nav is live (wide layout).
+          if (widget.onShowHelp != null)
+            _ShortcutsHint(onTap: widget.onShowHelp!),
         ],
       ),
     );
@@ -740,6 +744,64 @@ class JobRowItem extends StatelessWidget {
         onPressed: onEdit,
       ),
       onTap: onTap,
+    );
+  }
+}
+
+// Base-of-panel hint: a `?` keycap + "Shortcuts", opening the help modal.
+class _ShortcutsHint extends StatelessWidget {
+  const _ShortcutsHint({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Divider(
+          height: AppTokens.strokeThin,
+          thickness: AppTokens.strokeThin,
+          color: AppTokens.colorBorder,
+        ),
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceMd,
+              vertical: AppTokens.spaceSm,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTokens.space2xs,
+                    vertical: AppTokens.space4xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                    border: Border.all(color: AppTokens.colorBorder),
+                  ),
+                  child: Text(
+                    '?',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppTokens.spaceXs),
+                Text(
+                  'Shortcuts',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

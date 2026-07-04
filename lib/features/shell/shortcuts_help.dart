@@ -80,7 +80,7 @@ class _ShortcutsDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(child: _column(theme, _keymap.sublist(0, 2))),
-          const SizedBox(width: AppTokens.space2xl),
+          const SizedBox(width: AppTokens.space2xl + AppTokens.spaceMd),
           Expanded(child: _column(theme, _keymap.sublist(2))),
         ],
       );
@@ -153,14 +153,14 @@ class _ShortcutsDialog extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 150,
+          width: 120,
           child: Wrap(
             spacing: AppTokens.space3xs,
             runSpacing: AppTokens.space3xs,
             children: [for (final k in s.keys) _cap(theme, k)],
           ),
         ),
-        const SizedBox(width: AppTokens.spaceMd),
+        const SizedBox(width: AppTokens.spaceSm),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: AppTokens.space4xs),
