@@ -355,8 +355,23 @@ class _SidePanelState extends State<SidePanel> {
       _editCurrent();
       return KeyEventResult.handled;
     }
+    // a = add client (parent), A = add job under the focused row's client.
+    if (key == LogicalKeyboardKey.keyA) {
+      if (shift) {
+        _addJobCurrent();
+      } else {
+        widget.onAddClient();
+      }
+      return KeyEventResult.handled;
+    }
     // Tab is left for the shell (tracker↔panel toggle) — don't consume.
     return KeyEventResult.ignored;
+  }
+
+  // A : add a job under the focused row's client (client or job row).
+  void _addJobCurrent() {
+    if (_cursor >= _rows.length) return;
+    widget.onAddJob(_rows[_cursor].clientId);
   }
 
   @override
@@ -596,7 +611,7 @@ class _SearchHeader extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            tooltip: 'Add client',
+            tooltip: 'Add client (a)',
             onPressed: onAddClient,
           ),
         ],
@@ -675,7 +690,7 @@ class _ClientHeaderTile extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            tooltip: 'Add job',
+            tooltip: 'Add job (A)',
             onPressed: onAddJob,
           ),
           const SizedBox(width: AppTokens.spaceSm),

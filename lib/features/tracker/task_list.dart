@@ -146,7 +146,7 @@ class TaskList extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            tooltip: 'Add entry',
+            tooltip: 'Add entry (A)',
             onPressed: () => onAddEntryToTask(row.taskId),
           ),
           const SizedBox(width: AppTokens.spaceSm),
