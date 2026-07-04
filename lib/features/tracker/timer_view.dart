@@ -54,12 +54,6 @@ class _TimerViewState extends State<TimerView> {
     super.initState();
     _updateJobStream();
     _cursorNode?.addListener(_onFocusChanged);
-    // The primary button's enabled state depends on the task text.
-    _taskController.addListener(_onTaskChanged);
-  }
-
-  void _onTaskChanged() {
-    if (mounted) setState(() {});
   }
 
   @override
@@ -74,7 +68,6 @@ class _TimerViewState extends State<TimerView> {
 
   @override
   void dispose() {
-    _taskController.removeListener(_onTaskChanged);
     _taskController.dispose();
     _taskFocus.dispose();
     _entriesSub?.cancel();
@@ -171,23 +164,21 @@ class _TimerViewState extends State<TimerView> {
     showEntryEditor(context, db: widget.db, jobId: jobId, entry: entry);
   }
 
-  // Can the primary action fire? Pause and resume are always allowed once a
-  // session exists; a *fresh* start needs a job AND a task, so we never spin up
-  // an "Untitled session" from an empty field.
-  bool get _canPrimary {
-    if (widget.jobId == null) return false;
-    if (_session.isRunning || _session.hasSession) return true;
-    return _taskController.text.trim().isNotEmpty;
-  }
-
-  // The Space action mirrors the primary button: start/resume ⇄ pause.
+  // The Space action mirrors the primary button (start/resume ⇄ pause) with one
+  // extra guard: a *fresh* keyboard start needs a task, so Space can't quietly
+  // create an "Untitled session". Pause/resume of an existing session is fine.
+  // (The Start button itself is intentionally not gated — Space only.)
   void _primaryAction() {
-    if (!_canPrimary) {
-      // An empty task is the usual blocker — nudge focus into the field.
-      if (widget.jobId != null && !_session.hasSession) _focusTask();
+    if (widget.jobId == null) return;
+    if (_session.isRunning) {
+      _pause();
       return;
     }
-    _session.isRunning ? _pause() : _startOrResume();
+    if (!_session.hasSession && _taskController.text.trim().isEmpty) {
+      _focusTask(); // nudge into the field instead of starting untitled
+      return;
+    }
+    _startOrResume();
   }
 
   // --- Entry-list keyboard cursor (wide layout) ---
@@ -220,16 +211,9 @@ class _TimerViewState extends State<TimerView> {
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
 
-    // While typing in the task field, keys belong to it — except Esc, which
-    // pulls focus back out to the entry cursor (mirrors the panel's search).
-    if (_taskFocus.hasFocus) {
-      if (event is KeyDownEvent &&
-          event.logicalKey == LogicalKeyboardKey.escape) {
-        _blurToCursor();
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
-    }
+    // While typing in the task field, keys belong to it. Esc is handled by the
+    // CallbackShortcuts wrapping the field (reliable, like the panel's search).
+    if (_taskFocus.hasFocus) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
     // Ctrl-combos (pane switching, Ctrl-w chord) are the shell's job — bubble.
@@ -363,11 +347,11 @@ class _TimerViewState extends State<TimerView> {
               running: _session.isRunning,
               hasSession: _session.hasSession,
               counter: _session.elapsed,
-              // Disabled until there's something to track: a job selected and,
-              // for a fresh start, a task typed (so no "Untitled session").
-              onPrimary: _canPrimary
-                  ? (_session.isRunning ? _pause : _startOrResume)
-                  : null,
+              // No job selected → disable start so time can't be tracked
+              // against nothing (and later silently discarded).
+              onPrimary: widget.jobId == null
+                  ? null
+                  : (_session.isRunning ? _pause : _startOrResume),
               onFinish: _session.hasSession ? _finish : null,
             ),
             const SizedBox(height: AppTokens.space2xl), // match input→history
@@ -377,17 +361,22 @@ class _TimerViewState extends State<TimerView> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
-            TextField(
-              controller: _taskController,
-              focusNode: _taskFocus,
-              decoration: const InputDecoration(
-                hintText: 'What are you working on?',
-                labelText: 'Task',
-              ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) {
-                if (!_session.isRunning && _canPrimary) _startOrResume();
+            // Esc blurs the field back to the entry cursor (mirrors the panel).
+            CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.escape): _blurToCursor,
               },
+              child: TextField(
+                controller: _taskController,
+                focusNode: _taskFocus,
+                decoration: const InputDecoration(
+                  hintText: 'What are you working on?',
+                  labelText: 'Task',
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) =>
+                    _session.isRunning ? null : _startOrResume(),
+              ),
             ),
           ],
         ),
