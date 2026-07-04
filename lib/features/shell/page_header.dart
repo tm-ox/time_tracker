@@ -2,58 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:time_tracker/constants/tokens.dart';
 
-/// The app's top header strip (wide layout). It sits *above* the tracker |
-/// side-panel split and adds nothing to their behaviour.
+/// The logo bar at the top of the content pane (wide layout). It mirrors the
+/// side-panel's search field: same fill and height, sitting at the same top
+/// inset so the two bars bracket the divider.
 ///
-/// The left region mirrors [ContentBody]'s geometry (centred, capped at
-/// [AppTokens.maxContentWidth], inset by [AppTokens.spaceLg]) so the logo's
-/// left edge lands on the same content inset as the pane below it. The trailing
-/// [dividerWidth] + [panelWidth] spacers reproduce the split's right-hand
-/// columns, so the strip's right end lines up with the panel's search column.
+/// Its left edge lands on the content pane's inset (matching [ContentBody]'s
+/// centred, [AppTokens.maxContentWidth]-capped block) and its right edge runs
+/// to the divider. The rounded corner is on the left — the edge away from the
+/// divider — mirroring the search field, whose rounded corner is on the right.
 class PageHeader extends StatelessWidget {
-  const PageHeader({
-    super.key,
-    required this.panelWidth,
-    required this.dividerWidth,
-  });
-
-  final double panelWidth;
-  final double dividerWidth;
+  const PageHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppTokens.maxContentWidth,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTokens.spaceLg,
-                  vertical: AppTokens.spaceSm,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  // The horizontal logo already carries the "timedart"
-                  // wordmark, so no separate name text is needed.
-                  child: SvgPicture.asset(
-                    'assets/logo/timedart_logo_horizontal.svg',
-                    height: 26,
-                  ),
-                ),
+    final scheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, c) {
+        // Reproduce ContentBody's geometry to find the content pane's left
+        // inset: the block is centred and capped at maxContentWidth, then inset
+        // by spaceLg.
+        final region = c.maxWidth;
+        final block = region < AppTokens.maxContentWidth
+            ? region
+            : AppTokens.maxContentWidth;
+        final leftInset = (region - block) / 2 + AppTokens.spaceLg;
+
+        return Padding(
+          // Top inset matches the search field so the bars line up; right runs
+          // to the divider (no inset).
+          padding: EdgeInsets.only(left: leftInset, top: AppTokens.spaceLg),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 36),
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceMd,
+              vertical: AppTokens.spaceXs,
+            ),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest,
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(AppTokens.radiusSm),
               ),
             ),
+            // The horizontal logo already carries the "timedart" wordmark.
+            child: SvgPicture.asset(
+              'assets/logo/timedart_logo_horizontal.svg',
+              height: 20,
+            ),
           ),
-        ),
-        // Reproduce the split's right columns so the left region matches the
-        // content pane's Expanded region exactly (and the strip's right end
-        // aligns with the search column).
-        SizedBox(width: dividerWidth),
-        SizedBox(width: panelWidth),
-      ],
+        );
+      },
     );
   }
 }

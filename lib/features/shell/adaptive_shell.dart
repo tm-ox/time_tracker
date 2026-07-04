@@ -270,7 +270,6 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     return LayoutBuilder(
       builder: (context, c) {
         if (c.maxWidth >= AppTokens.breakpointMd) {
-          const panelWidth = 320.0;
           return Scaffold(
             // Observes bubbled key events for pane-switching without stealing
             // primary focus from the pane widgets themselves.
@@ -278,38 +277,29 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
               onKeyEvent: _onShellKey,
               canRequestFocus: false,
               skipTraversal: true,
-              child: Column(
+              child: Row(
                 children: [
-                  // An additional strip above the split; doesn't touch the
-                  // tracker/panel layout or behaviour below it.
-                  const PageHeader(
-                    panelWidth: panelWidth,
-                    dividerWidth: AppTokens.strokeThick,
-                  ),
-                  const Divider(
-                    height: AppTokens.strokeThick,
-                    thickness: AppTokens.strokeThick,
-                    color: AppTokens.colorBorder,
-                  ),
+                  // Logo bar sits atop the content pane, level with the panel's
+                  // search field; the detail view fills the rest below it.
                   Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: FocusScope(node: _trackerScope, child: content),
-                        ),
-
-                        const VerticalDivider(
-                          width: AppTokens.strokeThick,
-                          color: AppTokens.colorBorder,
-                        ),
-
-                        SizedBox(
-                          width: panelWidth,
-                          child: panel(keyboardNav: true),
-                        ),
-                      ],
+                    child: FocusScope(
+                      node: _trackerScope,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const PageHeader(),
+                          Expanded(child: content),
+                        ],
+                      ),
                     ),
                   ),
+
+                  const VerticalDivider(
+                    width: AppTokens.strokeThick,
+                    color: AppTokens.colorBorder,
+                  ),
+
+                  SizedBox(width: 320, child: panel(keyboardNav: true)),
                 ],
               ),
             ),
