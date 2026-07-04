@@ -84,7 +84,7 @@ Future<bool> confirmDeleteTask(
   final ok = await confirmDelete(
     context,
     title: 'Delete task?',
-    message: '"${task.title}" and its time entries will be removed.',
+    message: '"${task.title}" will be removed.',
   );
   if (!ok) return false;
   try {
@@ -94,7 +94,7 @@ Future<bool> confirmDeleteTask(
       await showInfoDialog(
         context,
         title: "Can't delete task",
-        message: 'Something went wrong deleting this task.',
+        message: 'This task has time entries. Delete its entries first.',
       );
     }
     return false;
