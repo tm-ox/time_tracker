@@ -1,0 +1,205 @@
+// A pure, UI-free view-model for a rendered invoice (PRD #79).
+//
+// buildInvoiceDocument resolves the raw domain objects — the sender
+// InvoiceProfile, the Job/Client, the period's Tasks and TimeEntries — into
+// display-ready values and all the invoice arithmetic. Both renderers (the PDF
+// exporter and the on-screen preview) read numbers and text from here rather
+// than recomputing them, so the two can't drift.
+//
+// Deliberately imports NOTHING from Flutter or the `pdf` package: the logic is
+// portable and unit-testable in isolation. Money/time *formatting* lives in
+// `constants/format.dart` (also pure) and is applied by the renderers, so this
+// module holds raw numbers and the currency code.
+import 'package:time_tracker/data/database.dart';
+
+/// One billable line: a task/entry with its date, tracked time, and rate.
+class InvoiceLineItem {
+  final String item; // task title, plus the entry's own note when set
+  final DateTime date; // the entry's start
+  final int seconds; // tracked time (for hh:mm:ss)
+  final double rate; // effective $/hr for this line
+
+  const InvoiceLineItem({
+    required this.item,
+    required this.date,
+    required this.seconds,
+    required this.rate,
+  });
+
+  double get hours => seconds / 3600;
+  double get amount => hours * rate;
+}
+
+/// An optional tax component. Present only when the profile defines a label and
+/// rate; absent entirely for tax-free jurisdictions (no line rendered).
+class InvoiceTax {
+  final String label; // e.g. GST, VAT
+  final double rate; // percent, e.g. 10.0
+  final double amount; // subtotal * rate / 100
+
+  const InvoiceTax({
+    required this.label,
+    required this.rate,
+    required this.amount,
+  });
+}
+
+/// The resolved invoice. Amounts are non-null because a client's default rate is
+/// required (every line resolves `task.rate ?? job.rate ?? client.defaultRate`).
+class InvoiceDocument {
+  // Header
+  final String? invoiceNumber; // entered at export; may be absent
+  final DateTime issueDate;
+  final DateTime periodFrom;
+  final DateTime periodTo;
+  final String reference; // the job code (RE:)
+
+  // Sender (from the profile)
+  final String businessName;
+  final String? senderEmail;
+  final String? senderPhone;
+  final String? senderWebsite;
+  final String? senderAddress;
+  final String? senderAbn;
+
+  // Recipient (from the client)
+  final String? attention; // contact's first name (ATT:)
+  final String? recipientContact; // full contact name (TO person)
+  final String organisation; // client.name (ORGANISATION)
+  final String? recipientEmail;
+  final String? recipientPhone;
+
+  // Lines + money
+  final List<InvoiceLineItem> lines;
+  final String currency;
+  final InvoiceTax? tax;
+
+  // Payment (from the profile)
+  final String? payeeName;
+  final String? bankName;
+  final String? bankBsb;
+  final String? bankAccount;
+  final String? swift;
+  final String? paymentLink;
+
+  const InvoiceDocument({
+    required this.invoiceNumber,
+    required this.issueDate,
+    required this.periodFrom,
+    required this.periodTo,
+    required this.reference,
+    required this.businessName,
+    required this.senderEmail,
+    required this.senderPhone,
+    required this.senderWebsite,
+    required this.senderAddress,
+    required this.senderAbn,
+    required this.attention,
+    required this.recipientContact,
+    required this.organisation,
+    required this.recipientEmail,
+    required this.recipientPhone,
+    required this.lines,
+    required this.currency,
+    required this.tax,
+    required this.payeeName,
+    required this.bankName,
+    required this.bankBsb,
+    required this.bankAccount,
+    required this.swift,
+    required this.paymentLink,
+  });
+
+  double get subtotal => lines.fold(0, (sum, l) => sum + l.amount);
+  double get total => subtotal + (tax?.amount ?? 0);
+  double get amountDue => total;
+  int get totalSeconds => lines.fold(0, (sum, l) => sum + l.seconds);
+  Duration get totalTime => Duration(seconds: totalSeconds);
+}
+
+/// Resolve the domain objects into an [InvoiceDocument]. Pure: no DB, no I/O —
+/// [issueDate] is injected so callers (and tests) control it. [entries] are
+/// rendered in the order given (the caller sorts, typically by start).
+InvoiceDocument buildInvoiceDocument({
+  required InvoiceProfile profile,
+  required Job job,
+  required Client client,
+  required List<Task> tasks,
+  required List<TimeEntry> entries,
+  required DateTime from,
+  required DateTime to,
+  required DateTime issueDate,
+  String? invoiceNumber,
+}) {
+  final taskById = {for (final t in tasks) t.id: t};
+
+  final lines = [
+    for (final e in entries)
+      InvoiceLineItem(
+        item: _label(taskById[e.taskId], e.description),
+        date: e.startedAt,
+        seconds: e.seconds,
+        // task override → job rate → client default (always non-null).
+        rate: taskById[e.taskId]?.rate ?? job.rate ?? client.defaultRate,
+      ),
+  ];
+
+  final subtotal = lines.fold<double>(0, (sum, l) => sum + l.amount);
+  final taxLabel = profile.taxLabel?.trim();
+  final taxRate = profile.taxRate;
+  final tax = (taxLabel != null && taxLabel.isNotEmpty && taxRate != null)
+      ? InvoiceTax(
+          label: taxLabel,
+          rate: taxRate,
+          amount: subtotal * taxRate / 100,
+        )
+      : null;
+
+  return InvoiceDocument(
+    invoiceNumber: _blankToNull(invoiceNumber),
+    issueDate: issueDate,
+    periodFrom: from,
+    periodTo: to,
+    reference: job.code,
+    businessName: profile.businessName,
+    senderEmail: profile.email,
+    senderPhone: profile.phone,
+    senderWebsite: profile.website,
+    senderAddress: profile.address,
+    senderAbn: profile.abn,
+    attention: _firstName(client.contactName),
+    recipientContact: _blankToNull(client.contactName),
+    organisation: client.name,
+    recipientEmail: client.email,
+    recipientPhone: client.phone,
+    lines: lines,
+    currency: profile.currency,
+    tax: tax,
+    payeeName: profile.payeeName,
+    bankName: profile.bankName,
+    bankBsb: profile.bankBsb,
+    bankAccount: profile.bankAccount,
+    swift: profile.swift,
+    paymentLink: profile.paymentLink,
+  );
+}
+
+// The line label: task title, plus the entry's own note when it has one; falls
+// back to the note alone, then a dash. Mirrors the old JobInvoice labelling.
+String _label(Task? task, String? description) {
+  final desc = description?.trim();
+  final hasDesc = desc != null && desc.isNotEmpty;
+  if (task == null) return hasDesc ? desc : '—';
+  return hasDesc ? '${task.title} · $desc' : task.title;
+}
+
+String? _firstName(String? contact) {
+  final t = contact?.trim();
+  if (t == null || t.isEmpty) return null;
+  return t.split(RegExp(r'\s+')).first;
+}
+
+String? _blankToNull(String? s) {
+  final t = s?.trim();
+  return t == null || t.isEmpty ? null : t;
+}
