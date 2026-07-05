@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:time_tracker/constants/format.dart';
+import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/features/invoices/invoice_document.dart';
 
@@ -28,6 +29,14 @@ Future<Uint8List> buildBrandedInvoicePdf({
   // bundled later if needed). Hierarchy leans on size/colour instead.
   final font = pw.Font.ttf(fontData);
 
+  // User logo (theme.logo) wins; fall back to the bundled timedart mark so the
+  // default template shows branding before a logo is uploaded (editor: #83).
+  final logoBytes =
+      theme.logo ??
+      (await rootBundle.load('assets/logo/timedart_logo_horizontal.png'))
+          .buffer
+          .asUint8List();
+
   final bg = PdfColor.fromInt(theme.colorBackground);
   final surface = PdfColor.fromInt(theme.colorSurface);
   final primary = PdfColor.fromInt(theme.colorPrimary);
@@ -51,10 +60,10 @@ Future<Uint8List> buildBrandedInvoicePdf({
       pw.SizedBox(height: 2),
       pw.Container(
         width: double.infinity,
-        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: pw.BoxDecoration(
           color: surface,
-          border: pw.Border.all(color: primary, width: 0.5),
+          borderRadius: pw.BorderRadius.circular(AppTokens.radiusSm),
         ),
         child: pw.Text(
           value == null || value.isEmpty ? '—' : value,
@@ -64,19 +73,23 @@ Future<Uint8List> buildBrandedInvoicePdf({
     ],
   );
 
-  pw.Widget tableCell(String s, {bool header = false, bool right = false}) =>
-      pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        alignment: right ? pw.Alignment.centerRight : pw.Alignment.centerLeft,
+  // One column of the details grid. The same flex weights (3/2/2/2/2) are used
+  // by the header, the line rows, and the totals so TIME and TOTAL line up top
+  // to bottom.
+  pw.Widget cell(String s, int flex, {bool right = false, pw.TextStyle? style}) =>
+      pw.Expanded(
+        flex: flex,
         child: pw.Text(
           s,
-          style: header
-              ? labelStyle
-              : pw.TextStyle(
-                  color: primary,
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                ),
+          maxLines: 1,
+          textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
+          style:
+              style ??
+              pw.TextStyle(
+                color: primary,
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
         ),
       );
 
@@ -101,17 +114,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
-                    if (theme.logo != null)
-                      pw.Image(pw.MemoryImage(theme.logo!), height: 28)
-                    else
-                      pw.Text(
-                        doc.businessName,
-                        style: pw.TextStyle(
-                          color: primary,
-                          fontSize: 18,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
+                    pw.Image(pw.MemoryImage(logoBytes), height: 28),
                     pw.SizedBox(height: 4),
                     pw.Text(
                       [
@@ -186,74 +189,92 @@ Future<Uint8List> buildBrandedInvoicePdf({
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
-            pw.SizedBox(height: 8),
-            pw.Table(
-              columnWidths: const {
-                0: pw.FlexColumnWidth(3),
-                1: pw.FlexColumnWidth(2),
-                2: pw.FlexColumnWidth(2),
-                3: pw.FlexColumnWidth(2),
-                4: pw.FlexColumnWidth(2),
-              },
-              children: [
-                pw.TableRow(
-                  children: [
-                    tableCell('ITEM', header: true),
-                    tableCell('DATE', header: true),
-                    tableCell('RATE (${doc.currency})', header: true, right: true),
-                    tableCell('TIME (HRS)', header: true, right: true),
-                    tableCell('TOTAL', header: true, right: true),
-                  ],
-                ),
-                for (final l in doc.lines)
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(color: surface),
-                    children: [
-                      tableCell(l.item),
-                      tableCell(_isoDate(l.date)),
-                      tableCell(money(l.rate), right: true),
-                      tableCell(Duration(seconds: l.seconds).hms, right: true),
-                      tableCell(money(l.amount), right: true),
-                    ],
-                  ),
-              ],
-            ),
-            pw.SizedBox(height: 8),
-
-            // ── Totals ──
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text('TOTAL:  ', style: labelStyle),
-                pw.Text(doc.totalTime.hms, style: valueStyle),
-                pw.SizedBox(width: 16),
-                pw.Text(money(doc.subtotal), style: valueStyle),
-              ],
-            ),
-            if (doc.tax != null) ...[
-              pw.SizedBox(height: 4),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
+            pw.SizedBox(height: 6),
+            // Header — same horizontal inset as the line rows so columns align.
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 12),
+              child: pw.Row(
                 children: [
-                  pw.Text('${doc.tax!.label} (${doc.tax!.rate}%):  ', style: labelStyle),
-                  pw.Text(money(doc.tax!.amount), style: valueStyle),
+                  cell('ITEM', 3, style: labelStyle),
+                  cell('DATE', 2, style: labelStyle),
+                  cell('RATE (${doc.currency})', 2, right: true, style: labelStyle),
+                  cell('TIME (HRS)', 2, right: true, style: labelStyle),
+                  cell('TOTAL', 2, right: true, style: labelStyle),
                 ],
               ),
-            ],
-            pw.SizedBox(height: 8),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text('AMOUNT DUE:  ', style: labelStyle),
-                pw.Text(
-                  '${money(doc.amountDue)} ${doc.currency}',
-                  style: pw.TextStyle(
-                    color: primary,
-                    fontSize: 14,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+            ),
+            pw.SizedBox(height: 4),
+            // Line rows — borderless rounded surfaces, padded for the corners.
+            for (final l in doc.lines)
+              pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 3),
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
                 ),
-              ],
+                decoration: pw.BoxDecoration(
+                  color: surface,
+                  borderRadius: pw.BorderRadius.circular(AppTokens.radiusSm),
+                ),
+                child: pw.Row(
+                  children: [
+                    cell(l.item, 3),
+                    cell(_isoDate(l.date), 2),
+                    cell(money(l.rate), 2, right: true),
+                    cell(Duration(seconds: l.seconds).hms, 2, right: true),
+                    cell(money(l.amount), 2, right: true),
+                  ],
+                ),
+              ),
+            pw.SizedBox(height: 6),
+
+            // ── Totals — TIME under TIME, amount under TOTAL (same columns) ──
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              child: pw.Row(
+                children: [
+                  cell('TOTAL:', 7, right: true, style: labelStyle),
+                  cell(doc.totalTime.hms, 2, right: true, style: valueStyle),
+                  cell(money(doc.subtotal), 2, right: true, style: valueStyle),
+                ],
+              ),
+            ),
+            if (doc.tax != null)
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                child: pw.Row(
+                  children: [
+                    cell(
+                      '${doc.tax!.label} (${doc.tax!.rate}%):',
+                      9,
+                      right: true,
+                      style: labelStyle,
+                    ),
+                    cell(money(doc.tax!.amount), 2, right: true, style: valueStyle),
+                  ],
+                ),
+              ),
+            pw.SizedBox(height: 4),
+            // AMOUNT DUE — emphasised, right edge aligned with the TOTAL column.
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text('AMOUNT DUE:  ', style: labelStyle),
+                  pw.Text(
+                    '${money(doc.amountDue)} ${doc.currency}',
+                    style: pw.TextStyle(
+                      color: primary,
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             pw.Spacer(),
