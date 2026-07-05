@@ -70,9 +70,9 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
   late final GeneratedColumn<double> defaultRate = GeneratedColumn<double>(
     'default_rate',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.double,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _archivedAtMeta = const VerificationMeta(
     'archivedAt',
@@ -144,6 +144,8 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
           _defaultRateMeta,
         ),
       );
+    } else if (isInserting) {
+      context.missing(_defaultRateMeta);
     }
     if (data.containsKey('archived_at')) {
       context.handle(
@@ -183,7 +185,7 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
       defaultRate: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}default_rate'],
-      ),
+      )!,
       archivedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}archived_at'],
@@ -203,7 +205,7 @@ class Client extends DataClass implements Insertable<Client> {
   final String? email;
   final String? address;
   final String? abn;
-  final double? defaultRate;
+  final double defaultRate;
   final DateTime? archivedAt;
   const Client({
     required this.id,
@@ -211,7 +213,7 @@ class Client extends DataClass implements Insertable<Client> {
     this.email,
     this.address,
     this.abn,
-    this.defaultRate,
+    required this.defaultRate,
     this.archivedAt,
   });
   @override
@@ -228,9 +230,7 @@ class Client extends DataClass implements Insertable<Client> {
     if (!nullToAbsent || abn != null) {
       map['abn'] = Variable<String>(abn);
     }
-    if (!nullToAbsent || defaultRate != null) {
-      map['default_rate'] = Variable<double>(defaultRate);
-    }
+    map['default_rate'] = Variable<double>(defaultRate);
     if (!nullToAbsent || archivedAt != null) {
       map['archived_at'] = Variable<DateTime>(archivedAt);
     }
@@ -248,9 +248,7 @@ class Client extends DataClass implements Insertable<Client> {
           ? const Value.absent()
           : Value(address),
       abn: abn == null && nullToAbsent ? const Value.absent() : Value(abn),
-      defaultRate: defaultRate == null && nullToAbsent
-          ? const Value.absent()
-          : Value(defaultRate),
+      defaultRate: Value(defaultRate),
       archivedAt: archivedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(archivedAt),
@@ -268,7 +266,7 @@ class Client extends DataClass implements Insertable<Client> {
       email: serializer.fromJson<String?>(json['email']),
       address: serializer.fromJson<String?>(json['address']),
       abn: serializer.fromJson<String?>(json['abn']),
-      defaultRate: serializer.fromJson<double?>(json['defaultRate']),
+      defaultRate: serializer.fromJson<double>(json['defaultRate']),
       archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
     );
   }
@@ -281,7 +279,7 @@ class Client extends DataClass implements Insertable<Client> {
       'email': serializer.toJson<String?>(email),
       'address': serializer.toJson<String?>(address),
       'abn': serializer.toJson<String?>(abn),
-      'defaultRate': serializer.toJson<double?>(defaultRate),
+      'defaultRate': serializer.toJson<double>(defaultRate),
       'archivedAt': serializer.toJson<DateTime?>(archivedAt),
     };
   }
@@ -292,7 +290,7 @@ class Client extends DataClass implements Insertable<Client> {
     Value<String?> email = const Value.absent(),
     Value<String?> address = const Value.absent(),
     Value<String?> abn = const Value.absent(),
-    Value<double?> defaultRate = const Value.absent(),
+    double? defaultRate,
     Value<DateTime?> archivedAt = const Value.absent(),
   }) => Client(
     id: id ?? this.id,
@@ -300,7 +298,7 @@ class Client extends DataClass implements Insertable<Client> {
     email: email.present ? email.value : this.email,
     address: address.present ? address.value : this.address,
     abn: abn.present ? abn.value : this.abn,
-    defaultRate: defaultRate.present ? defaultRate.value : this.defaultRate,
+    defaultRate: defaultRate ?? this.defaultRate,
     archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
   );
   Client copyWithCompanion(ClientsCompanion data) {
@@ -355,7 +353,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
   final Value<String?> email;
   final Value<String?> address;
   final Value<String?> abn;
-  final Value<double?> defaultRate;
+  final Value<double> defaultRate;
   final Value<DateTime?> archivedAt;
   const ClientsCompanion({
     this.id = const Value.absent(),
@@ -372,9 +370,10 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     this.email = const Value.absent(),
     this.address = const Value.absent(),
     this.abn = const Value.absent(),
-    this.defaultRate = const Value.absent(),
+    required double defaultRate,
     this.archivedAt = const Value.absent(),
-  }) : name = Value(name);
+  }) : name = Value(name),
+       defaultRate = Value(defaultRate);
   static Insertable<Client> custom({
     Expression<int>? id,
     Expression<String>? name,
@@ -401,7 +400,7 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     Value<String?>? email,
     Value<String?>? address,
     Value<String?>? abn,
-    Value<double?>? defaultRate,
+    Value<double>? defaultRate,
     Value<DateTime?>? archivedAt,
   }) {
     return ClientsCompanion(
@@ -1764,7 +1763,7 @@ typedef $$ClientsTableCreateCompanionBuilder =
       Value<String?> email,
       Value<String?> address,
       Value<String?> abn,
-      Value<double?> defaultRate,
+      required double defaultRate,
       Value<DateTime?> archivedAt,
     });
 typedef $$ClientsTableUpdateCompanionBuilder =
@@ -1774,7 +1773,7 @@ typedef $$ClientsTableUpdateCompanionBuilder =
       Value<String?> email,
       Value<String?> address,
       Value<String?> abn,
-      Value<double?> defaultRate,
+      Value<double> defaultRate,
       Value<DateTime?> archivedAt,
     });
 
@@ -2010,7 +2009,7 @@ class $$ClientsTableTableManager
                 Value<String?> email = const Value.absent(),
                 Value<String?> address = const Value.absent(),
                 Value<String?> abn = const Value.absent(),
-                Value<double?> defaultRate = const Value.absent(),
+                Value<double> defaultRate = const Value.absent(),
                 Value<DateTime?> archivedAt = const Value.absent(),
               }) => ClientsCompanion(
                 id: id,
@@ -2028,7 +2027,7 @@ class $$ClientsTableTableManager
                 Value<String?> email = const Value.absent(),
                 Value<String?> address = const Value.absent(),
                 Value<String?> abn = const Value.absent(),
-                Value<double?> defaultRate = const Value.absent(),
+                required double defaultRate,
                 Value<DateTime?> archivedAt = const Value.absent(),
               }) => ClientsCompanion.insert(
                 id: id,

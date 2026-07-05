@@ -51,7 +51,7 @@ class _ClientFormState extends State<ClientForm> {
   late final _name = TextEditingController(text: widget.initial?.name ?? '');
   late final _email = TextEditingController(text: widget.initial?.email ?? '');
   late final _rate = TextEditingController(
-    text: widget.initial?.defaultRate?.toString() ?? '',
+    text: widget.initial?.defaultRate.toString() ?? '',
   );
   String? _rateError;
 
@@ -73,8 +73,13 @@ class _ClientFormState extends State<ClientForm> {
       setState(() => _rateError = parsed.error);
       return;
     }
-    setState(() => _rateError = null);
+    // A client's default rate is required — it's the fallback every job inherits.
     final rate = parsed.value;
+    if (rate == null) {
+      setState(() => _rateError = 'A default rate is required');
+      return;
+    }
+    setState(() => _rateError = null);
 
     final email = _email.text.trim().isEmpty ? null : _email.text.trim();
     try {

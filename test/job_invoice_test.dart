@@ -4,7 +4,7 @@ import 'package:time_tracker/data/database.dart';
 // Fixed timestamp — the arithmetic doesn't depend on it.
 final _t = DateTime(2026, 1, 1);
 
-Client _client({double? defaultRate}) => Client(
+Client _client({double defaultRate = 0}) => Client(
   id: 1,
   name: 'Acme',
   defaultRate: defaultRate,
@@ -35,7 +35,7 @@ JobInvoice _invoice({
   required List<int> secs,
 }) => JobInvoice(
   job: _job(rate: jobRate),
-  client: _client(defaultRate: clientRate),
+  client: _client(defaultRate: clientRate ?? 0),
   rate: jobRate ?? clientRate,
   entries: [for (final s in secs) _entry(s)],
   taskTitles: const {1: 'task'},

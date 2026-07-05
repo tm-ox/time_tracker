@@ -97,6 +97,12 @@ class TaskList extends StatelessWidget {
     final hours = row.totalSeconds / 3600;
     final amount = effective == null ? null : hours * effective;
     final count = row.entryCount == 1 ? '1 entry' : '${row.entryCount} entries';
+    // count · @$rate/hr · $amount — rate/amount drop out when no rate is set.
+    final subtitle = [
+      count,
+      if (effective != null) '@${formatMoney(effective)}/hr',
+      if (amount != null) formatMoney(amount),
+    ].join(' · ');
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
@@ -128,7 +134,7 @@ class TaskList extends StatelessWidget {
         ),
       ),
       subtitle: Text(
-        amount == null ? count : '$count · ${formatMoney(amount)}',
+        subtitle,
         style: TextStyle(
           fontSize: AppTokens.fontSizeXs,
           fontWeight: FontWeight.w300,

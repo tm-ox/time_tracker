@@ -4,7 +4,8 @@ import 'package:time_tracker/features/shell/panel_rows.dart';
 
 final _t = DateTime(2026, 1, 1);
 
-Client _client(int id, String name) => Client(id: id, name: name);
+Client _client(int id, String name) =>
+    Client(id: id, name: name, defaultRate: 0);
 Job _job(int id, int clientId, String code, String title) => Job(
   id: id,
   clientId: clientId,
