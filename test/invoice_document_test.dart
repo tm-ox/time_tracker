@@ -1,0 +1,236 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:time_tracker/constants/format.dart';
+import 'package:time_tracker/data/database.dart';
+import 'package:time_tracker/features/invoices/invoice_document.dart';
+
+// Pure-logic coverage for the invoice view-model (PRD #79). Constructs domain
+// rows directly (no DB) and asserts the resolved values + arithmetic.
+
+final _t = DateTime(2026, 4, 25, 9);
+final _issue = DateTime(2026, 6, 15);
+
+InvoiceProfile _profile({
+  String currency = 'AUD',
+  String? taxLabel,
+  double? taxRate,
+}) => InvoiceProfile(
+  id: 1,
+  name: 'Default',
+  businessName: 'tmox.net',
+  currency: currency,
+  taxLabel: taxLabel,
+  taxRate: taxRate,
+  isDefault: true,
+);
+
+Client _client({
+  String name = 'Care Direct',
+  String? contactName = 'Julien Remond',
+  String? email = 'julien@dispensedirect.com.au',
+  String? phone,
+  double defaultRate = 46,
+}) => Client(
+  id: 1,
+  name: name,
+  contactName: contactName,
+  email: email,
+  phone: phone,
+  defaultRate: defaultRate,
+);
+
+Job _job({String code = 'CD002', double? rate}) => Job(
+  id: 1,
+  clientId: 1,
+  code: code,
+  title: 'Care Direct work',
+  rate: rate,
+  status: 'active',
+  createdAt: _t,
+);
+
+Task _task({int id = 1, double? rate, String title = 'Mobile'}) => Task(
+  id: id,
+  jobId: 1,
+  title: title,
+  rate: rate,
+  status: 'active',
+  createdAt: _t,
+);
+
+TimeEntry _entry({
+  int id = 1,
+  int? taskId = 1,
+  String? description,
+  int seconds = 3600,
+}) => TimeEntry(
+  id: id,
+  jobId: 1,
+  taskId: taskId,
+  description: description,
+  startedAt: _t,
+  endedAt: _t.add(Duration(seconds: seconds)),
+  seconds: seconds,
+);
+
+InvoiceDocument _doc({
+  InvoiceProfile? profile,
+  Job? job,
+  Client? client,
+  List<Task>? tasks,
+  required List<TimeEntry> entries,
+  String? invoiceNumber,
+}) => buildInvoiceDocument(
+  profile: profile ?? _profile(),
+  job: job ?? _job(),
+  client: client ?? _client(),
+  tasks: tasks ?? [_task()],
+  entries: entries,
+  from: DateTime(2026, 4, 1),
+  to: DateTime(2026, 4, 30),
+  issueDate: _issue,
+  invoiceNumber: invoiceNumber,
+);
+
+void main() {
+  group('line resolution', () {
+    test('amount = hours * effective rate', () {
+      final doc = _doc(entries: [_entry(seconds: 1800)]); // 0.5h @ 46
+      expect(doc.lines.single.hours, closeTo(0.5, 1e-9));
+      expect(doc.lines.single.amount, closeTo(23, 1e-9));
+    });
+
+    test('rate resolves task override → job → client default', () {
+      final doc = buildInvoiceDocument(
+        profile: _profile(),
+        job: _job(rate: 80), // job overrides client default (46)
+        client: _client(defaultRate: 46),
+        tasks: [_task(id: 1, rate: 120), _task(id: 2)], // task 1 overrides job
+        entries: [
+          _entry(id: 1, taskId: 1, seconds: 3600), // → 120
+          _entry(id: 2, taskId: 2, seconds: 3600), // → job 80
+        ],
+        from: DateTime(2026, 4, 1),
+        to: DateTime(2026, 4, 30),
+        issueDate: _issue,
+      );
+      expect(doc.lines[0].rate, 120);
+      expect(doc.lines[1].rate, 80);
+    });
+
+    test('rate falls to client default when job has none', () {
+      final doc = buildInvoiceDocument(
+        profile: _profile(),
+        job: _job(rate: null),
+        client: _client(defaultRate: 46),
+        tasks: [_task(id: 1)],
+        entries: [_entry(taskId: 1)],
+        from: DateTime(2026, 4, 1),
+        to: DateTime(2026, 4, 30),
+        issueDate: _issue,
+      );
+      expect(doc.lines.single.rate, 46);
+    });
+
+    test('label: task title, task+note, note-only, dash', () {
+      final doc = buildInvoiceDocument(
+        profile: _profile(),
+        job: _job(),
+        client: _client(),
+        tasks: [_task(id: 1, title: 'Mobile')],
+        entries: [
+          _entry(id: 1, taskId: 1), // task title only
+          _entry(id: 2, taskId: 1, description: 'bugfix'), // task · note
+          _entry(id: 3, taskId: null, description: 'ad hoc'), // note only
+          _entry(id: 4, taskId: null), // dash
+        ],
+        from: DateTime(2026, 4, 1),
+        to: DateTime(2026, 4, 30),
+        issueDate: _issue,
+      );
+      expect(doc.lines[0].item, 'Mobile');
+      expect(doc.lines[1].item, 'Mobile · bugfix');
+      expect(doc.lines[2].item, 'ad hoc');
+      expect(doc.lines[3].item, '—');
+    });
+
+    test('one line per entry, in the given order', () {
+      final doc = _doc(
+        entries: [_entry(id: 1), _entry(id: 2), _entry(id: 3)],
+      );
+      expect(doc.lines.length, 3);
+    });
+  });
+
+  group('totals + time', () {
+    test('subtotal sums line amounts; total == subtotal with no tax', () {
+      final doc = _doc(
+        entries: [_entry(id: 1, seconds: 3600), _entry(id: 2, seconds: 1800)],
+      ); // (1 + 0.5)h @ 46 = 69
+      expect(doc.subtotal, closeTo(69, 1e-9));
+      expect(doc.tax, isNull);
+      expect(doc.total, closeTo(69, 1e-9));
+      expect(doc.amountDue, closeTo(69, 1e-9));
+    });
+
+    test('total time as hh:mm:ss', () {
+      final doc = _doc(
+        entries: [
+          _entry(id: 1, seconds: 6464), // 01:47:44
+          _entry(id: 2, seconds: 8910), // 02:28:30
+        ],
+      );
+      expect(doc.totalSeconds, 15374);
+      expect(doc.totalTime.hms, '04:16:14');
+    });
+  });
+
+  group('tax', () {
+    test('with label + rate → subtotal, tax, total', () {
+      final doc = _doc(
+        profile: _profile(taxLabel: 'GST', taxRate: 10),
+        entries: [_entry(seconds: 3600)], // subtotal 46
+      );
+      expect(doc.subtotal, closeTo(46, 1e-9));
+      expect(doc.tax!.label, 'GST');
+      expect(doc.tax!.rate, 10);
+      expect(doc.tax!.amount, closeTo(4.6, 1e-9));
+      expect(doc.total, closeTo(50.6, 1e-9));
+    });
+
+    test('no tax when rate is null or label blank', () {
+      expect(_doc(profile: _profile(taxLabel: 'GST'), entries: [_entry()]).tax,
+          isNull); // rate null
+      expect(
+          _doc(profile: _profile(taxLabel: '  ', taxRate: 10), entries: [_entry()])
+              .tax,
+          isNull); // label blank
+    });
+  });
+
+  group('header, parties, currency', () {
+    test('reference is the job code; currency passes through', () {
+      final doc = _doc(entries: [_entry()]);
+      expect(doc.reference, 'CD002');
+      expect(doc.currency, 'AUD');
+      expect(doc.issueDate, _issue);
+    });
+
+    test('attention is the contact first name; org is client.name', () {
+      final doc = _doc(entries: [_entry()]);
+      expect(doc.attention, 'Julien');
+      expect(doc.recipientContact, 'Julien Remond');
+      expect(doc.organisation, 'Care Direct');
+    });
+
+    test('blank invoice number and contact resolve to null', () {
+      final doc = _doc(
+        client: _client(contactName: '   '),
+        entries: [_entry()],
+        invoiceNumber: '  ',
+      );
+      expect(doc.invoiceNumber, isNull);
+      expect(doc.attention, isNull);
+      expect(doc.recipientContact, isNull);
+    });
+  });
+}
