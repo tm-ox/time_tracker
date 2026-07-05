@@ -126,7 +126,7 @@ class _ClientFormState extends State<ClientForm> {
         children: [
           Text(
             _isEdit ? 'Edit client' : 'New client',
-            style: Theme.of(context).textTheme.accentTitle,
+            style: Theme.of(context).textTheme.titleLarge,
           ),
         const SizedBox(height: AppTokens.spaceXl),
         TextField(
