@@ -10,7 +10,7 @@ class Clients extends Table {
   TextColumn get email => text().nullable()(); // nullable column
   TextColumn get address => text().nullable()();
   TextColumn get abn => text().nullable()();
-  RealColumn get defaultRate => real().nullable()(); // $/hr fallback
+  RealColumn get defaultRate => real()(); // $/hr fallback — required
   DateTimeColumn get archivedAt => dateTime().nullable()();
 }
 
@@ -113,7 +113,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   // drift doesn't enforce foreign keys unless we turn the pragma on per
   // connection. With it on, deleting a job that has time entries (or a client
@@ -149,6 +149,22 @@ class AppDatabase extends _$AppDatabase {
         // adds it as NULL and drops the old `task` column (gone from v3).
         await m.alterTable(
           TableMigration(timeEntries, newColumns: [timeEntries.description]),
+        );
+      }
+      // v3 → v4: a client's default rate is now required (every job resolves to
+      // at least the client default). Rebuild clients with the non-null column,
+      // backfilling any pre-existing null rate to 0 so the copy can't violate.
+      if (from < 4) {
+        await m.alterTable(
+          TableMigration(
+            clients,
+            columnTransformer: {
+              clients.defaultRate: coalesce([
+                clients.defaultRate,
+                const Constant(0.0),
+              ]),
+            },
+          ),
         );
       }
     },
@@ -221,7 +237,9 @@ class AppDatabase extends _$AppDatabase {
   Future<int> _defaultClientId() async {
     final c = await (select(clients)..limit(1)).getSingleOrNull();
     return c?.id ??
-        await into(clients).insert(ClientsCompanion.insert(name: 'Personal'));
+        await into(
+          clients,
+        ).insert(ClientsCompanion.insert(name: 'Personal', defaultRate: 0.0));
   }
 
   Future<int> addJob({
@@ -324,14 +342,12 @@ class AppDatabase extends _$AppDatabase {
   Future<int> addClient({
     required String name,
     String? email,
-    double? defaultRate,
+    required double defaultRate,
   }) => into(clients).insert(
     ClientsCompanion.insert(
       name: name,
       email: email == null ? const Value.absent() : Value(email),
-      defaultRate: defaultRate == null
-          ? const Value.absent()
-          : Value(defaultRate),
+      defaultRate: defaultRate,
     ),
   );
 
@@ -339,7 +355,7 @@ class AppDatabase extends _$AppDatabase {
     required int id,
     required String name,
     String? email,
-    double? defaultRate,
+    required double defaultRate,
   }) => (update(clients)..where((c) => c.id.equals(id))).write(
     ClientsCompanion(
       name: Value(name),
