@@ -76,3 +76,9 @@ flutter:
         - asset: assets/fonts/Urbanist-VariableFont_wght.ttf
         - asset: assets/fonts/Urbanist-Italic-VariableFont_wght.ttf
           style: italic
+    # Raleway (from the logo) kept as a brand accent for pure-text titles only —
+    # italic file alone; its wght axis covers Medium. Never used on numerals.
+    - family: Raleway
+      fonts:
+        - asset: assets/fonts/Raleway-Italic-VariableFont_wght.ttf
+          style: italic

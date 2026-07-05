@@ -139,7 +139,7 @@ class _JobFormState extends State<JobForm> {
         children: [
           Text(
             _isEdit ? 'Edit job' : 'New job',
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.accentTitle,
           ),
         const SizedBox(height: AppTokens.spaceXl),
         StreamBuilder<List<Client>>(

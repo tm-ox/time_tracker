@@ -127,7 +127,7 @@ class _ShortcutsDialog extends StatelessWidget {
                       children: [
                         Text(
                           'Keyboard shortcuts',
-                          style: theme.textTheme.titleLarge,
+                          style: theme.textTheme.accentTitle,
                         ),
                         const Spacer(),
                         Text('Esc to close', style: theme.textTheme.bodySmall),

@@ -26,6 +26,9 @@ abstract class AppTokens {
 
   // ── 4. Typography ──
   static const String fontFamily = 'Urbanist';
+  // Brand accent (the logo's Raleway) for pure-text titles. NEVER on numerals —
+  // Raleway's figures read poorly, which is why the UI font is Urbanist.
+  static const String fontFamilyAccent = 'Raleway';
   static const double fontHeightDefault = 1.4;
   static const double fontSizeXs = 13.0;
   static const double fontSizeSm = 14.0;
@@ -49,4 +52,16 @@ abstract class AppTokens {
       16.0; // Standard compressed actions/secondary layout
   static const double iconMd = 20.0; // Default navigation/list tile metrics
   static const double iconLg = 24.0; // Main structural actions
+}
+
+// Brand-accent title style: the logo's Raleway, Medium Italic. Built from
+// titleLarge so size/colour/letter-spacing stay in sync with the type scale —
+// only the family, style, and weight change. Use ONLY on pure-text titles
+// (modal headers, section labels); never where numerals appear.
+extension AccentTitle on TextTheme {
+  TextStyle? get accentTitle => titleLarge?.copyWith(
+    fontFamily: AppTokens.fontFamilyAccent,
+    fontStyle: FontStyle.italic,
+    fontWeight: FontWeight.w500,
+  );
 }

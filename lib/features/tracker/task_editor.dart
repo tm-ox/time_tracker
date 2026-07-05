@@ -114,7 +114,7 @@ class _TaskFormState extends State<TaskForm> {
       children: [
         Text(
           _isEdit ? 'Edit task' : 'New task',
-          style: Theme.of(context).textTheme.titleLarge,
+          style: Theme.of(context).textTheme.accentTitle,
         ),
         const SizedBox(height: AppTokens.spaceXl),
         TextField(

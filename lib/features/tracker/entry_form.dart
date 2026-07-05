@@ -261,7 +261,7 @@ class _EntryFormState extends State<EntryForm> {
         children: [
           Text(
             _isEdit ? 'Edit entry' : 'New entry',
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.accentTitle,
           ),
           const SizedBox(height: AppTokens.spaceXl),
           DropdownButtonFormField<int>(
