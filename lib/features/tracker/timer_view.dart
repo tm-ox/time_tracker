@@ -542,7 +542,7 @@ class _TimerViewState extends State<TimerView> {
     final task = _taskById(_activeTaskId);
     if (task == null) {
       return Text(
-        'Pick a task below to start tracking',
+        'Pick or add a task below to start tracking.',
         style: theme.textTheme.bodyLarge?.copyWith(
           color: theme.colorScheme.primary,
         ),

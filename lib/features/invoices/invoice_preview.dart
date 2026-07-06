@@ -4,22 +4,28 @@ import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/features/invoices/invoice_document.dart';
 
-/// A bordered frame around an invoice preview, filling its slot. Shared by the
-/// branding home and the theme editor so both previews read the same: a bounded,
-/// outlined panel whose content scrolls when the invoice overflows. The child is
-/// clipped to a radius inset by the border width so the corners meet cleanly (a
-/// bordered Container with a rounded child otherwise leaves a square notch).
-Widget brandingPreviewFrame({required Widget child}) => Container(
-  // Container (unlike DecoratedBox) insets its child by the border width, so the
-  // opaque preview can't paint over the border. ClipRRect rounds the inner
-  // corners to match.
-  decoration: BoxDecoration(
-    border: Border.all(color: AppTokens.colorBorder),
-    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-  ),
-  child: ClipRRect(
-    borderRadius: BorderRadius.circular(AppTokens.radiusSm - 1),
-    child: child,
+/// A bordered frame that hugs an invoice preview tightly — the border traces
+/// the sheet's true edges, so it reads as the actual page boundary rather than
+/// an arbitrary panel outline (a loose frame around a dark-background template
+/// was easy to mistake for extra page margin). Wrapped in [Center] so a
+/// stretching ancestor (e.g. a `Column(crossAxisAlignment: stretch)`) can't
+/// force it wider than its child — it sizes to the sheet, not its slot. The
+/// child is clipped to a radius inset by the border width so the corners meet
+/// cleanly (a bordered Container with a rounded child otherwise leaves a
+/// square notch).
+Widget brandingPreviewFrame({required Widget child}) => Center(
+  child: Container(
+    // Container (unlike DecoratedBox) insets its child by the border width, so
+    // the opaque preview can't paint over the border. ClipRRect rounds the
+    // inner corners to match.
+    decoration: BoxDecoration(
+      border: Border.all(color: AppTokens.colorBorder),
+      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(AppTokens.radiusSm - 1),
+      child: child,
+    ),
   ),
 );
 
@@ -34,15 +40,18 @@ enum InvoicePageSize {
   final double ratio; // height / width
 }
 
-/// The invoice preview laid out as a page — a centred sheet with the chosen
-/// print proportions and a minimum height, so it reads like the printed output
-/// (with the content's own safe margin) rather than a raw content block. Scrolls
-/// vertically inside its parent when the invoice runs longer than one page.
-/// When [scrollable] (the default) the page scrolls vertically within its own
-/// slot — right for a fixed-size preview panel. Pass `false` when embedding the
-/// preview inside an outer scroll view (e.g. an editor whose whole content pane
-/// scrolls): the page then renders at its natural height and the outer view
-/// owns scrolling, avoiding nested scrollables.
+/// The invoice preview laid out as a page — a sheet with the chosen print
+/// proportions and a minimum height, so it reads like the printed output
+/// (with the content's own safe margin) rather than a raw content block.
+/// Fills [brandingPreviewFrame] edge to edge — no gutter between the sheet and
+/// its border, so the border traces the sheet's true boundary instead of an
+/// ambiguous margin that a dark template background could get lost in.
+/// Scrolls vertically inside its parent when the invoice runs longer than one
+/// page. When [scrollable] (the default) the page scrolls vertically within
+/// its own slot — right for a fixed-size preview panel. Pass `false` when
+/// embedding the preview inside an outer scroll view (e.g. an editor whose
+/// whole content pane scrolls): the page then renders at its natural height
+/// and the outer view owns scrolling, avoiding nested scrollables.
 Widget invoicePreviewPage({
   required InvoiceDocument doc,
   required InvoiceTemplate template,
@@ -51,32 +60,26 @@ Widget invoicePreviewPage({
 }) {
   return LayoutBuilder(
     builder: (context, c) {
-      // A gutter around the page so it sits in the frame like a sheet on a
-      // surface. The page is always laid out at a fixed A4 design width, then
-      // scaled down to fit narrower panes — so the preview reads like the
-      // printed sheet (content proportionate to the page) rather than reflowing
-      // its contents. It is never scaled up past the design width.
-      const gutter = AppTokens.spaceLg;
+      // The page is always laid out at a fixed A4 design width, then scaled
+      // down to fit narrower panes — so the preview reads like the printed
+      // sheet (content proportionate to the page) rather than reflowing its
+      // contents. It is never scaled up past the design width.
       const designWidth = 820.0;
-      final available = c.maxWidth - gutter * 2;
       final sheet = Container(
         width: designWidth,
         constraints: BoxConstraints(minHeight: designWidth * size.ratio),
         color: Color(template.colorBackground),
         child: InvoicePreview(doc: doc, template: template),
       );
-      final page = Padding(
-        padding: const EdgeInsets.all(gutter),
-        child: available >= designWidth
-            ? Center(child: sheet)
-            // Uniform down-scale: width matches the pane, height follows in
-            // proportion, so the whole page shrinks like a thumbnail.
-            : FittedBox(
-                fit: BoxFit.fitWidth,
-                alignment: Alignment.topCenter,
-                child: sheet,
-              ),
-      );
+      final page = c.maxWidth >= designWidth
+          ? sheet
+          // Uniform down-scale: width matches the pane, height follows in
+          // proportion, so the whole page shrinks like a thumbnail.
+          : FittedBox(
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.topCenter,
+              child: sheet,
+            );
       return scrollable ? SingleChildScrollView(child: page) : page;
     },
   );
@@ -92,6 +95,12 @@ class InvoicePreview extends StatelessWidget {
   final InvoiceDocument doc;
   final InvoiceTemplate template;
   const InvoicePreview({super.key, required this.doc, required this.template});
+
+  // Design-space (820px width) sizes with no AppTokens equivalent — the PDF's
+  // matching values are invoice_pdf.dart's _Layout.fontHeadline/fontAmountDue,
+  // independently tuned (different coordinate space; see that file's note).
+  static const _fontHeadline = 22.0;
+  static const _fontAmountDue = 18.0;
 
   Color get _bg => Color(template.colorBackground);
   Color get _surface => Color(template.colorSurface);
@@ -182,7 +191,7 @@ class InvoicePreview extends StatelessWidget {
         doc.attention ?? doc.organisation,
         style: TextStyle(
           color: _primary,
-          fontSize: 22,
+          fontSize: _fontHeadline,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -192,7 +201,7 @@ class InvoicePreview extends StatelessWidget {
         doc.reference,
         style: TextStyle(
           color: _primary,
-          fontSize: 22,
+          fontSize: _fontHeadline,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -351,7 +360,7 @@ class InvoicePreview extends StatelessWidget {
               '${_money(doc.amountDue)} ${doc.currency}',
               style: TextStyle(
                 color: _primary,
-                fontSize: 18,
+                fontSize: _fontAmountDue,
                 fontWeight: FontWeight.w700,
               ),
             ),

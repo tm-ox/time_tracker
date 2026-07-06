@@ -17,6 +17,41 @@ String _isoDate(DateTime d) =>
     '${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
 
+// Print-space layout scale (points, at A4 width 595pt) — the PDF equivalent of
+// invoice_preview.dart's AppTokens usage (design-space pixels, at 820px width).
+// The two scales aren't 1:1 convertible (different coordinate spaces), so sizes
+// here are independently tuned to *look* like the preview, not numerically
+// matched to it. Kept in visual parity by hand — see invoice_preview.dart.
+abstract class _Layout {
+  static const pageMargin = 36.0;
+  static const sectionGap = 24.0;
+  static const headlineGap = 8.0;
+  static const partyBlockGap = 16.0;
+  static const detailsBlockGap = 20.0;
+  static const detailsHeadingGap = 6.0;
+  static const tableHeaderGap = 4.0;
+  static const totalsGap = 6.0;
+  static const amountDueGap = 4.0;
+  static const paymentsHeadingGap = 6.0;
+  static const paymentsFieldGap = 8.0;
+  static const gridGutter = 8.0;
+  static const fieldValueGap = 2.0;
+  static const fieldPaddingH = 10.0;
+  static const fieldPaddingV = 7.0;
+  static const rowPaddingH = 12.0;
+  static const rowPaddingV = 7.0;
+  static const rowMarginBottom = 3.0;
+
+  static const fontLabel = 8.0;
+  static const fontCell = 9.0;
+  static const fontValue = 11.0;
+  static const fontInvoiceNumber = 13.0;
+  static const fontDetailsHeading = 14.0;
+  static const fontAmountDue = 16.0;
+  static const fontPaymentsHeading = 12.0;
+  static const fontHeadline = 22.0;
+}
+
 Future<Uint8List> buildBrandedInvoicePdf({
   required InvoiceDocument doc,
   required InvoiceTemplate template,
@@ -43,10 +78,10 @@ Future<Uint8List> buildBrandedInvoicePdf({
   final text = PdfColor.fromInt(template.colorText);
   final muted = PdfColor.fromInt(template.colorText).flatten(background: bg);
 
-  final labelStyle = pw.TextStyle(color: primary, fontSize: 8);
+  final labelStyle = pw.TextStyle(color: primary, fontSize: _Layout.fontLabel);
   final valueStyle = pw.TextStyle(
     color: primary,
-    fontSize: 11,
+    fontSize: _Layout.fontValue,
     fontWeight: pw.FontWeight.bold,
   );
 
@@ -57,10 +92,13 @@ Future<Uint8List> buildBrandedInvoicePdf({
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
       pw.Text('$label:', style: labelStyle),
-      pw.SizedBox(height: 2),
+      pw.SizedBox(height: _Layout.fieldValueGap),
       pw.Container(
         width: double.infinity,
-        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const pw.EdgeInsets.symmetric(
+          horizontal: _Layout.fieldPaddingH,
+          vertical: _Layout.fieldPaddingV,
+        ),
         decoration: pw.BoxDecoration(
           color: surface,
           borderRadius: pw.BorderRadius.circular(AppTokens.radiusSm),
@@ -87,7 +125,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
               style ??
               pw.TextStyle(
                 color: primary,
-                fontSize: 9,
+                fontSize: _Layout.fontCell,
                 fontWeight: pw.FontWeight.bold,
               ),
         ),
@@ -101,7 +139,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
       theme: pw.ThemeData.withFont(base: font, bold: font),
       build: (context) => pw.Container(
         color: bg,
-        padding: const pw.EdgeInsets.all(36),
+        padding: const pw.EdgeInsets.all(_Layout.pageMargin),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
@@ -115,19 +153,19 @@ Future<Uint8List> buildBrandedInvoicePdf({
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Image(pw.MemoryImage(logoBytes), height: 28),
-                    pw.SizedBox(height: 4),
+                    pw.SizedBox(height: _Layout.fieldValueGap * 2),
                     pw.Text(
                       [
                         if (doc.senderEmail != null) 'e. ${doc.senderEmail}',
                         if (doc.senderPhone != null) 't. ${doc.senderPhone}',
                       ].join('    '),
-                      style: pw.TextStyle(color: muted, fontSize: 8),
+                      style: pw.TextStyle(color: muted, fontSize: _Layout.fontLabel),
                     ),
                   ],
                 ),
               ],
             ),
-            pw.SizedBox(height: 24),
+            pw.SizedBox(height: _Layout.sectionGap),
 
             // ── ATT / RE / date / invoice # ──
             pw.Text('ATT:', style: labelStyle),
@@ -135,64 +173,64 @@ Future<Uint8List> buildBrandedInvoicePdf({
               doc.attention ?? doc.organisation,
               style: pw.TextStyle(
                 color: primary,
-                fontSize: 22,
+                fontSize: _Layout.fontHeadline,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: _Layout.headlineGap),
             pw.Text('RE:', style: labelStyle),
             pw.Text(
               doc.reference,
               style: pw.TextStyle(
                 color: primary,
-                fontSize: 22,
+                fontSize: _Layout.fontHeadline,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
-            pw.SizedBox(height: 8),
-            pw.Text(_isoDate(doc.issueDate), style: pw.TextStyle(color: muted, fontSize: 8)),
+            pw.SizedBox(height: _Layout.headlineGap),
+            pw.Text(_isoDate(doc.issueDate), style: pw.TextStyle(color: muted, fontSize: _Layout.fontLabel)),
             if (doc.invoiceNumber != null)
               pw.Text(
                 'Invoice #${doc.invoiceNumber}',
                 style: pw.TextStyle(
                   color: text,
-                  fontSize: 13,
+                  fontSize: _Layout.fontInvoiceNumber,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: _Layout.partyBlockGap),
 
             // ── Recipient grid ──
             pw.Row(
               children: [
                 pw.Expanded(child: field('TO', doc.recipientContact)),
-                pw.SizedBox(width: 8),
+                pw.SizedBox(width: _Layout.gridGutter),
                 pw.Expanded(child: field('EMAIL', doc.recipientEmail)),
               ],
             ),
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: _Layout.totalsGap),
             pw.Row(
               children: [
                 pw.Expanded(child: field('ORGANISATION', doc.organisation)),
-                pw.SizedBox(width: 8),
+                pw.SizedBox(width: _Layout.gridGutter),
                 pw.Expanded(child: field('PHONE', doc.recipientPhone)),
               ],
             ),
-            pw.SizedBox(height: 20),
+            pw.SizedBox(height: _Layout.detailsBlockGap),
 
             // ── Details ──
             pw.Text(
               'Details',
               style: pw.TextStyle(
                 color: primary,
-                fontSize: 14,
+                fontSize: _Layout.fontDetailsHeading,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: _Layout.detailsHeadingGap),
             // Header — same horizontal inset as the line rows so columns align.
             pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 12),
+              padding: const pw.EdgeInsets.symmetric(horizontal: _Layout.rowPaddingH),
               child: pw.Row(
                 children: [
                   cell('ITEM', 3, style: labelStyle),
@@ -203,14 +241,14 @@ Future<Uint8List> buildBrandedInvoicePdf({
                 ],
               ),
             ),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: _Layout.tableHeaderGap),
             // Line rows — borderless rounded surfaces, padded for the corners.
             for (final l in doc.lines)
               pw.Container(
-                margin: const pw.EdgeInsets.only(bottom: 3),
+                margin: const pw.EdgeInsets.only(bottom: _Layout.rowMarginBottom),
                 padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
+                  horizontal: _Layout.rowPaddingH,
+                  vertical: _Layout.rowPaddingV,
                 ),
                 decoration: pw.BoxDecoration(
                   color: surface,
@@ -226,11 +264,11 @@ Future<Uint8List> buildBrandedInvoicePdf({
                   ],
                 ),
               ),
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: _Layout.totalsGap),
 
             // ── Totals — TIME under TIME, amount under TOTAL (same columns) ──
             pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              padding: const pw.EdgeInsets.symmetric(horizontal: _Layout.rowPaddingH, vertical: _Layout.fieldValueGap),
               child: pw.Row(
                 children: [
                   cell('TOTAL:', 7, right: true, style: labelStyle),
@@ -242,8 +280,8 @@ Future<Uint8List> buildBrandedInvoicePdf({
             if (doc.tax != null)
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 2,
+                  horizontal: _Layout.rowPaddingH,
+                  vertical: _Layout.fieldValueGap,
                 ),
                 child: pw.Row(
                   children: [
@@ -257,10 +295,10 @@ Future<Uint8List> buildBrandedInvoicePdf({
                   ],
                 ),
               ),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: _Layout.amountDueGap),
             // AMOUNT DUE — emphasised, right edge aligned with the TOTAL column.
             pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              padding: const pw.EdgeInsets.symmetric(horizontal: _Layout.rowPaddingH, vertical: _Layout.fieldValueGap),
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
                 children: [
@@ -269,7 +307,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
                     '${money(doc.amountDue)} ${doc.currency}',
                     style: pw.TextStyle(
                       color: primary,
-                      fontSize: 16,
+                      fontSize: _Layout.fontAmountDue,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   ),
@@ -284,25 +322,25 @@ Future<Uint8List> buildBrandedInvoicePdf({
               'Please make payments to:',
               style: pw.TextStyle(
                 color: primary,
-                fontSize: 12,
+                fontSize: _Layout.fontPaymentsHeading,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
-            pw.SizedBox(height: 6),
+            pw.SizedBox(height: _Layout.paymentsHeadingGap),
             if (doc.paymentLink != null)
               field('Link', doc.paymentLink)
             else
               pw.SizedBox(),
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: _Layout.paymentsFieldGap),
             pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Expanded(child: field('NAME', doc.payeeName)),
-                pw.SizedBox(width: 8),
+                pw.SizedBox(width: _Layout.gridGutter),
                 pw.Expanded(child: field('ACN/ABN', doc.senderAbn)),
-                pw.SizedBox(width: 8),
+                pw.SizedBox(width: _Layout.gridGutter),
                 pw.Expanded(child: field('SWIFT/BIC', doc.swift)),
-                pw.SizedBox(width: 8),
+                pw.SizedBox(width: _Layout.gridGutter),
                 pw.Expanded(child: field('BANK', doc.bankName)),
               ],
             ),

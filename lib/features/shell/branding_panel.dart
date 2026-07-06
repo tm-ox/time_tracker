@@ -6,19 +6,20 @@ import 'package:time_tracker/features/shell/side_panel.dart';
 import 'package:time_tracker/widgets/focus_ring.dart';
 import 'package:time_tracker/widgets/panel_title_bar.dart';
 
-/// The side panel while in Branding (Settings) mode: two flat collapsible
-/// sections — Templates (the visual style) and Profiles — listing the
-/// configured rows. Selecting a row drives the content-pane preview. Mirrors
-/// [SidePanel]'s look and keyboard nav (j/k move, Enter/l expand-or-select,
+/// The side panel while in Settings mode: two flat collapsible sections —
+/// Templates (the visual style) and Profiles — listing the configured rows.
+/// Selecting a row opens that entity's editor directly in the content pane
+/// (the shell gates the switch behind an unsaved-changes check). Mirrors
+/// [SidePanel]'s look and keyboard nav (j/k move, Enter/l expand-or-open,
 /// h collapse, Esc back) but is a separate widget so the client/job panel's
 /// tuned navigation is untouched.
 class BrandingPanel extends StatefulWidget {
   const BrandingPanel({
     super.key,
     required this.db,
-    required this.onSelectTemplate,
-    required this.onSelectProfile,
     required this.onBack,
+    this.selectedTemplateId,
+    this.selectedProfileId,
     this.onAddTemplate,
     this.onEditTemplate,
     this.onAddProfile,
@@ -27,18 +28,29 @@ class BrandingPanel extends StatefulWidget {
     this.onOpenSettings,
     this.showFooter = true,
     this.autofocus = false,
+    this.cursorFocusNode,
   });
 
   final AppDatabase db;
-  final void Function(int templateId) onSelectTemplate;
-  final void Function(int profileId) onSelectProfile;
   final VoidCallback onBack; // leave Branding mode (Esc / the back arrow)
-  // Add/edit affordances per section — an add `+` on the header and an edit
-  // icon on each row appear only where the matching callback is wired.
+  // Externally supplied so the shell's shared pane-switch focus (Tab,
+  // Ctrl-h/l — this panel already forwards ctrl-combos to the shell, see
+  // _onKey) can target this panel's row cursor, same as SidePanel. Falls back
+  // to an internal node when not supplied (e.g. the narrow drawer).
+  final FocusNode? cursorFocusNode;
+  // The entity currently open in the content pane, if any — drives the
+  // highlighted row. The panel no longer owns its own selection: a row tap
+  // opens that entity's editor directly (see onEditTemplate/onEditProfile).
+  final int? selectedTemplateId;
+  final int? selectedProfileId;
+  // Add/edit affordances per section — an add `+` on the header appears only
+  // where the matching callback is wired. `startEditing` is true when the
+  // entity should open straight into edit mode (the `e` shortcut) rather
+  // than the read-only view a plain open otherwise lands on.
   final VoidCallback? onAddTemplate;
-  final void Function(InvoiceTemplate)? onEditTemplate;
+  final void Function(InvoiceTemplate, {bool startEditing})? onEditTemplate;
   final VoidCallback? onAddProfile;
-  final void Function(InvoiceProfile)? onEditProfile;
+  final void Function(InvoiceProfile, {bool startEditing})? onEditProfile;
   // Footer callbacks, matching the normal panel's base row.
   final VoidCallback? onShowHelp;
   final VoidCallback? onOpenSettings;
@@ -84,13 +96,11 @@ class _BrandingPanelState extends State<BrandingPanel> {
 
   // Sections start open — a settings surface reads best fully expanded.
   final Set<_Section> _expanded = {..._Section.values};
-  final FocusNode _cursorNode = FocusNode(debugLabel: 'brandingCursor');
+  FocusNode? _internalCursor;
+  FocusNode get _cursorNode =>
+      widget.cursorFocusNode ?? (_internalCursor ??= FocusNode(debugLabel: 'brandingCursor'));
   int _cursor = 0;
   List<_BRow> _rows = const [];
-
-  // Which entity is highlighted (drives the preview + the selected pill).
-  _Section? _selSection;
-  int? _selId;
 
   @override
   void initState() {
@@ -105,7 +115,7 @@ class _BrandingPanelState extends State<BrandingPanel> {
   @override
   void dispose() {
     _cursorNode.removeListener(_repaint);
-    _cursorNode.dispose();
+    _internalCursor?.dispose();
     super.dispose();
   }
 
@@ -136,29 +146,20 @@ class _BrandingPanelState extends State<BrandingPanel> {
         _Section.profiles => widget.onEditProfile != null,
       };
 
-  void _edit(_Section s, int id) {
+  void _edit(_Section s, int id, {bool startEditing = false}) {
     switch (s) {
       case _Section.templates:
         for (final x in _latestTemplates) {
-          if (x.id == id) return widget.onEditTemplate?.call(x);
+          if (x.id == id) {
+            return widget.onEditTemplate?.call(x, startEditing: startEditing);
+          }
         }
       case _Section.profiles:
         for (final x in _latestProfiles) {
-          if (x.id == id) return widget.onEditProfile?.call(x);
+          if (x.id == id) {
+            return widget.onEditProfile?.call(x, startEditing: startEditing);
+          }
         }
-    }
-  }
-
-  void _selectEntity(_EntityRow row) {
-    setState(() {
-      _selSection = row.section;
-      _selId = row.id;
-    });
-    switch (row.section) {
-      case _Section.templates:
-        widget.onSelectTemplate(row.id);
-      case _Section.profiles:
-        widget.onSelectProfile(row.id);
     }
   }
 
@@ -168,7 +169,7 @@ class _BrandingPanelState extends State<BrandingPanel> {
     if (row is _HeaderRow) {
       if (row.hasItems) _toggleSection(row.section);
     } else if (row is _EntityRow) {
-      _selectEntity(row);
+      _edit(row.section, row.id);
     }
   }
 
@@ -247,7 +248,7 @@ class _BrandingPanelState extends State<BrandingPanel> {
     if (_cursor >= _rows.length) return;
     final row = _rows[_cursor];
     if (row is _EntityRow && _editableSection(row.section)) {
-      _edit(row.section, row.id);
+      _edit(row.section, row.id, startEditing: true);
     }
   }
 
@@ -343,31 +344,39 @@ class _BrandingPanelState extends State<BrandingPanel> {
             _EntityRow() => _EntityTile(
                 name: row.name,
                 isDefault: row.isDefault,
-                selected: row.section == _selSection && row.id == _selId,
+                selected: switch (row.section) {
+                  _Section.templates => row.id == widget.selectedTemplateId,
+                  _Section.profiles => row.id == widget.selectedProfileId,
+                },
                 onTap: () {
                   setState(() => _cursor = i);
-                  _selectEntity(row);
+                  _edit(row.section, row.id);
                 },
-                onEdit: !_editableSection(row.section)
-                    ? null
-                    : () {
-                        setState(() => _cursor = i);
-                        _edit(row.section, row.id);
-                      },
+                // Entering edit mode is now a control on the entity's own
+                // page (the row just opens it, read-only, via onTap), so a
+                // second edit-icon trigger on the row would be redundant.
+                onEdit: null,
               ),
           },
         );
         final dividerBefore = i > 0 && row is _HeaderRow;
-        if (!dividerBefore) return tile;
+        // Breathing space after a section's last row — matches SidePanel's
+        // gap after a client's last job.
+        final lastOfSection =
+            row is _EntityRow &&
+            (i + 1 >= _rows.length || _rows[i + 1] is _HeaderRow);
+        if (!dividerBefore && !lastOfSection) return tile;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Divider(
-              height: AppTokens.strokeThin,
-              thickness: AppTokens.strokeThin,
-              color: AppTokens.colorBorder,
-            ),
+            if (dividerBefore)
+              const Divider(
+                height: AppTokens.strokeThin,
+                thickness: AppTokens.strokeThin,
+                color: AppTokens.colorBorder,
+              ),
             tile,
+            if (lastOfSection) const SizedBox(height: AppTokens.spaceSm),
           ],
         );
       },
@@ -412,26 +421,21 @@ class _SectionHeaderTile extends StatelessWidget {
           color: t.colorScheme.onSurface,
         ),
       ),
-      // Add `+` in the same column as the client header's add in the tracker
-      // panel, with the rightmost (edit) column reserved but empty — so the `+`
-      // and the rows' edit icons line up across both panels.
+      // A lone trailing icon, same as an entity row's edit icon — both flush
+      // to the tile's right inset, so the `+` lines up in the same column as
+      // the rows' edit icons below it (unlike the client header in the
+      // tracker panel, there's no header-level second action to reserve
+      // space for here).
       trailing: onAdd == null
           ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  iconSize: AppTokens.iconMd,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Add $label (a)',
-                  onPressed: onAdd,
-                ),
-                const SizedBox(width: AppTokens.spaceSm),
-                const SizedBox(width: AppTokens.iconMd), // empty edit column
-              ],
+          : IconButton(
+              icon: const Icon(Icons.add),
+              iconSize: AppTokens.iconMd,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: 'Add $label (a)',
+              onPressed: onAdd,
             ),
     );
   }
