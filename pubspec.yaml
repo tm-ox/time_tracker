@@ -40,6 +40,7 @@ dependencies:
   pdf: ^3.13.0
   file_selector: ^1.1.0
   flutter_svg: ^2.0.10 # render the logo SVGs (Flutter has no native SVG)
+  url_launcher: ^6.3.0 # open the Craftox link in the panel footer
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -285,6 +285,7 @@ class _BrandingPanelState extends State<BrandingPanel> {
               onShowHelp: widget.onShowHelp,
               onOpenSettings: widget.onOpenSettings,
             ),
+          const CraftoxBadge(),
         ],
       ),
     );
