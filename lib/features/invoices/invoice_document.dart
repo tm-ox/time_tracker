@@ -251,6 +251,54 @@ InvoiceDocument sampleInvoiceDocument({
   );
 }
 
+/// A structure-only [InvoiceDocument] for the profile editor's preview: real
+/// sender/payment/tax fields from [profile], but no fabricated client, job, or
+/// tracked-time data — those fields are blanked (rendering as the same '—'
+/// placeholder empty fields already use) since a profile has no relationship
+/// to any particular client or invoice. Contrast [sampleInvoiceDocument],
+/// which fills in a stand-in client + line items so the theme/template
+/// editors can show what a *populated* invoice looks like.
+InvoiceDocument profilePreviewDocument({
+  required InvoiceProfile profile,
+  required DateTime issueDate,
+}) {
+  final taxLabel = profile.taxLabel?.trim();
+  final taxRate = profile.taxRate;
+  // No lines to tax against, so amount is always 0 — the label/rate are the
+  // only structurally meaningful part of a zero-transaction preview.
+  final tax = (taxLabel != null && taxLabel.isNotEmpty && taxRate != null)
+      ? InvoiceTax(label: taxLabel, rate: taxRate, amount: 0)
+      : null;
+
+  return InvoiceDocument(
+    invoiceNumber: null,
+    issueDate: issueDate,
+    periodFrom: issueDate,
+    periodTo: issueDate,
+    reference: '—',
+    businessName: profile.businessName,
+    senderEmail: profile.email,
+    senderPhone: profile.phone,
+    senderWebsite: profile.website,
+    senderAddress: profile.address,
+    senderAbn: profile.abn,
+    attention: '—',
+    recipientContact: null,
+    organisation: '',
+    recipientEmail: null,
+    recipientPhone: null,
+    lines: const [],
+    currency: profile.currency,
+    tax: tax,
+    payeeName: profile.payeeName,
+    bankName: profile.bankName,
+    bankBsb: profile.bankBsb,
+    bankAccount: profile.bankAccount,
+    swift: profile.swift,
+    paymentLink: profile.paymentLink,
+  );
+}
+
 // The line label: task title, plus the entry's own note when it has one; falls
 // back to the note alone, then a dash. Mirrors the old JobInvoice labelling.
 String _label(Task? task, String? description) {

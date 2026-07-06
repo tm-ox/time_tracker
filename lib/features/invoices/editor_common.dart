@@ -269,6 +269,10 @@ Widget editorHeader({
   required VoidCallback onCancel,
   required VoidCallback onSave,
   String? name,
+  // When false, the entity is being viewed rather than edited: the form is
+  // hidden (see EditorShell) and the only action is entering edit mode.
+  bool editing = true,
+  VoidCallback? onEdit,
 }) {
   final theme = Theme.of(context);
   final hasName = name != null && name.trim().isNotEmpty;
@@ -290,14 +294,18 @@ Widget editorHeader({
     ],
   );
   final actions = <Widget>[
-    if (isEdit)
-      TextButton.icon(
-        onPressed: onDelete,
-        icon: const Icon(Icons.delete_outline, size: AppTokens.iconSm),
-        label: const Text('Delete'),
-      ),
-    OutlinedButton(onPressed: onCancel, child: const Text('Cancel')),
-    FilledButton(onPressed: onSave, child: const Text('Save')),
+    if (!editing)
+      FilledButton(onPressed: onEdit, child: const Text('Edit'))
+    else ...[
+      if (isEdit)
+        TextButton.icon(
+          onPressed: onDelete,
+          icon: const Icon(Icons.delete_outline, size: AppTokens.iconSm),
+          label: const Text('Delete'),
+        ),
+      OutlinedButton(onPressed: onCancel, child: const Text('Cancel')),
+      FilledButton(onPressed: onSave, child: const Text('Save')),
+    ],
   ];
   return LayoutBuilder(
     builder: (context, c) {
@@ -346,6 +354,8 @@ class EditorShell extends StatefulWidget {
     required this.onSave,
     required this.children,
     this.name,
+    this.editing = true,
+    this.onEdit,
   });
 
   final String title;
@@ -354,6 +364,10 @@ class EditorShell extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onCancel;
   final VoidCallback onSave;
+  // See editorHeader — false shows a read-only view with a single Edit action
+  // instead of Delete/Cancel/Save, and suspends the save/cancel keybindings.
+  final bool editing;
+  final VoidCallback? onEdit;
 
   /// Body content below the header — typically the form then the preview.
   final List<Widget> children;
@@ -392,27 +406,41 @@ class _EditorShellState extends State<EditorShell> {
     return FocusScope(
       child: Focus(
         focusNode: _root,
-        autofocus: true,
+        // Only steal focus when there's a form to type into — grabbing it in
+        // view mode would yank keyboard focus away from the panel every time
+        // a row is opened, breaking its j/k navigation.
+        autofocus: widget.editing,
         skipTraversal: true,
         child: CallbackShortcuts(
           bindings: {
-            const SingleActivator(LogicalKeyboardKey.escape): _escape,
-            const SingleActivator(LogicalKeyboardKey.keyS, control: true):
-                widget.onSave,
-            const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
-                widget.onSave,
+            if (widget.editing) ...{
+              const SingleActivator(LogicalKeyboardKey.escape): _escape,
+              const SingleActivator(LogicalKeyboardKey.keyS, control: true):
+                  widget.onSave,
+              const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+                  widget.onSave,
+            } else if (widget.onEdit != null)
+              const SingleActivator(LogicalKeyboardKey.keyE): widget.onEdit!,
           },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              editorHeader(
-                context: context,
-                title: widget.title,
-                name: widget.name,
-                isEdit: widget.isEdit,
-                onDelete: widget.onDelete,
-                onCancel: widget.onCancel,
-                onSave: widget.onSave,
+              // Matches the scroll body's right inset below (see its comment)
+              // so the header's actions align with the form/preview's right
+              // edge instead of overhanging past it.
+              Padding(
+                padding: const EdgeInsets.only(right: AppTokens.spaceMd),
+                child: editorHeader(
+                  context: context,
+                  title: widget.title,
+                  name: widget.name,
+                  isEdit: widget.isEdit,
+                  onDelete: widget.onDelete,
+                  onCancel: widget.onCancel,
+                  onSave: widget.onSave,
+                  editing: widget.editing,
+                  onEdit: widget.onEdit,
+                ),
               ),
               Expanded(
                 // Top inset lives inside the scroll (rather than a SizedBox

@@ -28,6 +28,38 @@ Future<bool> confirmDelete(
   return ok ?? false;
 }
 
+/// Action chosen from [confirmUnsavedChanges]. `null` (dismissed, or the
+/// explicit Cancel button) means "stay put, keep editing".
+enum UnsavedChangesAction { save, discard }
+
+/// Warns that leaving now would lose edits, offering save-then-leave,
+/// discard-and-leave, or staying to keep editing.
+Future<UnsavedChangesAction?> confirmUnsavedChanges(BuildContext context) =>
+    showDialog<UnsavedChangesAction>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unsaved changes'),
+        content: const Text(
+          'You have unsaved changes. Save before leaving, or discard them?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, UnsavedChangesAction.discard),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            autofocus: true, // Enter saves
+            onPressed: () => Navigator.pop(ctx, UnsavedChangesAction.save),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
 /// A single-button information dialog — used to surface errors that a SnackBar
 /// would hide behind an open modal (e.g. a blocked delete).
 Future<void> showInfoDialog(

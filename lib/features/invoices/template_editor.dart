@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
@@ -19,11 +20,19 @@ class TemplateEditor extends StatefulWidget {
     super.key,
     required this.db,
     required this.onDone,
+    required this.onDirtyChanged,
+    required this.onSaveHandleReady,
     this.initial,
+    this.startEditing = false,
   });
   final AppDatabase db;
   final VoidCallback onDone;
+  final ValueChanged<bool> onDirtyChanged;
+  final ValueChanged<Future<bool> Function()> onSaveHandleReady;
   final InvoiceTemplate? initial;
+  // Open straight into edit mode (the 'e' shortcut) instead of the read-only
+  // view an existing template otherwise opens to.
+  final bool startEditing;
 
   @override
   State<TemplateEditor> createState() => _TemplateEditorState();
@@ -46,7 +55,23 @@ class _TemplateEditorState extends State<TemplateEditor> {
   late String _fontFamily;
   late bool _isDefault;
 
+  // The last-saved (or, for a new template, starting-blank) values. Dirty is
+  // diffed against these rather than [widget.initial] directly, because a
+  // successful save while viewing-then-editing an existing template moves the
+  // baseline forward without the shell re-mounting this widget.
+  late String _baseName;
+  late int _baseBg, _baseSurface, _basePrimary, _baseText, _baseAccent;
+  Uint8List? _baseLogo;
+  String? _baseLogoMime;
+  late String _baseFontFamily;
+  late bool _baseIsDefault;
+
   late final Future<InvoiceProfile?> _sampleProfile;
+
+  bool _dirty = false;
+  // An existing template opens read-only; a new one has nothing to view, so
+  // it opens straight into editing.
+  late bool _editing;
 
   bool get _isEdit => widget.initial != null;
 
@@ -64,6 +89,17 @@ class _TemplateEditorState extends State<TemplateEditor> {
     _logoMime = t?.logoMime;
     _fontFamily = t?.fontFamily ?? 'Urbanist';
     _isDefault = t?.isDefault ?? false;
+    _baseName = _name.text.trim();
+    _baseBg = _bg;
+    _baseSurface = _surface;
+    _basePrimary = _primary;
+    _baseText = _text;
+    _baseAccent = _accent;
+    _baseLogo = _logo;
+    _baseLogoMime = _logoMime;
+    _baseFontFamily = _fontFamily;
+    _baseIsDefault = _isDefault;
+    _editing = !_isEdit || widget.startEditing;
     // A profile is needed only to dress the sample invoice; the default (or
     // first) is representative enough for a look preview.
     _sampleProfile = widget.db.watchProfiles().first.then((list) {
@@ -72,6 +108,31 @@ class _TemplateEditorState extends State<TemplateEditor> {
       }
       return list.isEmpty ? null : list.first;
     });
+    widget.onSaveHandleReady(_persist);
+  }
+
+  // Real diff against the baseline, not a touched-flag: reverting a field
+  // back to where it started clears dirty again.
+  bool _computeDirty() {
+    if (_name.text.trim() != _baseName) return true;
+    if (_bg != _baseBg) return true;
+    if (_surface != _baseSurface) return true;
+    if (_primary != _basePrimary) return true;
+    if (_text != _baseText) return true;
+    if (_accent != _baseAccent) return true;
+    if (_fontFamily != _baseFontFamily) return true;
+    if (_isDefault != _baseIsDefault) return true;
+    if (!listEquals(_logo, _baseLogo)) return true;
+    if (_logoMime != _baseLogoMime) return true;
+    return false;
+  }
+
+  void _checkDirty() {
+    final d = _computeDirty();
+    if (d != _dirty) {
+      _dirty = d;
+      widget.onDirtyChanged(d);
+    }
   }
 
   @override
@@ -121,14 +182,17 @@ class _TemplateEditorState extends State<TemplateEditor> {
       _logo = bytes;
       _logoMime = name.endsWith('.png') ? 'image/png' : 'image/jpeg';
     });
+    _checkDirty();
   }
 
-  Future<void> _save() async {
+  /// Validates and persists, returning whether it succeeded — used both by
+  /// the editor's own Save action and by the shell's unsaved-changes dialog.
+  Future<bool> _persist() async {
     if (_name.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('A template name is required.')),
       );
-      return;
+      return false;
     }
     try {
       int id;
@@ -140,14 +204,71 @@ class _TemplateEditorState extends State<TemplateEditor> {
       }
       // Apply the default flag through the transaction that clears the others.
       if (_isDefault) await widget.db.setDefaultTemplate(id);
-      if (mounted) widget.onDone();
+      // The just-saved values become the new baseline — dirty clears without
+      // needing widget.initial to change (this widget stays mounted).
+      _baseName = _name.text.trim();
+      _baseBg = _bg;
+      _baseSurface = _surface;
+      _basePrimary = _primary;
+      _baseText = _text;
+      _baseAccent = _accent;
+      _baseLogo = _logo;
+      _baseLogoMime = _logoMime;
+      _baseFontFamily = _fontFamily;
+      _baseIsDefault = _isDefault;
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Could not save template: $e')));
       }
+      return false;
     }
+  }
+
+  Future<void> _save() async {
+    if (!await _persist() || !mounted) return;
+    if (_isEdit) {
+      setState(() => _editing = false);
+      _checkDirty();
+    } else {
+      widget.onDone();
+    }
+  }
+
+  // Discards in-progress edits and returns to viewing (warning first if
+  // there's anything to lose). A new (unsaved) template has nothing to view,
+  // so a discard leaves the screen as before.
+  Future<void> _cancel() async {
+    if (_dirty) {
+      final action = await confirmUnsavedChanges(context);
+      if (action == null) return; // stay editing
+      if (action == UnsavedChangesAction.save) {
+        await _save();
+        return;
+      }
+      // discard: fall through to the revert below
+    }
+    if (!mounted) return;
+    if (!_isEdit) {
+      widget.onDone();
+      return;
+    }
+    setState(() {
+      _name.text = _baseName;
+      _bg = _baseBg;
+      _surface = _baseSurface;
+      _primary = _basePrimary;
+      _text = _baseText;
+      _accent = _baseAccent;
+      _logo = _baseLogo;
+      _logoMime = _baseLogoMime;
+      _fontFamily = _baseFontFamily;
+      _isDefault = _baseIsDefault;
+      _editing = false;
+    });
+    _checkDirty();
   }
 
   Future<void> _delete() async {
@@ -180,15 +301,22 @@ class _TemplateEditorState extends State<TemplateEditor> {
     // Header pinned; settings block over a full-width live preview, the two
     // scrolling together as one content pane.
     return EditorShell(
-      title: _isEdit ? 'Edit template' : 'New template',
+      title: _editing ? (_isEdit ? 'Edit template' : 'New template') : 'Template',
       name: _isEdit ? _name.text : null,
       isEdit: _isEdit,
+      editing: _editing,
+      onEdit: () => setState(() => _editing = true),
       onDelete: _delete,
-      onCancel: widget.onDone,
+      onCancel: _cancel,
       onSave: _save,
       children: [
-        _settings(),
-        const SizedBox(height: AppTokens.spaceMd),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: _editing ? _settings() : const SizedBox.shrink(),
+        ),
+        if (_editing) const SizedBox(height: AppTokens.spaceMd),
         _preview(),
       ],
     );
@@ -215,7 +343,7 @@ class _TemplateEditorState extends State<TemplateEditor> {
                 controller: _name,
                 label: 'Name',
                 persistentLabel: true,
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) => setState(_checkDirty),
               ),
             ),
             Field(
@@ -225,8 +353,10 @@ class _TemplateEditorState extends State<TemplateEditor> {
                 items: const [
                   DropdownMenuItem(value: 'Urbanist', child: Text('Urbanist')),
                 ],
-                onChanged: (v) =>
-                    setState(() => _fontFamily = v ?? _fontFamily),
+                onChanged: (v) => setState(() {
+                  _fontFamily = v ?? _fontFamily;
+                  _checkDirty();
+                }),
               ),
             ),
             Field(
@@ -239,6 +369,7 @@ class _TemplateEditorState extends State<TemplateEditor> {
                     : () => setState(() {
                         _logo = null;
                         _logoMime = null;
+                        _checkDirty();
                       }),
               ),
             ),
@@ -247,7 +378,10 @@ class _TemplateEditorState extends State<TemplateEditor> {
                 alignment: Alignment.centerRight,
                 child: brandingDefaultToggle(
                   value: _isDefault,
-                  onChanged: (v) => setState(() => _isDefault = v),
+                  onChanged: (v) => setState(() {
+                    _isDefault = v;
+                    _checkDirty();
+                  }),
                 ),
               ),
             ),
@@ -287,7 +421,10 @@ class _TemplateEditorState extends State<TemplateEditor> {
             ),
           ),
         ),
-        onChanged: (v) => setState(() => set(v)),
+        onChanged: (v) => setState(() {
+          set(v);
+          _checkDirty();
+        }),
       );
 
   Widget _preview() {

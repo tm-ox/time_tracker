@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:time_tracker/data/database.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/shell/panel_rows.dart';
 import 'package:time_tracker/widgets/focus_ring.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SidePanel extends StatefulWidget {
   const SidePanel({
@@ -425,6 +427,7 @@ class _SidePanelState extends State<SidePanel> {
               onShowHelp: widget.onShowHelp,
               onOpenSettings: widget.onOpenSettings,
             ),
+          const CraftoxBadge(),
         ],
       ),
     );
@@ -853,6 +856,46 @@ class PanelFooter extends StatelessWidget {
                   onPressed: onOpenSettings,
                 ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Base-of-panel Craftox badge — a small linked logo, always present regardless
+// of layout/panel mode (unlike PanelFooter, which the wide layout suppresses
+// in favour of the header). Public so the branding panel shows it too.
+class CraftoxBadge extends StatelessWidget {
+  const CraftoxBadge({super.key});
+
+  static final _uri = Uri.parse('https://craftox-labs.github.io');
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Divider(
+          height: AppTokens.strokeThin,
+          thickness: AppTokens.strokeThin,
+          color: AppTokens.colorBorder,
+        ),
+        SizedBox(
+          width: double.infinity,
+          child: InkWell(
+            onTap: () => launchUrl(_uri),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: AppTokens.spaceSm,
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/logo/co_logo_horizontal.svg',
+                  height: 14,
+                ),
+              ),
+            ),
           ),
         ),
       ],

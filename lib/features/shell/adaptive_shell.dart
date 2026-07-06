@@ -12,9 +12,10 @@ import 'package:time_tracker/features/tracker/timer_view.dart';
 import 'package:time_tracker/features/jobs/job_form.dart';
 import 'package:time_tracker/features/clients/client_form.dart';
 import 'package:time_tracker/features/invoices/invoice_view.dart';
-import 'package:time_tracker/features/invoices/branding_home.dart';
 import 'package:time_tracker/features/invoices/profile_editor.dart';
 import 'package:time_tracker/features/invoices/template_editor.dart';
+import 'package:time_tracker/features/shell/settings_home.dart';
+import 'package:time_tracker/widgets/confirm_dialog.dart';
 import 'package:time_tracker/widgets/content_body.dart';
 
 // What the detail pane is currently showing. One value instead of a pile of
@@ -32,8 +33,8 @@ class _Invoice extends _Detail {
   const _Invoice(this.job);
 }
 
-// App Settings → Branding: the panel shows template/profile sections and the
-// content pane previews the selected branding.
+// App Settings home: the panel shows template/profile sections; the content
+// pane is a placeholder until one is picked (see SettingsHome).
 class _Branding extends _Detail {
   const _Branding();
 }
@@ -42,12 +43,14 @@ class _Branding extends _Detail {
 // pane, with the branding panel still alongside.
 class _TemplateEditorDetail extends _Detail {
   final InvoiceTemplate? template;
-  const _TemplateEditorDetail(this.template);
+  final bool startEditing; // the 'e' shortcut skips straight past the view
+  const _TemplateEditorDetail(this.template, {this.startEditing = false});
 }
 
 class _ProfileEditorDetail extends _Detail {
   final InvoiceProfile? profile;
-  const _ProfileEditorDetail(this.profile);
+  final bool startEditing;
+  const _ProfileEditorDetail(this.profile, {this.startEditing = false});
 }
 
 class AdaptiveShell extends StatefulWidget {
@@ -62,9 +65,13 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   _Detail _detail = const _Tracker();
   StreamSubscription<List<Job>>? _jobsSub;
 
-  // Branding-mode preview selection (null → the default template/profile).
-  int? _brandingTemplateId;
-  int? _brandingProfileId;
+  // Whether the currently-mounted Template/Profile editor has unsaved changes,
+  // and a handle to trigger its save — both supplied by the editor itself
+  // (see onDirtyChanged/onSaveHandleReady). Gates every _detail transition
+  // via _navigateTo. Always false/null outside those two editors.
+  bool _editorDirty = false;
+  Future<bool> Function()? _currentEditorSave;
+
   // Branding mode swaps the side panel for the branding sections.
   bool get _inBranding =>
       _detail is _Branding ||
@@ -188,14 +195,46 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       _focusPanel();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.tab) {
+    // Tab/Shift+Tab switch panes — but while a form field is focused, they
+    // should cycle to the next/previous field instead (Flutter's default
+    // focus traversal), so stand down and let the key bubble to it.
+    if (!editing && key == LogicalKeyboardKey.tab) {
       _togglePane();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
 
-  void _showTracker() => setState(() => _detail = const _Tracker());
+  // The single gate every _detail transition goes through, so an unsaved
+  // change in the open Template/Profile editor can never be silently
+  // discarded. No-ops if `next` targets the entity already open.
+  Future<void> _navigateTo(_Detail next) async {
+    final cur = _detail;
+    final sameEntity = switch ((cur, next)) {
+      (_TemplateEditorDetail c, _TemplateEditorDetail n) =>
+        c.template?.id == n.template?.id,
+      (_ProfileEditorDetail c, _ProfileEditorDetail n) =>
+        c.profile?.id == n.profile?.id,
+      _ => false,
+    };
+    if (sameEntity) return;
+    if (_editorDirty) {
+      final action = await confirmUnsavedChanges(context);
+      if (action == null) return; // stay put, keep editing
+      if (action == UnsavedChangesAction.save) {
+        final ok = await _currentEditorSave?.call() ?? true;
+        if (!ok) return; // validation failed; stay on the editor
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _detail = next;
+      _editorDirty = false;
+      _currentEditorSave = null;
+    });
+  }
+
+  void _showTracker() => _navigateTo(const _Tracker());
   void _selectJob(int id) => setState(() {
     _selectedJobId = id;
     _detail = const _Tracker(); // picking a job returns you to the timer
@@ -219,25 +258,15 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   void _addClient() => showClientEditor(context, db: widget.db);
   void _invoiceJob(Job job) => setState(() => _detail = _Invoice(job));
 
-  // App Settings → Branding mode. Starts on the default template/profile.
-  void _openBranding() => setState(() {
-    _brandingTemplateId = null;
-    _brandingProfileId = null;
-    _detail = const _Branding();
-  });
-  void _selectBrandingTemplate(int id) =>
-      setState(() => _brandingTemplateId = id);
-  void _selectBrandingProfile(int id) =>
-      setState(() => _brandingProfileId = id);
-  void _showBrandingHome() => setState(() => _detail = const _Branding());
-  void _addTemplate() =>
-      setState(() => _detail = const _TemplateEditorDetail(null));
-  void _editTemplate(InvoiceTemplate t) =>
-      setState(() => _detail = _TemplateEditorDetail(t));
-  void _addProfile() =>
-      setState(() => _detail = const _ProfileEditorDetail(null));
-  void _editProfile(InvoiceProfile p) =>
-      setState(() => _detail = _ProfileEditorDetail(p));
+  // App Settings home.
+  void _openBranding() => _navigateTo(const _Branding());
+  void _showBrandingHome() => _navigateTo(const _Branding());
+  void _addTemplate() => _navigateTo(const _TemplateEditorDetail(null));
+  void _editTemplate(InvoiceTemplate t, {bool startEditing = false}) =>
+      _navigateTo(_TemplateEditorDetail(t, startEditing: startEditing));
+  void _addProfile() => _navigateTo(const _ProfileEditorDetail(null));
+  void _editProfile(InvoiceProfile p, {bool startEditing = false}) =>
+      _navigateTo(_ProfileEditorDetail(p, startEditing: startEditing));
 
   @override
   void initState() {
@@ -289,21 +318,27 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         job: job,
         onDone: _showTracker,
       ),
-      _Branding() => BrandingHome(
-        db: widget.db,
-        selectedTemplateId: _brandingTemplateId,
-        selectedProfileId: _brandingProfileId,
-      ),
-      _TemplateEditorDetail(:final template) => TemplateEditor(
-        db: widget.db,
-        initial: template,
-        onDone: _showBrandingHome,
-      ),
-      _ProfileEditorDetail(:final profile) => ProfileEditor(
-        db: widget.db,
-        initial: profile,
-        onDone: _showBrandingHome,
-      ),
+      _Branding() => const SettingsHome(),
+      _TemplateEditorDetail(:final template, :final startEditing) =>
+        TemplateEditor(
+          key: ValueKey(('template', template?.id)),
+          db: widget.db,
+          initial: template,
+          startEditing: startEditing,
+          onDone: _showBrandingHome,
+          onDirtyChanged: (d) => setState(() => _editorDirty = d),
+          onSaveHandleReady: (save) => _currentEditorSave = save,
+        ),
+      _ProfileEditorDetail(:final profile, :final startEditing) =>
+        ProfileEditor(
+          key: ValueKey(('profile', profile?.id)),
+          db: widget.db,
+          initial: profile,
+          startEditing: startEditing,
+          onDone: _showBrandingHome,
+          onDirtyChanged: (d) => setState(() => _editorDirty = d),
+          onSaveHandleReady: (save) => _currentEditorSave = save,
+        ),
     };
     // Preview pages (branding + per-job invoice) keep the left edge aligned with
     // the page header (same inset as the centred content column) but stretch
@@ -343,20 +378,32 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
       // In Branding mode the right column is the branding panel instead of the
       // client/job tree; the content pane shows the matching preview.
       if (_inBranding) {
+        final detail = _detail;
         return BrandingPanel(
           db: widget.db,
-          onSelectTemplate: (id) => run(() => _selectBrandingTemplate(id)),
-          onSelectProfile: (id) => run(() => _selectBrandingProfile(id)),
+          selectedTemplateId: detail is _TemplateEditorDetail
+              ? detail.template?.id
+              : null,
+          selectedProfileId: detail is _ProfileEditorDetail
+              ? detail.profile?.id
+              : null,
           onBack: () => run(_showTracker),
           onAddTemplate: () => run(_addTemplate),
-          onEditTemplate: (t) => run(() => _editTemplate(t)),
+          onEditTemplate: (t, {startEditing = false}) =>
+              run(() => _editTemplate(t, startEditing: startEditing)),
           onAddProfile: () => run(_addProfile),
-          onEditProfile: (p) => run(() => _editProfile(p)),
+          onEditProfile: (p, {startEditing = false}) =>
+              run(() => _editProfile(p, startEditing: startEditing)),
           // Same footer as the normal panel; Shortcuts only where keys are live.
           onShowHelp: keyboardNav ? () => showShortcutsHelp(context) : null,
           onOpenSettings: () => run(_openBranding),
           showFooter: showFooter,
           autofocus: keyboardNav,
+          // Keyboard nav wired only where the panel is persistent (wide) —
+          // mirrors SidePanel below, so Tab/Ctrl-h/Ctrl-l pane-switching can
+          // actually reach this panel's row cursor instead of a focus node
+          // nothing is listening on.
+          cursorFocusNode: keyboardNav ? _panelCursor : null,
         );
       }
 

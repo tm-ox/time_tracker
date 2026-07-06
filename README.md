@@ -22,7 +22,7 @@ timedart is a fast, local-first time tracker for people who bill by the hour. Yo
 - **Clients, jobs & tasks** — full create / edit / delete for each, in quick modal editors. Deletes are guarded so you can't accidentally erase billable history.
 - **Entries** — adjust the task, note, start time, and duration of any recorded segment after the fact.
 - **Invoicing** — per-job, date-ranged, itemised at the effective rate, exported to a branded PDF. Pick the profile and set an invoice number at export; the date range is chosen in a compact modal.
-- **Invoice branding** — design how invoices look and read: reusable **templates** (colours, logo, font) and **profiles** (business identity, bank / payment details, currency, optional tax) that each carry a template. Edit them under **App Settings → Branding** with a live, A4-proportioned preview beside the form.
+- **Invoice branding** — design how invoices look and read: reusable **templates** (colours, logo, font) and **profiles** (business identity, bank / payment details, currency, optional tax) that each carry a template. Manage them under **Settings**: selecting one opens a read-only preview first, with an Edit action that reveals the form (protected by an unsaved-changes prompt if you navigate away mid-edit).
 - **Adaptive UI** — persistent side panel + content pane when there's room; a drawer when there isn't.
 - **Design** — a considered Material 3 theme in the timedart green, Urbanist throughout, and a single design-token source so it stays consistent.
 
@@ -40,12 +40,12 @@ timedart is built to be flown from the keyboard. Navigation is identical across 
 | `e` | edit the focused item |
 | `Tab` · `Ctrl`+`←`/`→` · `Ctrl-w` `h`/`l` | switch panes |
 | `/` | search |
-| `Ctrl`+`,` | open Settings (branding) |
+| `Ctrl`+`,` | open Settings |
 | `Space` | start / pause / resume the timer (from any pane) |
 | `f` · `i` | finish · focus the description |
 | `a` / `A` | add (job / client in the panel · task / entry in the tracker) |
 | `d` | delete, from inside an edit modal |
-| `Enter` / `Ctrl`+`S` · `Esc` | save · cancel in any editor |
+| `Ctrl`+`S` · `Esc` | save · cancel in any editor |
 | `?` | show the full shortcut overlay |
 
 ## Running it
@@ -91,8 +91,10 @@ lib/
 
 The shell holds the selected job (what the timer records against) and the content pane's state.
 Client / job / task / entry editing happens in adaptive modals over the pane; invoicing and the
-branding editors live in the content pane itself — a settings mode that swaps the side panel for
-Templates / Profiles sections, driven by the same keyboard navigation.
+branding editors live in the content pane itself — a Settings mode that swaps the side panel for
+Templates / Profiles sections, driven by the same keyboard navigation. Opening a template or
+profile shows it read-only first; Edit reveals the form in place, and leaving with unsaved changes
+prompts to save, discard, or stay.
 
 ## Roadmap
 

@@ -15,11 +15,19 @@ class ProfileEditor extends StatefulWidget {
     super.key,
     required this.db,
     required this.onDone,
+    required this.onDirtyChanged,
+    required this.onSaveHandleReady,
     this.initial,
+    this.startEditing = false,
   });
   final AppDatabase db;
   final VoidCallback onDone;
+  final ValueChanged<bool> onDirtyChanged;
+  final ValueChanged<Future<bool> Function()> onSaveHandleReady;
   final InvoiceProfile? initial;
+  // Open straight into edit mode (the 'e' shortcut) instead of the read-only
+  // view an existing profile otherwise opens to.
+  final bool startEditing;
 
   @override
   State<ProfileEditor> createState() => _ProfileEditorState();
@@ -33,6 +41,19 @@ class _ProfileEditorState extends State<ProfileEditor> {
   int? _templateId;
   // Available templates for the picker + preview, loaded once.
   List<InvoiceTemplate> _templates = const [];
+
+  bool _dirty = false;
+  // Reassigned after every successful save (the new baseline) — not `final`.
+  late Map<String, String> _initialTexts;
+  late bool _initialIsDefault;
+  // Resolved once templates finish loading — see initState. Comparing against
+  // the pre-resolution `null` would falsely flag the auto-picked default
+  // template as a user edit.
+  int? _initialTemplateId;
+
+  // An existing profile opens read-only; a new one has nothing to view, so it
+  // opens straight into editing.
+  late bool _editing;
 
   bool get _isEdit => widget.initial != null;
 
@@ -63,6 +84,10 @@ class _ProfileEditorState extends State<ProfileEditor> {
     }
     _isDefault = p?.isDefault ?? false;
     _templateId = p?.templateId;
+    _initialTexts = {for (final f in _fields) f: _c[f]!.text};
+    _initialIsDefault = _isDefault;
+    _editing = !_isEdit || widget.startEditing;
+    widget.onSaveHandleReady(_persist);
     // Load templates for the picker + preview. Default the selection to the
     // default template when the profile hasn't chosen one, so the picker always
     // reflects what will render.
@@ -71,8 +96,28 @@ class _ProfileEditorState extends State<ProfileEditor> {
       setState(() {
         _templates = list;
         _templateId ??= _defaultTemplate()?.id;
+        // Resolved after any auto-pick, so the baseline reflects what's on
+        // screen before the user has touched anything.
+        _initialTemplateId = _templateId;
       });
     });
+  }
+
+  bool _computeDirty() {
+    for (final f in _fields) {
+      if (_c[f]!.text != _initialTexts[f]) return true;
+    }
+    if (_isDefault != _initialIsDefault) return true;
+    if (_templateId != _initialTemplateId) return true;
+    return false;
+  }
+
+  void _checkDirty() {
+    final d = _computeDirty();
+    if (d != _dirty) {
+      _dirty = d;
+      widget.onDirtyChanged(d);
+    }
   }
 
   static const _fields = [
@@ -164,12 +209,14 @@ class _ProfileEditorState extends State<ProfileEditor> {
     // isDefault flows through setDefaultProfile so there's only ever one.
   );
 
-  Future<void> _save() async {
+  /// Validates and persists, returning whether it succeeded — used both by
+  /// the editor's own Save action and by the shell's unsaved-changes dialog.
+  Future<bool> _persist() async {
     if (_t('name').isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('A profile name is required.')),
       );
-      return;
+      return false;
     }
     try {
       final id = _isEdit
@@ -177,14 +224,59 @@ class _ProfileEditorState extends State<ProfileEditor> {
           : await widget.db.insertProfile(_companion());
       if (_isEdit) await widget.db.updateProfileById(id, _companion());
       if (_isDefault) await widget.db.setDefaultProfile(id);
-      if (mounted) widget.onDone();
+      // The just-saved values become the new baseline — dirty clears without
+      // needing widget.initial to change (this widget stays mounted).
+      _initialTexts = {for (final f in _fields) f: _c[f]!.text};
+      _initialIsDefault = _isDefault;
+      _initialTemplateId = _templateId;
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Could not save profile: $e')));
       }
+      return false;
     }
+  }
+
+  Future<void> _save() async {
+    if (!await _persist() || !mounted) return;
+    if (_isEdit) {
+      setState(() => _editing = false);
+      _checkDirty();
+    } else {
+      widget.onDone();
+    }
+  }
+
+  // Discards in-progress edits and returns to viewing (warning first if
+  // there's anything to lose). A new (unsaved) profile has nothing to view,
+  // so a discard leaves the screen as before.
+  Future<void> _cancel() async {
+    if (_dirty) {
+      final action = await confirmUnsavedChanges(context);
+      if (action == null) return; // stay editing
+      if (action == UnsavedChangesAction.save) {
+        await _save();
+        return;
+      }
+      // discard: fall through to the revert below
+    }
+    if (!mounted) return;
+    if (!_isEdit) {
+      widget.onDone();
+      return;
+    }
+    setState(() {
+      for (final f in _fields) {
+        _c[f]!.text = _initialTexts[f] ?? '';
+      }
+      _isDefault = _initialIsDefault;
+      _templateId = _initialTemplateId;
+      _editing = false;
+    });
+    _checkDirty();
   }
 
   Future<void> _delete() async {
@@ -216,15 +308,22 @@ class _ProfileEditorState extends State<ProfileEditor> {
     // Header stays pinned; the form and live preview scroll together as one
     // content pane, so a short viewport can still reach the whole preview.
     return EditorShell(
-      title: _isEdit ? 'Edit profile' : 'New profile',
+      title: _editing ? (_isEdit ? 'Edit profile' : 'New profile') : 'Profile',
       name: _isEdit ? _t('name') : null,
       isEdit: _isEdit,
+      editing: _editing,
+      onEdit: () => setState(() => _editing = true),
       onDelete: _delete,
-      onCancel: widget.onDone,
+      onCancel: _cancel,
       onSave: _save,
       children: [
-        _form(),
-        const SizedBox(height: AppTokens.spaceMd),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: _editing ? _form() : const SizedBox.shrink(),
+        ),
+        if (_editing) const SizedBox(height: AppTokens.spaceMd),
         _preview(),
       ],
     );
@@ -244,7 +343,10 @@ class _ProfileEditorState extends State<ProfileEditor> {
                   for (final t in _templates)
                     DropdownMenuItem(value: t.id, child: Text(t.name)),
                 ],
-                onChanged: (v) => setState(() => _templateId = v),
+                onChanged: (v) => setState(() {
+                  _templateId = v;
+                  _checkDirty();
+                }),
               ),
             ),
           ]),
@@ -287,7 +389,10 @@ class _ProfileEditorState extends State<ProfileEditor> {
               flex: 0,
               brandingDefaultToggle(
                 value: _isDefault,
-                onChanged: (v) => setState(() => _isDefault = v),
+                onChanged: (v) => setState(() {
+                  _isDefault = v;
+                  _checkDirty();
+                }),
               ),
             ),
           ]),
@@ -302,7 +407,7 @@ class _ProfileEditorState extends State<ProfileEditor> {
         controller: _c[key]!,
         label: label,
         number: number,
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => setState(_checkDirty),
       );
 
   Widget _preview() {
@@ -313,7 +418,7 @@ class _ProfileEditorState extends State<ProfileEditor> {
         child: Center(child: Text('Add a template to preview.')),
       );
     }
-    final doc = sampleInvoiceDocument(
+    final doc = profilePreviewDocument(
       profile: _draft(),
       issueDate: DateTime.now(),
     );
