@@ -25,24 +25,38 @@ ThemeData buildAppTheme(Brightness brightness) {
     colorScheme: scheme,
 
     // ── Type scale: tweak roles once, applies everywhere ──
+    // fontFamily is set explicitly on every role rather than relying on the
+    // ThemeData(fontFamily:) cascade — that shortcut only reaches `textTheme`,
+    // not component themes like `listTileTheme` below, so a role that leaves
+    // it out here is a trap for any style built the same way elsewhere.
     textTheme: TextTheme(
       headlineLarge: const TextStyle(
+        fontFamily: AppTokens.fontFamily,
         fontWeight: FontWeight.w300,
         letterSpacing: 5,
       ),
       titleLarge: const TextStyle(
+        fontFamily: AppTokens.fontFamily,
         color: AppTokens.colorBrandPrimary,
         fontWeight: FontWeight.w600,
         letterSpacing: 1,
       ),
-      titleMedium: const TextStyle(fontWeight: FontWeight.w600),
+      titleMedium: const TextStyle(
+        fontFamily: AppTokens.fontFamily,
+        fontWeight: FontWeight.w600,
+      ),
       bodyMedium: const TextStyle(
+        fontFamily: AppTokens.fontFamily,
         height: AppTokens.fontHeightDefault,
         color: AppTokens.colorBrandPrimary,
         letterSpacing: 1,
       ),
       // Explainer / helper / empty-state text — muted throughout.
-      bodySmall: TextStyle(color: scheme.onSurfaceVariant, letterSpacing: 1),
+      bodySmall: TextStyle(
+        fontFamily: AppTokens.fontFamily,
+        color: scheme.onSurfaceVariant,
+        letterSpacing: 1,
+      ),
     ),
 
     // ── App bar ── flat, same colour as the body, with a primary hairline under it
@@ -68,13 +82,22 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
 
     // ── List rows (explicit, contrast-correct colours) ──
+    // ListTile wraps its title/leading/trailing in a fresh default text style
+    // built from these — that *replaces* rather than merges with the ambient
+    // style, so any role left without fontFamily here silently falls back to
+    // the platform default font instead of the app's, for every ListTile in
+    // the app (the side panel and Settings panel are built entirely from
+    // them). This is why explicit fontFamily matters more here than on a
+    // plain Text widget, which merges with the true root style correctly.
     listTileTheme: ListTileThemeData(
       contentPadding: const EdgeInsets.symmetric(vertical: AppTokens.space4xs),
       titleTextStyle: TextStyle(
+        fontFamily: AppTokens.fontFamily,
         fontSize: AppTokens.fontSizeMd,
         color: scheme.onSurface,
       ),
       leadingAndTrailingTextStyle: TextStyle(
+        fontFamily: AppTokens.fontFamily,
         fontSize: AppTokens.fontSizeSm,
         color: scheme.onSurfaceVariant, // subtler than the title
         fontFeatures: const [FontFeature.tabularFigures()],
@@ -147,6 +170,7 @@ ThemeData buildAppTheme(Brightness brightness) {
       behavior: SnackBarBehavior.floating,
       backgroundColor: scheme.surface,
       contentTextStyle: TextStyle(
+        fontFamily: AppTokens.fontFamily,
         color: scheme.onSurface,
         fontSize: AppTokens.fontSizeSm,
       ),
