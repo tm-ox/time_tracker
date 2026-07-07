@@ -78,7 +78,9 @@ class InvoicePreview extends StatelessWidget {
   Color get _text => Color(template.colorText); // text on surface (field box values)
   Color get _muted => _primary.withValues(alpha: 0.55); // secondary text on background
 
-  String _money(double a) => formatCurrency(a, doc.currency);
+  String get _sym => currencySymbol(doc.currency);
+  String _moneyNum(double a) => a.toStringAsFixed(2);
+
   String _iso(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
       '${d.month.toString().padLeft(2, '0')}-'
@@ -144,14 +146,24 @@ class InvoicePreview extends StatelessWidget {
                 ),
           const SizedBox(height: InvoiceLayout.fieldValueGap),
           Text(
+            doc.businessName,
+            style: TextStyle(
+              color: _primary,
+              fontSize: InvoiceLayout.fontPaymentsHeading,
+              fontWeight: InvoiceLayout.fontWeightBold,
+            ),
+          ),
+          if (doc.senderWebsite != null)
+            Text(
+              doc.senderWebsite!,
+              style: TextStyle(color: _muted, fontSize: InvoiceLayout.fontLabel),
+            ),
+          Text(
             [
               if (doc.senderEmail != null) 'e. ${doc.senderEmail}',
               if (doc.senderPhone != null) 't. ${doc.senderPhone}',
             ].join('    '),
-            style: TextStyle(
-              color: _muted,
-              fontSize: InvoiceLayout.fontLabel,
-            ),
+            style: TextStyle(color: _muted, fontSize: InvoiceLayout.fontLabel),
           ),
         ],
       ),
@@ -254,6 +266,19 @@ class InvoicePreview extends StatelessWidget {
         ),
       );
 
+  // Split cell: currency symbol left-aligned, number right-aligned.
+  Widget _splitCell(String left, String right, int flex, {TextStyle? style}) =>
+      Expanded(
+        flex: flex,
+        child: Row(
+          children: [
+            Text(left, style: style ?? _value),
+            const Spacer(),
+            Text(right, style: style ?? _value),
+          ],
+        ),
+      );
+
   Widget _table() => Column(
     children: [
       Padding(
@@ -286,35 +311,45 @@ class InvoicePreview extends StatelessWidget {
             children: [
               _cell(l.item, InvoiceLayout.colItem),
               _cell(_iso(l.date), InvoiceLayout.colDate),
-              _cell(_money(l.rate), InvoiceLayout.colRate, right: true),
+              _splitCell(_sym, _moneyNum(l.rate), InvoiceLayout.colRate),
               _cell(Duration(seconds: l.seconds).hms, InvoiceLayout.colTime, right: true),
-              _cell(_money(l.amount), InvoiceLayout.colTotal, right: true),
+              _splitCell(_sym, _moneyNum(l.amount), InvoiceLayout.colTotal),
             ],
           ),
         ),
     ],
   );
 
+  BoxDecoration get _rowDecoration => BoxDecoration(
+    color: _surface,
+    borderRadius: BorderRadius.circular(InvoiceLayout.fieldRadius),
+  );
+
   Widget _totals() => Column(
     children: [
-      Padding(
+      Container(
+        margin: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
         padding: const EdgeInsets.symmetric(
           horizontal: InvoiceLayout.rowPaddingH,
+          vertical: InvoiceLayout.rowPaddingV,
         ),
+        decoration: _rowDecoration,
         child: Row(
           children: [
             _cell('TOTAL:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate, right: true, style: _label),
             _cell(doc.totalTime.hms, InvoiceLayout.colTime, right: true, style: _value),
-            _cell(_money(doc.subtotal), InvoiceLayout.colTotal, right: true, style: _value),
+            _splitCell(_sym, _moneyNum(doc.subtotal), InvoiceLayout.colTotal),
           ],
         ),
       ),
       if (doc.tax != null)
-        Padding(
+        Container(
+          margin: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
           padding: const EdgeInsets.symmetric(
             horizontal: InvoiceLayout.rowPaddingH,
-            vertical: InvoiceLayout.fieldValueGap,
+            vertical: InvoiceLayout.rowPaddingV,
           ),
+          decoration: _rowDecoration,
           child: Row(
             children: [
               _cell(
@@ -323,28 +358,35 @@ class InvoicePreview extends StatelessWidget {
                 right: true,
                 style: _label,
               ),
-              _cell(_money(doc.tax!.amount), InvoiceLayout.colTotal, right: true, style: _value),
+              _splitCell(_sym, _moneyNum(doc.tax!.amount), InvoiceLayout.colTotal),
             ],
           ),
         ),
       const SizedBox(height: InvoiceLayout.amountDueGap),
-      // AMOUNT DUE aligned to the TOTAL column (flex 9 spacer + flex 2 value,
-      // matching the 3/2/2/2/2 table grid's last-two-column span).
-      Padding(
+      Container(
         padding: const EdgeInsets.symmetric(
           horizontal: InvoiceLayout.rowPaddingH,
+          vertical: InvoiceLayout.rowPaddingV,
         ),
+        decoration: _rowDecoration,
         child: Row(
           children: [
             _cell('AMOUNT DUE:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime, right: true, style: _label),
-            _cell(
-              '${_money(doc.amountDue)} ${doc.currency}',
-              InvoiceLayout.colTotal,
-              right: true,
-              style: TextStyle(
-                color: _primary,
-                fontSize: InvoiceLayout.fontAmountDue,
-                fontWeight: InvoiceLayout.fontWeightBold,
+            Expanded(
+              flex: InvoiceLayout.colTotal,
+              child: Row(
+                children: [
+                  Text(
+                    '$_sym ${_moneyNum(doc.amountDue)}',
+                    style: TextStyle(
+                      color: _text,
+                      fontSize: InvoiceLayout.fontAmountDue,
+                      fontWeight: InvoiceLayout.fontWeightBold,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(doc.currency, style: _label),
+                ],
               ),
             ),
           ],
