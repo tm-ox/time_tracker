@@ -169,7 +169,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
                       fontSize: _p(InvoiceLayout.fontPaymentsHeading),
                     ),
                   ),
-                  pw.SizedBox(height: _p(2)),
+                  pw.SizedBox(height: _p(InvoiceLayout.mastheadContactGap)),
                   // Contact line: bold "e." / "t." / "w." prefixes, regular values.
                   pw.RichText(
                     text: pw.TextSpan(

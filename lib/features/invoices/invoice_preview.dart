@@ -139,7 +139,7 @@ class InvoicePreview extends StatelessWidget {
     children: [
       Expanded(
         child: Column(
-          spacing: 2,
+          spacing: InvoiceLayout.mastheadContactGap,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -431,12 +431,7 @@ class InvoicePreview extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
         child: Row(
           children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _txt('AMOUNT DUE:', right: true, style: _label),
-              ),
-            ),
+            Expanded(child: _txt('AMOUNT DUE:', right: true, style: _label)),
             _gutter,
             Container(
               width: InvoiceLayout.totalsValueWidth,
