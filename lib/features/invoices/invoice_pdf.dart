@@ -120,7 +120,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                pw.Image(pw.MemoryImage(logoBytes), height: _p(38)),
+                pw.Image(pw.MemoryImage(logoBytes), height: _p(InvoiceLayout.logoHeight)),
                 pw.SizedBox(height: _p(InvoiceLayout.fieldValueGap) * 2),
                 pw.Text(
                   [
@@ -213,11 +213,11 @@ Future<Uint8List> buildBrandedInvoicePdf({
           ),
           child: pw.Row(
             children: [
-              cell('ITEM', 3, style: labelStyle),
-              cell('DATE', 2, style: labelStyle),
-              cell('RATE (${doc.currency})', 2, right: true, style: labelStyle),
-              cell('TIME (HRS)', 2, right: true, style: labelStyle),
-              cell('TOTAL', 2, right: true, style: labelStyle),
+              cell('ITEM', InvoiceLayout.colItem, style: labelStyle),
+              cell('DATE', InvoiceLayout.colDate, style: labelStyle),
+              cell('RATE (${doc.currency})', InvoiceLayout.colRate, right: true, style: labelStyle),
+              cell('TIME (HRS)', InvoiceLayout.colTime, right: true, style: labelStyle),
+              cell('TOTAL', InvoiceLayout.colTotal, right: true, style: labelStyle),
             ],
           ),
         ),
@@ -241,11 +241,11 @@ Future<Uint8List> buildBrandedInvoicePdf({
             ),
             child: pw.Row(
               children: [
-                cell(l.item, 3),
-                cell(_isoDate(l.date), 2),
-                cell(money(l.rate), 2, right: true),
-                cell(Duration(seconds: l.seconds).hms, 2, right: true),
-                cell(money(l.amount), 2, right: true),
+                cell(l.item, InvoiceLayout.colItem),
+                cell(_isoDate(l.date), InvoiceLayout.colDate),
+                cell(money(l.rate), InvoiceLayout.colRate, right: true),
+                cell(Duration(seconds: l.seconds).hms, InvoiceLayout.colTime, right: true),
+                cell(money(l.amount), InvoiceLayout.colTotal, right: true),
               ],
             ),
           ),
@@ -259,9 +259,9 @@ Future<Uint8List> buildBrandedInvoicePdf({
           ),
           child: pw.Row(
             children: [
-              cell('TOTAL:', 7, right: true, style: labelStyle),
-              cell(doc.totalTime.hms, 2, right: true, style: valueStyle),
-              cell(money(doc.subtotal), 2, right: true, style: valueStyle),
+              cell('TOTAL:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate, right: true, style: labelStyle),
+              cell(doc.totalTime.hms, InvoiceLayout.colTime, right: true, style: valueStyle),
+              cell(money(doc.subtotal), InvoiceLayout.colTotal, right: true, style: valueStyle),
             ],
           ),
         ),
@@ -275,11 +275,11 @@ Future<Uint8List> buildBrandedInvoicePdf({
               children: [
                 cell(
                   '${doc.tax!.label} (${doc.tax!.rate}%):',
-                  9,
+                  InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime,
                   right: true,
                   style: labelStyle,
                 ),
-                cell(money(doc.tax!.amount), 2, right: true, style: valueStyle),
+                cell(money(doc.tax!.amount), InvoiceLayout.colTotal, right: true, style: valueStyle),
               ],
             ),
           ),
@@ -293,10 +293,10 @@ Future<Uint8List> buildBrandedInvoicePdf({
           ),
           child: pw.Row(
             children: [
-              cell('AMOUNT DUE:', 9, right: true, style: labelStyle),
+              cell('AMOUNT DUE:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime, right: true, style: labelStyle),
               cell(
                 '${money(doc.amountDue)} ${doc.currency}',
-                2,
+                InvoiceLayout.colTotal,
                 right: true,
                 style: pw.TextStyle(
                   font: bold,

@@ -86,11 +86,12 @@ class InvoicePreview extends StatelessWidget {
   TextStyle get _label => TextStyle(
     color: _primary,
     fontSize: InvoiceLayout.fontLabel,
+    fontWeight: InvoiceLayout.fontWeightLabel,
   );
   TextStyle get _value => TextStyle(
     color: _primary,
     fontSize: InvoiceLayout.fontValue,
-    fontWeight: FontWeight.w600,
+    fontWeight: InvoiceLayout.fontWeightValue,
   );
 
   @override
@@ -113,7 +114,7 @@ class InvoicePreview extends StatelessWidget {
             style: TextStyle(
               color: _primary,
               fontSize: InvoiceLayout.fontDetailsHeading,
-              fontWeight: FontWeight.w700,
+              fontWeight: InvoiceLayout.fontWeightBold,
             ),
           ),
           const SizedBox(height: InvoiceLayout.detailsHeadingGap),
@@ -135,10 +136,10 @@ class InvoicePreview extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           template.logo != null
-              ? Image.memory(template.logo!, height: 38)
+              ? Image.memory(template.logo!, height: InvoiceLayout.logoHeight)
               : Image.asset(
                   'assets/logo/timedart_logo_horizontal.png',
-                  height: 38,
+                  height: InvoiceLayout.logoHeight,
                 ),
           const SizedBox(height: InvoiceLayout.fieldValueGap),
           Text(
@@ -165,7 +166,7 @@ class InvoicePreview extends StatelessWidget {
         style: TextStyle(
           color: _primary,
           fontSize: InvoiceLayout.fontHeadline,
-          fontWeight: FontWeight.w700,
+          fontWeight: InvoiceLayout.fontWeightBold,
         ),
       ),
       const SizedBox(height: InvoiceLayout.headlineGap),
@@ -175,7 +176,7 @@ class InvoicePreview extends StatelessWidget {
         style: TextStyle(
           color: _primary,
           fontSize: InvoiceLayout.fontHeadline,
-          fontWeight: FontWeight.w700,
+          fontWeight: InvoiceLayout.fontWeightBold,
         ),
       ),
       const SizedBox(height: InvoiceLayout.headlineGap),
@@ -189,7 +190,7 @@ class InvoicePreview extends StatelessWidget {
           style: TextStyle(
             color: _primary,
             fontSize: InvoiceLayout.fontInvoiceNumber,
-            fontWeight: FontWeight.w700,
+            fontWeight: InvoiceLayout.fontWeightBold,
           ),
         ),
     ],
@@ -260,11 +261,11 @@ class InvoicePreview extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _cell('ITEM', 3, style: _label),
-            _cell('DATE', 2, style: _label),
-            _cell('RATE (${doc.currency})', 2, right: true, style: _label),
-            _cell('TIME (HRS)', 2, right: true, style: _label),
-            _cell('TOTAL', 2, right: true, style: _label),
+            _cell('ITEM', InvoiceLayout.colItem, style: _label),
+            _cell('DATE', InvoiceLayout.colDate, style: _label),
+            _cell('RATE (${doc.currency})', InvoiceLayout.colRate, right: true, style: _label),
+            _cell('TIME (HRS)', InvoiceLayout.colTime, right: true, style: _label),
+            _cell('TOTAL', InvoiceLayout.colTotal, right: true, style: _label),
           ],
         ),
       ),
@@ -282,11 +283,11 @@ class InvoicePreview extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _cell(l.item, 3),
-              _cell(_iso(l.date), 2),
-              _cell(_money(l.rate), 2, right: true),
-              _cell(Duration(seconds: l.seconds).hms, 2, right: true),
-              _cell(_money(l.amount), 2, right: true),
+              _cell(l.item, InvoiceLayout.colItem),
+              _cell(_iso(l.date), InvoiceLayout.colDate),
+              _cell(_money(l.rate), InvoiceLayout.colRate, right: true),
+              _cell(Duration(seconds: l.seconds).hms, InvoiceLayout.colTime, right: true),
+              _cell(_money(l.amount), InvoiceLayout.colTotal, right: true),
             ],
           ),
         ),
@@ -301,9 +302,9 @@ class InvoicePreview extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _cell('TOTAL:', 7, right: true, style: _label),
-            _cell(doc.totalTime.hms, 2, right: true, style: _value),
-            _cell(_money(doc.subtotal), 2, right: true, style: _value),
+            _cell('TOTAL:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate, right: true, style: _label),
+            _cell(doc.totalTime.hms, InvoiceLayout.colTime, right: true, style: _value),
+            _cell(_money(doc.subtotal), InvoiceLayout.colTotal, right: true, style: _value),
           ],
         ),
       ),
@@ -317,11 +318,11 @@ class InvoicePreview extends StatelessWidget {
             children: [
               _cell(
                 '${doc.tax!.label} (${doc.tax!.rate}%):',
-                9,
+                InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime,
                 right: true,
                 style: _label,
               ),
-              _cell(_money(doc.tax!.amount), 2, right: true, style: _value),
+              _cell(_money(doc.tax!.amount), InvoiceLayout.colTotal, right: true, style: _value),
             ],
           ),
         ),
@@ -334,15 +335,15 @@ class InvoicePreview extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _cell('AMOUNT DUE:', 9, right: true, style: _label),
+            _cell('AMOUNT DUE:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime, right: true, style: _label),
             _cell(
               '${_money(doc.amountDue)} ${doc.currency}',
-              2,
+              InvoiceLayout.colTotal,
               right: true,
               style: TextStyle(
                 color: _primary,
                 fontSize: InvoiceLayout.fontAmountDue,
-                fontWeight: FontWeight.w700,
+                fontWeight: InvoiceLayout.fontWeightBold,
               ),
             ),
           ],
@@ -359,7 +360,7 @@ class InvoicePreview extends StatelessWidget {
         style: TextStyle(
           color: _primary,
           fontSize: InvoiceLayout.fontPaymentsHeading,
-          fontWeight: FontWeight.w700,
+          fontWeight: InvoiceLayout.fontWeightBold,
         ),
       ),
       const SizedBox(height: InvoiceLayout.paymentsHeadingGap),

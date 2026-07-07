@@ -1,10 +1,11 @@
-// Single source of truth for all invoice spacing and typography.
+// Single source of truth for all invoice layout, typography, and structure.
 //
 // invoice_preview.dart uses these values directly (Flutter design pixels,
-// 820px-wide canvas). invoice_pdf.dart multiplies each value by [pdfScale]
-// (A4 width in points ÷ design width) so the two outputs share one set of
-// numbers to tune. Edit here; both renderers update on hot reload / next PDF
-// export.
+// 820px-wide canvas). invoice_pdf.dart multiplies spacing/font values by
+// [pdfScale] (A4 width in points ÷ design width) so both outputs share one
+// set of numbers. Edit here; both renderers update on hot reload / next PDF.
+
+import 'package:flutter/material.dart';
 
 abstract class InvoiceLayout {
   // ── Coordinate spaces ──────────────────────────────────────────────
@@ -13,7 +14,7 @@ abstract class InvoiceLayout {
   static const double pdfScale = pdfPageWidth / designWidth; // ≈ 0.726
 
   // ── Spacing ────────────────────────────────────────────────────────
-  static const double pageMargin = 64.0;
+  static const double pageMargin = 48.0;
   static const double sectionGap = 32.0;
   static const double headlineGap = 16.0;
   static const double partyBlockGap = 24.0;
@@ -30,7 +31,7 @@ abstract class InvoiceLayout {
   static const double fieldPaddingV = 8.0;
   static const double rowPaddingH = 12.0;
   static const double rowPaddingV = 4.0;
-  static const double rowMarginBottom = 12.0;
+  static const double rowMarginBottom = 8.0;
   static const double fieldRadius = 6.0;
 
   // ── Typography ─────────────────────────────────────────────────────
@@ -42,4 +43,23 @@ abstract class InvoiceLayout {
   static const double fontPaymentsHeading = 17.0;
   static const double fontAmountDue = 16.0;
   static const double fontHeadline = 20.0;
+
+  // Font weights (Flutter preview uses these directly; the PDF renderer uses
+  // separate font files for regular vs bold — [fontWeightBold] maps to
+  // Urbanist-SemiBold.ttf, [fontWeightValue] to the variable font).
+  static const FontWeight fontWeightLabel = FontWeight.w400;
+  static const FontWeight fontWeightValue = FontWeight.w600;
+  static const FontWeight fontWeightBold = FontWeight.w700;
+
+  // ── Logo ───────────────────────────────────────────────────────────
+  static const double logoHeight = 38.0;
+
+  // ── Table columns ─────────────────────────────────────────────────
+  // Flex weights for the 5-column line-items grid (ITEM / DATE / RATE / TIME / TOTAL).
+  // Totals and AMOUNT DUE rows use the same weights so columns align top-to-bottom.
+  static const int colItem = 3;
+  static const int colDate = 2;
+  static const int colRate = 2;
+  static const int colTime = 2;
+  static const int colTotal = 2;
 }
