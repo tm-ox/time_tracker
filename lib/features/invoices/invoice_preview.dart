@@ -15,10 +15,7 @@ Widget brandingPreviewFrame({required Widget child}) => Center(
       border: Border.all(color: const Color(0xFF2A2A2A)),
       borderRadius: BorderRadius.circular(4),
     ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(3),
-      child: child,
-    ),
+    child: ClipRRect(borderRadius: BorderRadius.circular(3), child: child),
   ),
 );
 
@@ -75,8 +72,10 @@ class InvoicePreview extends StatelessWidget {
   Color get _bg => Color(template.colorBackground);
   Color get _surface => Color(template.colorSurface);
   Color get _primary => Color(template.colorPrimary);
-  Color get _text => Color(template.colorText); // text on surface (field box values)
-  Color get _muted => _primary.withValues(alpha: 0.55); // secondary text on background
+  Color get _text =>
+      Color(template.colorText); // text on surface (field box values)
+  Color get _muted =>
+      _primary.withValues(alpha: 0.55); // secondary text on background
 
   String get _sym => currencySymbol(doc.currency);
   String _moneyNum(double a) => a.toStringAsFixed(2);
@@ -131,44 +130,64 @@ class InvoicePreview extends StatelessWidget {
     );
   }
 
+  // Business details sit at the left edge; the logo anchors the right edge on
+  // the same top line. Separating the two gives whatever icon/logo the user
+  // supplies its own room rather than stacking text beneath it.
   Widget _masthead() => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Spacer(),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          template.logo != null
-              ? Image.memory(template.logo!, height: InvoiceLayout.logoHeight)
-              : Image.asset(
-                  'assets/logo/timedart_logo_horizontal.png',
-                  height: InvoiceLayout.logoHeight,
-                ),
-          const SizedBox(height: InvoiceLayout.fieldValueGap),
-          Text(
-            doc.businessName,
-            style: TextStyle(
-              color: _primary,
-              fontSize: InvoiceLayout.fontPaymentsHeading,
-              fontWeight: InvoiceLayout.fontWeightBold,
-            ),
-          ),
-          if (doc.senderWebsite != null)
+      Expanded(
+        child: Column(
+          spacing: 2,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              doc.senderWebsite!,
-              style: TextStyle(color: _muted, fontSize: InvoiceLayout.fontLabel),
+              doc.businessName,
+              style: TextStyle(
+                color: _primary,
+                fontSize: InvoiceLayout.fontPaymentsHeading,
+                fontWeight: InvoiceLayout.fontWeightBold,
+              ),
             ),
-          Text(
-            [
-              if (doc.senderEmail != null) 'e. ${doc.senderEmail}',
-              if (doc.senderPhone != null) 't. ${doc.senderPhone}',
-            ].join('    '),
-            style: TextStyle(color: _muted, fontSize: InvoiceLayout.fontLabel),
-          ),
-        ],
+            Text.rich(
+              TextSpan(
+                style: TextStyle(
+                  color: _muted,
+                  fontSize: InvoiceLayout.fontValue,
+                ),
+                children: _contactSpans(),
+              ),
+            ),
+          ],
+        ),
       ),
+      const SizedBox(width: InvoiceLayout.sectionGap),
+      template.logo != null
+          ? Image.memory(template.logo!, height: InvoiceLayout.logoHeight)
+          : Image.asset(
+              'assets/logo/timedart_logo_horizontal.png',
+              height: InvoiceLayout.logoHeight,
+            ),
     ],
   );
+
+  // Masthead contact line: bold "e." / "t." / "w." prefixes, regular values,
+  // four spaces between entries. Only present fields appear.
+  List<InlineSpan> _contactSpans() {
+    const prefixStyle = TextStyle(fontWeight: InvoiceLayout.fontWeightLabel);
+    final entries = <(String, String)>[
+      if (doc.senderEmail != null) ('e.', doc.senderEmail!),
+      if (doc.senderPhone != null) ('t.', doc.senderPhone!),
+      if (doc.senderWebsite != null) ('w.', doc.senderWebsite!),
+    ];
+    return [
+      for (final (i, entry) in entries.indexed) ...[
+        if (i > 0) const TextSpan(text: '    '),
+        TextSpan(text: entry.$1, style: prefixStyle),
+        TextSpan(text: ' ${entry.$2}'),
+      ],
+    ];
+  }
 
   Widget _party() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,66 +273,93 @@ class InvoicePreview extends StatelessWidget {
     ],
   );
 
-  Widget _cell(String s, int flex, {bool right = false, TextStyle? style}) =>
-      Expanded(
-        flex: flex,
-        child: Text(
-          s,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: right ? TextAlign.right : TextAlign.left,
-          style: style ?? _value,
-        ),
-      );
+  // Plain text sized to a single line — content for a cell box or a bare label.
+  Widget _txt(String s, {bool right = false, TextStyle? style}) => Text(
+    s,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    textAlign: right ? TextAlign.right : TextAlign.left,
+    style: style ?? _value,
+  );
 
-  // Split cell: currency symbol left-aligned, number right-aligned.
-  Widget _splitCell(String left, String right, int flex, {TextStyle? style}) =>
-      Expanded(
-        flex: flex,
-        child: Row(
-          children: [
-            Text(left, style: style ?? _value),
-            const Spacer(),
-            Text(right, style: style ?? _value),
-          ],
-        ),
-      );
+  // Currency symbol left-aligned, number right-aligned, within a cell box.
+  Widget _splitRow(String left, String right, {TextStyle? style}) => Row(
+    children: [
+      Text(left, style: style ?? _value),
+      const Spacer(),
+      Text(right, style: style ?? _value),
+    ],
+  );
+
+  // A single surface box occupying [flex] columns. Its own fill + padding is
+  // what draws the column divisions when boxes are separated by gutters.
+  Widget _box({required int flex, required Widget child}) => Expanded(
+    flex: flex,
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: InvoiceLayout.rowPaddingH,
+        vertical: InvoiceLayout.rowPaddingV,
+      ),
+      decoration: _rowDecoration,
+      child: child,
+    ),
+  );
+
+  // Header label, aligned to the column's surface edge (no interior padding):
+  // ITEM flush-left, the rest flush-right, matching the box outlines beneath.
+  Widget _headCell(String s, int flex, {bool right = false}) => Expanded(
+    flex: flex,
+    child: _txt(s, right: right, style: _label),
+  );
+
+  static const _gutter = SizedBox(width: InvoiceLayout.gridGutter);
 
   Widget _table() => Column(
     children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: InvoiceLayout.rowPaddingH,
-        ),
-        child: Row(
-          children: [
-            _cell('ITEM', InvoiceLayout.colItem, style: _label),
-            _cell('DATE', InvoiceLayout.colDate, style: _label),
-            _cell('RATE (${doc.currency})', InvoiceLayout.colRate, right: true, style: _label),
-            _cell('TIME (HRS)', InvoiceLayout.colTime, right: true, style: _label),
-            _cell('TOTAL', InvoiceLayout.colTotal, right: true, style: _label),
-          ],
-        ),
+      Row(
+        children: [
+          _headCell('ITEM', InvoiceLayout.colItem),
+          _gutter,
+          _headCell('DATE', InvoiceLayout.colDate, right: true),
+          _gutter,
+          _headCell(
+            'RATE (${doc.currency})',
+            InvoiceLayout.colRate,
+            right: true,
+          ),
+          _gutter,
+          _headCell('TIME (HRS)', InvoiceLayout.colTime, right: true),
+          _gutter,
+          _headCell('TOTAL', InvoiceLayout.colTotal, right: true),
+        ],
       ),
       const SizedBox(height: InvoiceLayout.tableHeaderGap),
       for (final l in doc.lines)
-        Container(
-          margin: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
-          padding: const EdgeInsets.symmetric(
-            horizontal: InvoiceLayout.rowPaddingH,
-            vertical: InvoiceLayout.rowPaddingV,
-          ),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(InvoiceLayout.fieldRadius),
-          ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
           child: Row(
             children: [
-              _cell(l.item, InvoiceLayout.colItem),
-              _cell(_iso(l.date), InvoiceLayout.colDate),
-              _splitCell(_sym, _moneyNum(l.rate), InvoiceLayout.colRate),
-              _cell(Duration(seconds: l.seconds).hms, InvoiceLayout.colTime, right: true),
-              _splitCell(_sym, _moneyNum(l.amount), InvoiceLayout.colTotal),
+              _box(flex: InvoiceLayout.colItem, child: _txt(l.item)),
+              _gutter,
+              _box(
+                flex: InvoiceLayout.colDate,
+                child: _txt(_iso(l.date), right: true),
+              ),
+              _gutter,
+              _box(
+                flex: InvoiceLayout.colRate,
+                child: _splitRow(_sym, _moneyNum(l.rate)),
+              ),
+              _gutter,
+              _box(
+                flex: InvoiceLayout.colTime,
+                child: _txt(Duration(seconds: l.seconds).hms, right: true),
+              ),
+              _gutter,
+              _box(
+                flex: InvoiceLayout.colTotal,
+                child: _splitRow(_sym, _moneyNum(l.amount)),
+              ),
             ],
           ),
         ),
@@ -325,55 +371,79 @@ class InvoicePreview extends StatelessWidget {
     borderRadius: BorderRadius.circular(InvoiceLayout.fieldRadius),
   );
 
+  // Flex of the leftover label area (first three columns) and the value box
+  // (last two columns). Totals labels sit bare on the background; only the
+  // figures get a surface box, spanning those last two columns.
+  static const _labelSpan =
+      InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate;
+
+  // One totals line: a right-aligned bare label over the first three columns,
+  // then caller-supplied cells over the last two (TIME + TOTAL). The two
+  // leading gutters reproduce the ITEM|DATE and DATE|RATE gaps folded into the
+  // merged label span; with the trailing gutter that makes four gutters total,
+  // matching the line rows so every value box lands under its column exactly.
+  Widget _totalsRow(String label, List<Widget> trailing) => Padding(
+    padding: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
+    child: Row(
+      children: [
+        _gutter,
+        _gutter,
+        Expanded(
+          flex: _labelSpan,
+          child: _txt(label, right: true, style: _label),
+        ),
+        _gutter,
+        ...trailing,
+      ],
+    ),
+  );
+
   Widget _totals() => Column(
     children: [
-      Container(
-        margin: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
-        padding: const EdgeInsets.symmetric(
-          horizontal: InvoiceLayout.rowPaddingH,
-          vertical: InvoiceLayout.rowPaddingV,
+      // TOTAL: time and amount each in their own box, aligned to the columns.
+      _totalsRow('TOTAL:', [
+        _box(
+          flex: InvoiceLayout.colTime,
+          child: _txt(doc.totalTime.hms, right: true),
         ),
-        decoration: _rowDecoration,
-        child: Row(
-          children: [
-            _cell('TOTAL:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate, right: true, style: _label),
-            _cell(doc.totalTime.hms, InvoiceLayout.colTime, right: true, style: _value),
-            _splitCell(_sym, _moneyNum(doc.subtotal), InvoiceLayout.colTotal),
-          ],
+        _gutter,
+        _box(
+          flex: InvoiceLayout.colTotal,
+          child: _splitRow(_sym, _moneyNum(doc.subtotal)),
         ),
-      ),
+      ]),
       if (doc.tax != null)
-        Container(
-          margin: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
-          padding: const EdgeInsets.symmetric(
-            horizontal: InvoiceLayout.rowPaddingH,
-            vertical: InvoiceLayout.rowPaddingV,
+        _totalsRow('${doc.tax!.label} (${doc.tax!.rate}%):', [
+          const Spacer(flex: InvoiceLayout.colTime),
+          _gutter,
+          _box(
+            flex: InvoiceLayout.colTotal,
+            child: _splitRow(_sym, _moneyNum(doc.tax!.amount)),
           ),
-          decoration: _rowDecoration,
-          child: Row(
-            children: [
-              _cell(
-                '${doc.tax!.label} (${doc.tax!.rate}%):',
-                InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime,
-                right: true,
-                style: _label,
-              ),
-              _splitCell(_sym, _moneyNum(doc.tax!.amount), InvoiceLayout.colTotal),
-            ],
-          ),
-        ),
+        ]),
       const SizedBox(height: InvoiceLayout.amountDueGap),
-      Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: InvoiceLayout.rowPaddingH,
-          vertical: InvoiceLayout.rowPaddingV,
-        ),
-        decoration: _rowDecoration,
+      // AMOUNT DUE: the label fills the leftover width; the value box takes an
+      // exact pixel width so it spans the TIME + TOTAL columns (plus the gutter
+      // between them) and lines up with those columns exactly — a flex slot
+      // can't, since it can't reclaim that internal gutter.
+      Padding(
+        padding: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
         child: Row(
           children: [
-            _cell('AMOUNT DUE:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime, right: true, style: _label),
             Expanded(
-              flex: InvoiceLayout.colTotal,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _txt('AMOUNT DUE:', right: true, style: _label),
+              ),
+            ),
+            _gutter,
+            Container(
+              width: InvoiceLayout.totalsValueWidth,
+              padding: const EdgeInsets.symmetric(
+                horizontal: InvoiceLayout.rowPaddingH,
+                vertical: InvoiceLayout.rowPaddingV,
+              ),
+              decoration: _rowDecoration,
               child: Row(
                 children: [
                   Text(
@@ -385,7 +455,14 @@ class InvoicePreview extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Text(doc.currency, style: _label),
+                  Text(
+                    doc.currency,
+                    style: TextStyle(
+                      color: _text,
+                      fontSize: InvoiceLayout.fontLabel,
+                      fontWeight: InvoiceLayout.fontWeightLabel,
+                    ),
+                  ),
                 ],
               ),
             ),

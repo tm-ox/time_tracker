@@ -21,27 +21,27 @@ abstract class InvoiceLayout {
   static const double detailsBlockGap = 24.0;
   static const double detailsHeadingGap = 12.0;
   static const double tableHeaderGap = 8.0;
-  static const double totalsGap = 8.0;
+  static const double totalsGap = 6.0;
   static const double amountDueGap = 12.0;
   static const double paymentsHeadingGap = 8.0;
   static const double paymentsFieldGap = 8.0;
   static const double gridGutter = 6.0;
   static const double fieldValueGap = 4.0;
-  static const double fieldPaddingH = 12.0;
-  static const double fieldPaddingV = 5.0;
-  static const double rowPaddingH = 12.0;
-  static const double rowPaddingV = 5.0;
+  static const double fieldPaddingH = 8.0;
+  static const double fieldPaddingV = 6.0;
+  static const double rowPaddingH = 8.0;
+  static const double rowPaddingV = 6.0;
   static const double rowMarginBottom = 6.0;
-  static const double fieldRadius = 6.0;
+  static const double fieldRadius = 4.0;
 
   // ── Typography ─────────────────────────────────────────────────────
   static const double fontLabel = 10.0;
   static const double fontCell = 12.0;
-  static const double fontValue = 11.0;
+  static const double fontValue = 11.5;
   static const double fontInvoiceNumber = 20.0;
   static const double fontDetailsHeading = 16.0;
   static const double fontPaymentsHeading = 17.0;
-  static const double fontAmountDue = 16.0;
+  static const double fontAmountDue = 14.0;
   static const double fontHeadline = 20.0;
 
   // Font weights (Flutter preview uses these directly; the PDF renderer uses
@@ -57,9 +57,25 @@ abstract class InvoiceLayout {
   // ── Table columns ─────────────────────────────────────────────────
   // Flex weights for the 5-column line-items grid (ITEM / DATE / RATE / TIME / TOTAL).
   // Totals and AMOUNT DUE rows use the same weights so columns align top-to-bottom.
-  static const int colItem = 4;
+  static const int colItem = 3;
   static const int colDate = 1;
   static const int colRate = 1;
   static const int colTime = 1;
   static const int colTotal = 1;
+
+  // ── Derived geometry ───────────────────────────────────────────────
+  // The design canvas is a fixed width, so column widths are constants rather
+  // than purely layout-driven. The AMOUNT DUE box is a single box spanning the
+  // TIME + TOTAL columns; flex can't span two columns *plus* the gutter between
+  // them (a flex-2 slot is only two column-units wide), so it takes this exact
+  // pixel width instead and lands on the same edges as the flex columns above.
+  static const double contentWidth = designWidth - 2 * pageMargin;
+  static const int _colFlexTotal =
+      colItem + colDate + colRate + colTime + colTotal;
+  static const int _colGutters = 4; // five columns → four gutters
+  static const double _colUnit =
+      (contentWidth - _colGutters * gridGutter) / _colFlexTotal;
+  // Width of the merged TIME + TOTAL value region (two columns + one gutter).
+  static const double totalsValueWidth =
+      _colUnit * (colTime + colTotal) + gridGutter;
 }

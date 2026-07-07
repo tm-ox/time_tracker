@@ -83,40 +83,52 @@ Future<Uint8List> buildBrandedInvoicePdf({
     ],
   );
 
-  // One column in the line-items grid. Flex weights same across header, rows,
-  // and totals so columns line up top to bottom.
-  pw.Widget cell(
-    String s,
-    int flex, {
-    bool right = false,
-    pw.TextStyle? style,
-  }) => pw.Expanded(
-    flex: flex,
-    child: pw.Text(
-      s,
-      maxLines: 1,
-      textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
-      style: style ?? valueStyle,
-    ),
-  );
-
-  // Split cell: currency symbol left-aligned, number right-aligned.
-  pw.Widget splitCell(String left, String right, int flex, {pw.TextStyle? style}) =>
-      pw.Expanded(
-        flex: flex,
-        child: pw.Row(
-          children: [
-            pw.Text(left, style: style ?? valueStyle),
-            pw.Spacer(),
-            pw.Text(right, style: style ?? valueStyle),
-          ],
-        ),
-      );
-
   final rowDecoration = pw.BoxDecoration(
     color: surface,
     borderRadius: pw.BorderRadius.circular(_p(InvoiceLayout.fieldRadius)),
   );
+
+  // Single-line text — content for a cell box or a bare label.
+  pw.Widget txt(String s, {bool right = false, pw.TextStyle? style}) => pw.Text(
+    s,
+    maxLines: 1,
+    textAlign: right ? pw.TextAlign.right : pw.TextAlign.left,
+    style: style ?? valueStyle,
+  );
+
+  // Currency symbol left-aligned, number right-aligned, within a cell box.
+  pw.Widget splitRow(String left, String right, {pw.TextStyle? style}) => pw.Row(
+    children: [
+      pw.Text(left, style: style ?? valueStyle),
+      pw.Spacer(),
+      pw.Text(right, style: style ?? valueStyle),
+    ],
+  );
+
+  // A surface box spanning [flex] columns — its fill + padding draws the
+  // column divisions once boxes are separated by gutters.
+  pw.Widget boxCell(int flex, pw.Widget child) => pw.Expanded(
+    flex: flex,
+    child: pw.Container(
+      padding: pw.EdgeInsets.symmetric(
+        horizontal: _p(InvoiceLayout.rowPaddingH),
+        vertical: _p(InvoiceLayout.rowPaddingV),
+      ),
+      decoration: rowDecoration,
+      child: child,
+    ),
+  );
+
+  // Header label, aligned to the column's surface edge (no interior padding):
+  // ITEM flush-left, the rest flush-right, matching the box outlines beneath.
+  pw.Widget headCell(String s, int flex, {bool right = false}) => pw.Expanded(
+    flex: flex,
+    child: txt(s, right: right, style: labelStyle),
+  );
+
+  final gutter = pw.SizedBox(width: _p(InvoiceLayout.gridGutter));
+  const labelSpan =
+      InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate;
 
   final doc0 = pw.Document();
   doc0.addPage(
@@ -131,39 +143,49 @@ Future<Uint8List> buildBrandedInvoicePdf({
         ),
       ),
       build: (context) => [
-        // ── Masthead: logo + business name/website/contact right-aligned ──
+        // ── Masthead: business details at the left edge, logo at the right ──
         pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.SizedBox(),
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                pw.Image(pw.MemoryImage(logoBytes), height: _p(InvoiceLayout.logoHeight)),
-                pw.SizedBox(height: _p(InvoiceLayout.fieldValueGap)),
-                pw.Text(
-                  doc.businessName,
-                  style: pw.TextStyle(
-                    font: bold,
-                    color: primary,
-                    fontSize: _p(InvoiceLayout.fontPaymentsHeading),
-                  ),
-                ),
-                if (doc.senderWebsite != null)
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
                   pw.Text(
-                    doc.senderWebsite!,
-                    style: pw.TextStyle(font: font, color: muted, fontSize: _p(InvoiceLayout.fontLabel)),
+                    doc.businessName,
+                    style: pw.TextStyle(
+                      font: bold,
+                      color: primary,
+                      fontSize: _p(InvoiceLayout.fontPaymentsHeading),
+                    ),
                   ),
-                pw.Text(
-                  [
-                    if (doc.senderEmail != null) 'e. ${doc.senderEmail}',
-                    if (doc.senderPhone != null) 't. ${doc.senderPhone}',
-                  ].join('    '),
-                  style: pw.TextStyle(font: font, color: muted, fontSize: _p(InvoiceLayout.fontLabel)),
-                ),
-              ],
+                  pw.SizedBox(height: _p(2)),
+                  // Contact line: bold "e." / "t." / "w." prefixes, regular values.
+                  pw.RichText(
+                    text: pw.TextSpan(
+                      style: pw.TextStyle(
+                        font: font,
+                        color: muted,
+                        fontSize: _p(InvoiceLayout.fontValue),
+                      ),
+                      children: [
+                        for (final (i, entry) in <(String, String)>[
+                          if (doc.senderEmail != null) ('e.', doc.senderEmail!),
+                          if (doc.senderPhone != null) ('t.', doc.senderPhone!),
+                          if (doc.senderWebsite != null) ('w.', doc.senderWebsite!),
+                        ].indexed) ...[
+                          if (i > 0) const pw.TextSpan(text: '    '),
+                          pw.TextSpan(text: entry.$1, style: pw.TextStyle(font: bold)),
+                          pw.TextSpan(text: ' ${entry.$2}'),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
+            pw.SizedBox(width: _p(InvoiceLayout.sectionGap)),
+            pw.Image(pw.MemoryImage(logoBytes), height: _p(InvoiceLayout.logoHeight)),
           ],
         ),
         pw.SizedBox(height: _p(InvoiceLayout.sectionGap)),
@@ -236,116 +258,131 @@ Future<Uint8List> buildBrandedInvoicePdf({
           ),
         ),
         pw.SizedBox(height: _p(InvoiceLayout.detailsHeadingGap)),
-        pw.Padding(
-          padding: pw.EdgeInsets.symmetric(
-            horizontal: _p(InvoiceLayout.rowPaddingH),
-          ),
-          child: pw.Row(
-            children: [
-              cell('ITEM', InvoiceLayout.colItem, style: labelStyle),
-              cell('DATE', InvoiceLayout.colDate, style: labelStyle),
-              cell('RATE (${doc.currency})', InvoiceLayout.colRate, right: true, style: labelStyle),
-              cell('TIME (HRS)', InvoiceLayout.colTime, right: true, style: labelStyle),
-              cell('TOTAL', InvoiceLayout.colTotal, right: true, style: labelStyle),
-            ],
-          ),
+        pw.Row(
+          children: [
+            headCell('ITEM', InvoiceLayout.colItem),
+            gutter,
+            headCell('DATE', InvoiceLayout.colDate, right: true),
+            gutter,
+            headCell('RATE (${doc.currency})', InvoiceLayout.colRate, right: true),
+            gutter,
+            headCell('TIME (HRS)', InvoiceLayout.colTime, right: true),
+            gutter,
+            headCell('TOTAL', InvoiceLayout.colTotal, right: true),
+          ],
         ),
         pw.SizedBox(height: _p(InvoiceLayout.tableHeaderGap)),
 
-        // ── Line rows ──
+        // ── Line rows: one surface box per column, divided by gutters ──
         for (final l in doc.lines)
           pw.Container(
             margin: pw.EdgeInsets.only(
               bottom: _p(InvoiceLayout.rowMarginBottom),
             ),
-            padding: pw.EdgeInsets.symmetric(
-              horizontal: _p(InvoiceLayout.rowPaddingH),
-              vertical: _p(InvoiceLayout.rowPaddingV),
-            ),
-            decoration: pw.BoxDecoration(
-              color: surface,
-              borderRadius: pw.BorderRadius.circular(
-                _p(InvoiceLayout.fieldRadius),
-              ),
-            ),
             child: pw.Row(
               children: [
-                cell(l.item, InvoiceLayout.colItem),
-                cell(_isoDate(l.date), InvoiceLayout.colDate),
-                splitCell(sym, moneyNum(l.rate), InvoiceLayout.colRate),
-                cell(Duration(seconds: l.seconds).hms, InvoiceLayout.colTime, right: true),
-                splitCell(sym, moneyNum(l.amount), InvoiceLayout.colTotal),
+                boxCell(InvoiceLayout.colItem, txt(l.item)),
+                gutter,
+                boxCell(InvoiceLayout.colDate, txt(_isoDate(l.date), right: true)),
+                gutter,
+                boxCell(InvoiceLayout.colRate, splitRow(sym, moneyNum(l.rate))),
+                gutter,
+                boxCell(
+                  InvoiceLayout.colTime,
+                  txt(Duration(seconds: l.seconds).hms, right: true),
+                ),
+                gutter,
+                boxCell(InvoiceLayout.colTotal, splitRow(sym, moneyNum(l.amount))),
               ],
             ),
           ),
         pw.SizedBox(height: _p(InvoiceLayout.totalsGap)),
 
-        // ── Totals — surface containers matching line rows ──
+        // ── Totals — bare right-aligned label + a box spanning the last
+        //    two columns, mirroring invoice_preview.dart. ──
         pw.Container(
           margin: pw.EdgeInsets.only(bottom: _p(InvoiceLayout.rowMarginBottom)),
-          padding: pw.EdgeInsets.symmetric(
-            horizontal: _p(InvoiceLayout.rowPaddingH),
-            vertical: _p(InvoiceLayout.rowPaddingV),
-          ),
-          decoration: rowDecoration,
           child: pw.Row(
             children: [
-              cell('TOTAL:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate, right: true, style: labelStyle),
-              cell(doc.totalTime.hms, InvoiceLayout.colTime, right: true, style: valueStyle),
-              splitCell(sym, moneyNum(doc.subtotal), InvoiceLayout.colTotal),
+              // Two leading gutters reproduce the ITEM|DATE and DATE|RATE gaps
+              // folded into the label span, giving four gutters total so the
+              // value boxes align exactly with the line-item columns above.
+              gutter,
+              gutter,
+              pw.Expanded(
+                flex: labelSpan,
+                child: txt('TOTAL:', right: true, style: labelStyle),
+              ),
+              gutter,
+              boxCell(InvoiceLayout.colTime, txt(doc.totalTime.hms, right: true)),
+              gutter,
+              boxCell(InvoiceLayout.colTotal, splitRow(sym, moneyNum(doc.subtotal))),
             ],
           ),
         ),
         if (doc.tax != null)
           pw.Container(
             margin: pw.EdgeInsets.only(bottom: _p(InvoiceLayout.rowMarginBottom)),
-            padding: pw.EdgeInsets.symmetric(
-              horizontal: _p(InvoiceLayout.rowPaddingH),
-              vertical: _p(InvoiceLayout.rowPaddingV),
-            ),
-            decoration: rowDecoration,
             child: pw.Row(
               children: [
-                cell(
-                  '${doc.tax!.label} (${doc.tax!.rate}%):',
-                  InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime,
-                  right: true,
-                  style: labelStyle,
+                gutter,
+                gutter,
+                pw.Expanded(
+                  flex: labelSpan,
+                  child: txt(
+                    '${doc.tax!.label} (${doc.tax!.rate}%):',
+                    right: true,
+                    style: labelStyle,
+                  ),
                 ),
-                splitCell(sym, moneyNum(doc.tax!.amount), InvoiceLayout.colTotal),
+                gutter,
+                pw.Spacer(flex: InvoiceLayout.colTime),
+                gutter,
+                boxCell(InvoiceLayout.colTotal, splitRow(sym, moneyNum(doc.tax!.amount))),
               ],
             ),
           ),
         pw.SizedBox(height: _p(InvoiceLayout.amountDueGap)),
 
-        pw.Container(
-          padding: pw.EdgeInsets.symmetric(
-            horizontal: _p(InvoiceLayout.rowPaddingH),
-            vertical: _p(InvoiceLayout.rowPaddingV),
-          ),
-          decoration: rowDecoration,
-          child: pw.Row(
-            children: [
-              cell('AMOUNT DUE:', InvoiceLayout.colItem + InvoiceLayout.colDate + InvoiceLayout.colRate + InvoiceLayout.colTime, right: true, style: labelStyle),
-              pw.Expanded(
-                flex: InvoiceLayout.colTotal,
-                child: pw.Row(
-                  children: [
-                    pw.Text(
-                      '$sym ${moneyNum(doc.amountDue)}',
-                      style: pw.TextStyle(
-                        font: bold,
-                        color: text,
-                        fontSize: _p(InvoiceLayout.fontAmountDue),
-                      ),
-                    ),
-                    pw.Spacer(),
-                    pw.Text(doc.currency, style: labelStyle),
-                  ],
-                ),
+        // AMOUNT DUE: label fills the leftover width; the value box takes an
+        // exact width so it spans the TIME + TOTAL columns (plus the gutter
+        // between them), aligning with those columns exactly.
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: txt('AMOUNT DUE:', right: true, style: labelStyle),
+            ),
+            gutter,
+            pw.Container(
+              width: _p(InvoiceLayout.totalsValueWidth),
+              padding: pw.EdgeInsets.symmetric(
+                horizontal: _p(InvoiceLayout.rowPaddingH),
+                vertical: _p(InvoiceLayout.rowPaddingV),
               ),
-            ],
-          ),
+              decoration: rowDecoration,
+              child: pw.Row(
+                children: [
+                  pw.Text(
+                    '$sym ${moneyNum(doc.amountDue)}',
+                    style: pw.TextStyle(
+                      font: bold,
+                      color: text,
+                      fontSize: _p(InvoiceLayout.fontAmountDue),
+                    ),
+                  ),
+                  pw.Spacer(),
+                  pw.Text(
+                    doc.currency,
+                    style: pw.TextStyle(
+                      font: bold,
+                      color: text,
+                      fontSize: _p(InvoiceLayout.fontLabel),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         pw.SizedBox(height: _p(InvoiceLayout.sectionGap)),
 
