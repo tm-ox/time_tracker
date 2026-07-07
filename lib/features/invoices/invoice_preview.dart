@@ -75,7 +75,6 @@ class InvoicePreview extends StatelessWidget {
   Color get _bg => Color(template.colorBackground);
   Color get _surface => Color(template.colorSurface);
   Color get _primary => Color(template.colorPrimary);
-  Color get _text => Color(template.colorText);
   Color get _muted => Color(template.colorText).withValues(alpha: 0.55);
 
   String _money(double a) => formatCurrency(a, doc.currency);
@@ -182,13 +181,13 @@ class InvoicePreview extends StatelessWidget {
       const SizedBox(height: InvoiceLayout.headlineGap),
       Text(
         _iso(doc.issueDate),
-        style: TextStyle(color: _muted, fontSize: InvoiceLayout.fontLabel),
+        style: TextStyle(color: _primary, fontSize: InvoiceLayout.fontLabel),
       ),
       if (doc.invoiceNumber != null)
         Text(
-          'Invoice #${doc.invoiceNumber}',
+          doc.invoiceNumber!,
           style: TextStyle(
-            color: _text,
+            color: _primary,
             fontSize: InvoiceLayout.fontInvoiceNumber,
             fontWeight: FontWeight.w700,
           ),

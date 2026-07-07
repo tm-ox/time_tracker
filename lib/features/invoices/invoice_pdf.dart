@@ -43,7 +43,6 @@ Future<Uint8List> buildBrandedInvoicePdf({
   final bg = PdfColor.fromInt(template.colorBackground);
   final surface = PdfColor.fromInt(template.colorSurface);
   final primary = PdfColor.fromInt(template.colorPrimary);
-  final text = PdfColor.fromInt(template.colorText);
   final muted = PdfColor.fromInt(template.colorText).flatten(background: bg);
 
   final labelStyle = pw.TextStyle(
@@ -165,16 +164,16 @@ Future<Uint8List> buildBrandedInvoicePdf({
           _isoDate(doc.issueDate),
           style: pw.TextStyle(
             font: font,
-            color: muted,
+            color: primary,
             fontSize: _p(InvoiceLayout.fontLabel),
           ),
         ),
         if (doc.invoiceNumber != null)
           pw.Text(
-            'Invoice #${doc.invoiceNumber}',
+            doc.invoiceNumber!,
             style: pw.TextStyle(
               font: bold,
-              color: text,
+              color: primary,
               fontSize: _p(InvoiceLayout.fontInvoiceNumber),
             ),
           ),
