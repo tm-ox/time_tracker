@@ -48,13 +48,19 @@ Widget invoicePreviewPage({
         color: Color(template.colorBackground),
         child: InvoicePreview(doc: doc, template: template),
       );
-      final page = c.maxWidth >= designWidth
-          ? sheet
-          : FittedBox(
-              fit: BoxFit.fitWidth,
-              alignment: Alignment.topCenter,
-              child: sheet,
-            );
+      // Scale the fixed-width design sheet to fill the available width at any
+      // screen size — up as well as down. FittedBox only rescales when given a
+      // tight width, so pin the page to the pane width (falling back to the
+      // native width if the pane is horizontally unbounded).
+      final targetWidth = c.maxWidth.isFinite ? c.maxWidth : designWidth;
+      final page = SizedBox(
+        width: targetWidth,
+        child: FittedBox(
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.topCenter,
+          child: sheet,
+        ),
+      );
       return scrollable ? SingleChildScrollView(child: page) : page;
     },
   );
@@ -139,7 +145,7 @@ class InvoicePreview extends StatelessWidget {
     children: [
       Expanded(
         child: Column(
-          spacing: 2,
+          spacing: InvoiceLayout.mastheadContactGap,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -431,12 +437,7 @@ class InvoicePreview extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: InvoiceLayout.rowMarginBottom),
         child: Row(
           children: [
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _txt('AMOUNT DUE:', right: true, style: _label),
-              ),
-            ),
+            Expanded(child: _txt('AMOUNT DUE:', right: true, style: _label)),
             _gutter,
             Container(
               width: InvoiceLayout.totalsValueWidth,
