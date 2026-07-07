@@ -166,6 +166,25 @@ ThemeData buildAppTheme(Brightness brightness) {
       ),
     ),
 
+    // ── Tooltips ── app surface + border, app font, faster reveal
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: borderColor),
+      ),
+      textStyle: TextStyle(
+        fontFamily: AppTokens.fontFamily,
+        fontSize: AppTokens.fontSizeXs,
+        color: scheme.onSurface,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSm,
+        vertical: AppTokens.space4xs,
+      ),
+      preferBelow: false,
+    ),
+
     // ── Snack bars ── floating, panel-coloured, primary hairline (matches
     // the app-bar/divider aesthetic) instead of the default dark pill.
     snackBarTheme: SnackBarThemeData(
