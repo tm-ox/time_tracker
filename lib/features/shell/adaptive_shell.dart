@@ -459,6 +459,8 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
           // Same footer as the normal panel; Shortcuts only where keys are live.
           onShowHelp: keyboardNav ? () => showShortcutsHelp(context) : null,
           onOpenSettings: () => run(_openSettings),
+          onOpenTracker: () => run(_showTracker),
+          settingsActive: true,
           showFooter: showFooter,
           autofocus: keyboardNav,
           // Keyboard nav wired only where the panel is persistent (wide) —
@@ -485,6 +487,8 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         // it routes the help request back up rather than letting it bubble.
         onShowHelp: keyboardNav ? () => showShortcutsHelp(context) : null,
         onOpenSettings: () => run(_openSettings),
+        onOpenTracker: () => run(_showTracker),
+        settingsActive: false,
         showFooter: showFooter,
         autofocus: keyboardNav,
       );
@@ -516,6 +520,8 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                             alignLogoStart: _wideContentPage,
                             onShowHelp: () => showShortcutsHelp(context),
                             onOpenSettings: _openSettings,
+                            onOpenTracker: _showTracker,
+                            settingsActive: _inSettings,
                           ),
                           Expanded(child: content),
                         ],
