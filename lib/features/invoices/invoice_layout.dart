@@ -45,12 +45,14 @@ abstract class InvoiceLayout {
   static const double fontAmountDue = 14.0;
   static const double fontHeadline = 20.0;
 
-  // Font weights (Flutter preview uses these directly; the PDF renderer uses
-  // separate font files for regular vs bold — [fontWeightBold] maps to
-  // Urbanist-SemiBold.ttf, [fontWeightValue] to the variable font).
-  static const FontWeight fontWeightLabel = FontWeight.w700;
+  // Font weights. The Flutter preview reads these directly from the single
+  // Mona variable font (Flutter interpolates the wght axis). The PDF renderer
+  // can't shift a variable axis, so it maps each to a pre-instanced static
+  // Mona ttf: fontWeightValue→Regular, fontWeightLabel→Medium, fontWeightBold→
+  // SemiBold. Keep the three weights distinct so the export mirrors the preview.
+  static const FontWeight fontWeightLabel = FontWeight.w500;
   static const FontWeight fontWeightValue = FontWeight.w400;
-  static const FontWeight fontWeightBold = FontWeight.w800;
+  static const FontWeight fontWeightBold = FontWeight.w600;
 
   // Alpha for secondary ("muted") text painted over the background — the
   // masthead contact line and issue date. Both renderers apply it the same

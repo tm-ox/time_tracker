@@ -25,7 +25,7 @@ abstract class AppTokens {
   static const double strokeThick = 1.5;
 
   // ── 4. Typography ──
-  static const String fontFamily = 'Urbanist';
+  static const String fontFamily = 'Mona';
   static const double fontHeightDefault = 1.4;
   static const double fontSizeXs = 14.0;
   static const double fontSizeSm = 16.0;
