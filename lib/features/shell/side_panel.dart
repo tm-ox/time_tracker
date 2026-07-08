@@ -881,7 +881,7 @@ class PanelFooter extends StatelessWidget {
                   onPressed: onOpenTracker,
                 ),
               if (onOpenTracker != null && onOpenSettings != null)
-                const SizedBox(width: AppTokens.spaceXs),
+                const SizedBox(width: AppTokens.spaceLg),
               if (onOpenSettings != null)
                 IconButton(
                   icon: const Icon(Icons.settings),
