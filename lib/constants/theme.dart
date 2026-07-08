@@ -51,7 +51,7 @@ ThemeData buildAppTheme(Brightness brightness) {
         fontFamily: AppTokens.fontFamily,
         height: AppTokens.fontHeightDefault,
         color: AppTokens.colorBrandPrimary,
-        letterSpacing: 1.25,
+        letterSpacing: 0.75,
       ),
       // Explainer / helper / empty-state text — muted throughout.
       bodySmall: TextStyle(
@@ -204,7 +204,6 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
 
     visualDensity: VisualDensity.comfortable, // desktop: a touch roomier
-
     // App-specific chrome text styles that don't fit Material's fixed
     // TextTheme roles without colliding with an existing role's meaning
     // elsewhere — see AppTextStyles' doc comment.

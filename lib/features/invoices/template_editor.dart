@@ -87,7 +87,7 @@ class _TemplateEditorState extends State<TemplateEditor> {
     _accent = t?.colorAccent ?? _defaults.accent;
     _logo = t?.logo;
     _logoMime = t?.logoMime;
-    _fontFamily = t?.fontFamily ?? 'Urbanist';
+    _fontFamily = t?.fontFamily ?? 'Mona';
     _isDefault = t?.isDefault ?? false;
     _baseName = _name.text.trim();
     _baseBg = _bg;
@@ -351,7 +351,7 @@ class _TemplateEditorState extends State<TemplateEditor> {
                 label: 'Font',
                 value: _fontFamily,
                 items: const [
-                  DropdownMenuItem(value: 'Urbanist', child: Text('Urbanist')),
+                  DropdownMenuItem(value: 'Mona', child: Text('Mona')),
                 ],
                 onChanged: (v) => setState(() {
                   _fontFamily = v ?? _fontFamily;

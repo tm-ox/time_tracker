@@ -1974,7 +1974,7 @@ class $TemplatesTable extends Templates
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant('Urbanist'),
+    defaultValue: const Constant('Mona'),
   );
   static const VerificationMeta _isDefaultMeta = const VerificationMeta(
     'isDefault',

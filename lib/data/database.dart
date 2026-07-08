@@ -72,7 +72,7 @@ class Templates extends Table {
   IntColumn get colorPrimary => integer()();
   IntColumn get colorText => integer()();
   IntColumn get colorAccent => integer()();
-  TextColumn get fontFamily => text().withDefault(const Constant('Urbanist'))();
+  TextColumn get fontFamily => text().withDefault(const Constant('Mona'))();
   BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
 }
 

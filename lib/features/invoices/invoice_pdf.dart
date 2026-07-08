@@ -25,14 +25,21 @@ Future<Uint8List> buildBrandedInvoicePdf({
   required InvoiceDocument doc,
   required InvoiceTemplate template,
 }) async {
-  final fontData = await rootBundle.load(
-    'assets/fonts/Urbanist-VariableFont_wght.ttf',
-  );
-  final boldFontData = await rootBundle.load(
-    'assets/fonts/Urbanist-SemiBold.ttf',
-  );
-  final font = pw.Font.ttf(fontData);
-  final bold = pw.Font.ttf(boldFontData);
+  // Mona Sans is a variable font whose wght axis defaults to 200 (ExtraLight),
+  // and the pdf package can't shift a variable axis — it renders one static
+  // instance per file. So the three preview weights (value w400, label w500,
+  // bold w600 in InvoiceLayout) are shipped as pre-instanced static ttfs and
+  // mapped here one-to-one. Flutter's preview, by contrast, reads the single
+  // variable font and interpolates the wght axis from the fontWeight directly.
+  final font = pw.Font.ttf(
+    await rootBundle.load('assets/fonts/MonaSans-Regular.ttf'),
+  ); // w400 — values
+  final medium = pw.Font.ttf(
+    await rootBundle.load('assets/fonts/MonaSans-Medium.ttf'),
+  ); // w500 — labels (fontWeightLabel)
+  final bold = pw.Font.ttf(
+    await rootBundle.load('assets/fonts/MonaSans-SemiBold.ttf'),
+  ); // w600 — headings (fontWeightBold)
 
   final logoBytes =
       template.logo ??
@@ -54,10 +61,10 @@ Future<Uint8List> buildBrandedInvoicePdf({
     InvoiceLayout.mutedAlpha,
   ).flatten(background: bg);
 
-  // Only two font files exist (regular [font], SemiBold [bold]), so the
-  // preview's w700 labels map to [bold] and its w400 values to [font].
+  // Small-caps labels (ATT:/RE:/field + table-header labels): [fontWeightLabel]
+  // (w500) → the [medium] instance.
   final labelStyle = pw.TextStyle(
-    font: bold,
+    font: medium,
     color: primary,
     fontSize: _p(InvoiceLayout.fontLabel),
   );
@@ -185,7 +192,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
                           if (doc.senderWebsite != null) ('w.', doc.senderWebsite!),
                         ].indexed) ...[
                           if (i > 0) const pw.TextSpan(text: '    '),
-                          pw.TextSpan(text: entry.$1, style: pw.TextStyle(font: bold)),
+                          pw.TextSpan(text: entry.$1, style: pw.TextStyle(font: medium)),
                           pw.TextSpan(text: ' ${entry.$2}'),
                         ],
                       ],
@@ -384,7 +391,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
                   pw.Text(
                     doc.currency,
                     style: pw.TextStyle(
-                      font: bold,
+                      font: medium,
                       color: text,
                       fontSize: _p(InvoiceLayout.fontLabel),
                     ),
