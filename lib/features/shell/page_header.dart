@@ -125,21 +125,11 @@ class PageHeader extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (onShowHelp != null)
-                          _HeaderAction(
-                            icon: Icon(
-                              Icons.help_outline,
-                              size: AppTokens.iconMd,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                            tooltip: 'Shortcuts  (?)',
-                            onPressed: onShowHelp!,
-                          ),
                         if (onOpenTracker != null)
                           _HeaderAction(
                             icon: SvgPicture.asset(
                               'assets/logo/timedart_symbol.svg',
-                              height: AppTokens.iconMd,
+                              height: AppTokens.iconSm,
                               colorFilter: ColorFilter.mode(
                                 settingsActive
                                     ? scheme.onSurfaceVariant
@@ -149,6 +139,16 @@ class PageHeader extends StatelessWidget {
                             ),
                             tooltip: 'Tracker  (t)',
                             onPressed: onOpenTracker!,
+                          ),
+                        if (onShowHelp != null)
+                          _HeaderAction(
+                            icon: Icon(
+                              Icons.help_outline,
+                              size: AppTokens.iconMd,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                            tooltip: 'Shortcuts  (?)',
+                            onPressed: onShowHelp!,
                           ),
                         if (onOpenSettings != null)
                           _HeaderAction(
@@ -192,7 +192,7 @@ class _HeaderAction extends StatelessWidget {
     icon: icon,
     tooltip: tooltip,
     visualDensity: VisualDensity.compact,
-    padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXs),
+    padding: const EdgeInsets.symmetric(horizontal: AppTokens.space2xs),
     constraints: const BoxConstraints(),
     onPressed: onPressed,
   );

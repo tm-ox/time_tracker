@@ -23,6 +23,8 @@ class SidePanel extends StatefulWidget {
     this.onExitToTracker,
     this.onShowHelp,
     this.onOpenSettings,
+    this.onOpenTracker,
+    this.settingsActive = false,
     this.showFooter = true,
     this.autofocus = false,
   });
@@ -48,6 +50,10 @@ class SidePanel extends StatefulWidget {
   final VoidCallback? onShowHelp;
   // Open App Settings. Shown as a gear in the panel footer.
   final VoidCallback? onOpenSettings;
+  // Go to the tracker. Shown as the timedart symbol beside the footer gear.
+  final VoidCallback? onOpenTracker;
+  // Whether Settings is the active section (drives the footer switch tint).
+  final bool settingsActive;
   // Render the base-of-panel footer (Shortcuts/Settings). False in the wide
   // layout, where those actions live in the header instead. onShowHelp is still
   // honoured for `?`-key routing regardless.
@@ -428,10 +434,14 @@ class _SidePanelState extends State<SidePanel> {
           // A quiet footer at the base: an App Settings gear (drawer layout).
           // In the wide layout it's suppressed — those actions sit in the header.
           if (widget.showFooter &&
-              (widget.onShowHelp != null || widget.onOpenSettings != null))
+              (widget.onShowHelp != null ||
+                  widget.onOpenSettings != null ||
+                  widget.onOpenTracker != null))
             PanelFooter(
               onShowHelp: widget.onShowHelp,
               onOpenSettings: widget.onOpenSettings,
+              onOpenTracker: widget.onOpenTracker,
+              settingsActive: widget.settingsActive,
             ),
           const CraftoxBadge(),
         ],
@@ -780,13 +790,25 @@ class ProjectRowItem extends StatelessWidget {
 // and an App Settings gear. Either half is shown only when its callback is set.
 // Public so the settings panel shows the same footer.
 class PanelFooter extends StatelessWidget {
-  const PanelFooter({super.key, this.onShowHelp, this.onOpenSettings});
+  const PanelFooter({
+    super.key,
+    this.onShowHelp,
+    this.onOpenSettings,
+    this.onOpenTracker,
+    this.settingsActive = false,
+  });
   final VoidCallback? onShowHelp;
   final VoidCallback? onOpenSettings;
+  // Go to the tracker. When set, the timedart symbol shows beside the gear —
+  // the two read as a Tracker/Settings switch, mirroring the wide header.
+  final VoidCallback? onOpenTracker;
+  // Which section is active — tints the tracker/gear pair (primary vs muted).
+  final bool settingsActive;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -838,11 +860,34 @@ class PanelFooter extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (onShowHelp != null && onOpenSettings != null)
+              if (onShowHelp != null &&
+                  (onOpenSettings != null || onOpenTracker != null))
                 const SizedBox(width: AppTokens.spaceLg),
+              if (onOpenTracker != null)
+                IconButton(
+                  icon: SvgPicture.asset(
+                    'assets/logo/timedart_symbol.svg',
+                    height: AppTokens.iconSm,
+                    colorFilter: ColorFilter.mode(
+                      settingsActive ? scheme.onSurfaceVariant : scheme.primary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                  iconSize: AppTokens.iconSm,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Tracker',
+                  onPressed: onOpenTracker,
+                ),
+              if (onOpenTracker != null && onOpenSettings != null)
+                const SizedBox(width: AppTokens.spaceXs),
               if (onOpenSettings != null)
                 IconButton(
                   icon: const Icon(Icons.settings),
+                  color: settingsActive
+                      ? scheme.primary
+                      : scheme.onSurfaceVariant,
                   iconSize: AppTokens.iconMd,
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,

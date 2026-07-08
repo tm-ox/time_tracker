@@ -27,6 +27,8 @@ class SettingsPanel extends StatefulWidget {
     this.onEditProfile,
     this.onShowHelp,
     this.onOpenSettings,
+    this.onOpenTracker,
+    this.settingsActive = false,
     this.showFooter = true,
     this.autofocus = false,
     this.cursorFocusNode,
@@ -55,6 +57,10 @@ class SettingsPanel extends StatefulWidget {
   // Footer callbacks, matching the normal panel's base row.
   final VoidCallback? onShowHelp;
   final VoidCallback? onOpenSettings;
+  // Go to the tracker — the timedart symbol beside the footer gear.
+  final VoidCallback? onOpenTracker;
+  // Whether Settings is the active section (drives the footer switch tint).
+  final bool settingsActive;
   // Suppressed in the wide layout — the header carries those actions there.
   final bool showFooter;
   final bool autofocus;
@@ -286,10 +292,14 @@ class _SettingsPanelState extends State<SettingsPanel> {
             ),
           ),
           if (widget.showFooter &&
-              (widget.onShowHelp != null || widget.onOpenSettings != null))
+              (widget.onShowHelp != null ||
+                  widget.onOpenSettings != null ||
+                  widget.onOpenTracker != null))
             PanelFooter(
               onShowHelp: widget.onShowHelp,
               onOpenSettings: widget.onOpenSettings,
+              onOpenTracker: widget.onOpenTracker,
+              settingsActive: widget.settingsActive,
             ),
           const CraftoxBadge(),
         ],
