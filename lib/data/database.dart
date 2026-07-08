@@ -300,11 +300,13 @@ class AppDatabase extends _$AppDatabase {
       // (business identity). Add logo/logo_mime to profiles, backfill each from
       // its resolved template (its templateId, else the default template), then
       // drop logo/logo_mime from templates via a rebuild to the current shape.
-      // Guarded to from>=5: a from<5 upgrade built the current tables directly
-      // above (logo already on profiles, absent from templates), so it must not
-      // re-run these column ops. from∈{5,6,7} all reach here with the logo still
-      // on templates (v5's themes had it; the v5→v6 rename kept it).
-      if (from >= 5) {
+      // Bounded both ways (from>=5 && from<8): a from<5 upgrade built the current
+      // tables directly above (logo already on profiles, absent from templates),
+      // and the upper bound stops a future bump (v8→v9+) re-running these ops on
+      // a v8 DB where profiles.logo already exists (addColumn would throw — the
+      // same latent trap the unbounded v6→v7 rename hit). from∈{5,6,7} all reach
+      // here with the logo still on templates (v5's themes had it; v5→v6 kept it).
+      if (from >= 5 && from < 8) {
         await m.addColumn(profiles, profiles.logo);
         await m.addColumn(profiles, profiles.logoMime);
         await customStatement(
