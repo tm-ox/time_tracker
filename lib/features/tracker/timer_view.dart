@@ -83,7 +83,8 @@ class TimerView extends StatefulWidget {
   });
   final AppDatabase db;
   final int? projectId;
-  final void Function(Project) onInvoice; // open the invoice view for this project
+  final void Function(Project)
+  onInvoice; // open the invoice view for this project
   // Keyboard cursor for the entry list (wide layout). When null, the pane has
   // no keymap — used by the narrow drawer layout, which is mouse-first.
   final FocusNode? cursorFocusNode;
@@ -587,7 +588,7 @@ class _TimerViewState extends State<TimerView> {
                 ),
               ),
             ),
-            const SizedBox(height: AppTokens.space3xs),
+            const SizedBox(height: AppTokens.spaceSm),
             TimerControls(
               running: _c.isRunning,
               hasSession: _c.hasSession,
@@ -601,7 +602,7 @@ class _TimerViewState extends State<TimerView> {
             ),
             const SizedBox(height: AppTokens.spaceLg),
             _armedLabel(context),
-            const SizedBox(height: AppTokens.spaceXl),
+            const SizedBox(height: AppTokens.spaceLg),
             // Optional note for this session; becomes the entry's description on
             // finish. Esc returns to the row cursor; Enter starts if armed.
             CallbackShortcuts(
@@ -733,7 +734,7 @@ class _TasksHeader extends StatelessWidget {
               const Spacer(),
               IconButton(
                 onPressed: onAddTask,
-                icon: const Icon(Icons.add, size: AppTokens.iconSm),
+                icon: const Icon(Icons.add, size: AppTokens.iconMd),
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
