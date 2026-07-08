@@ -357,8 +357,8 @@ class _ProfileEditorState extends State<ProfileEditor> {
             Field(_field('businessName', 'Business name')),
             Field(_field('website', 'Website')),
           ]),
-          // Equal thirds: Website lines up above ABN, Email/Phone span the width
-          // that Address occupies below.
+          // Business name / Website and Email / Phone are even halves; the row
+          // below splits Address (two-thirds) over ABN (one-third).
           FieldRow([
             Field(_field('email', 'Email')),
             Field(_field('phone', 'Phone')),
