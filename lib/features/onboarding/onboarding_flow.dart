@@ -1,86 +1,466 @@
+import 'dart:typed_data';
+
+import 'package:animations/animations.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:time_tracker/constants/tokens.dart';
+import 'package:time_tracker/features/invoices/editor_common.dart';
+import 'package:time_tracker/features/invoices/invoice_region.dart';
 import 'package:time_tracker/features/onboarding/onboarding_controller.dart';
+import 'package:time_tracker/features/onboarding/onboarding_machine.dart';
 
-// PLACEHOLDER wizard shell (PRD #133, phase c). The real stepped wizard — the
-// welcome / how-it-works / business / region / done screens built on
-// [OnboardingMachine] — is phase (d), which replaces this widget's body. For
-// now it's a single full-screen panel that lets the flow complete so the root
-// gate is exercisable end-to-end: "Get started" and "Skip for now" both finish
-// with no captured input (seeded defaults kept). [onDone] carries the captured
-// [OnboardingInputs] up to the gate, which persists them via [applyOnboarding].
-class OnboardingFlow extends StatelessWidget {
+// The first-run onboarding wizard (PRD #133, phase d). A full-screen stepped
+// flow driven by [OnboardingMachine]: Welcome → How it works → Your business →
+// Your region → Done. Orientation precedes any input; every input step is
+// skippable (leave the fields blank and continue, or "Skip setup" entirely) and
+// whatever is captured is applied to the seeded default profile by the root
+// gate via [applyOnboarding].
+//
+// The "How it works" diagram is a static placeholder here — phase (f) animates
+// the Client → Project → Task → Timer → Invoice sequence. The startup intro
+// animation is phase (e), ahead of the gate.
+class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key, required this.onDone});
 
-  /// Called when onboarding finishes, with whatever was captured. Phase (c)
-  /// only ever passes [OnboardingInputs.empty]; phase (d) will fill it in.
+  /// Called once when the flow finishes (last step or "Skip setup"), carrying
+  /// whatever was captured. Blank fields stay null → seeded defaults kept.
   final ValueChanged<OnboardingInputs> onDone;
 
-  // Both action buttons share one narrow width so they line up.
-  static const double _buttonWidth = 140;
+  @override
+  State<OnboardingFlow> createState() => _OnboardingFlowState();
+}
+
+class _OnboardingFlowState extends State<OnboardingFlow> {
+  final _machine = OnboardingMachine();
+  final _businessName = TextEditingController();
+  final _email = TextEditingController();
+  Uint8List? _logo;
+  String? _logoMime;
+  InvoiceRegion? _region;
+
+  static const double _maxWidth = 460;
+
+  @override
+  void dispose() {
+    _businessName.dispose();
+    _email.dispose();
+    super.dispose();
+  }
+
+  OnboardingInputs get _captured => OnboardingInputs(
+    businessName: _businessName.text,
+    email: _email.text,
+    logo: _logo,
+    logoMime: _logoMime,
+    region: _region,
+  );
+
+  // Any machine transition funnels through here so completion fires onDone
+  // exactly once (the machine latches isComplete).
+  void _apply(void Function() transition) {
+    setState(transition);
+    if (_machine.isComplete) widget.onDone(_captured);
+  }
+
+  Future<void> _pickLogo() async {
+    const group = XTypeGroup(
+      label: 'Image',
+      extensions: ['png', 'jpg', 'jpeg'],
+    );
+    final file = await openFile(acceptedTypeGroups: const [group]);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    final name = file.name.toLowerCase();
+    setState(() {
+      _logo = bytes;
+      _logoMime = name.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Match the app-wide button corner (radiusSm) so the text button's hover
-    // fill isn't the M3 stadium default.
-    final buttonShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-    );
-    // Shrink the logo on narrow (mobile) windows so it doesn't dominate.
-    final narrow =
-        MediaQuery.sizeOf(context).width < AppTokens.breakpointMd;
-    final logoHeight = narrow ? 140.0 : 240.0;
+    final narrow = MediaQuery.sizeOf(context).width < AppTokens.breakpointMd;
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(AppTokens.spaceXl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SvgPicture.asset(
-                  'assets/logo/timedart_logo_stacked.svg',
-                  height: logoHeight,
-                ),
-                const SizedBox(height: AppTokens.spaceXl),
-                Text(
-                  'Welcome',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall,
-                ),
-                const SizedBox(height: AppTokens.spaceMd),
-                Text(
-                  'Track time against your projects and send '
-                  'invoices tailored to your brand.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppTokens.space2xl),
-                SizedBox(
-                  width: _buttonWidth,
-                  child: FilledButton(
-                    onPressed: () => onDone(OnboardingInputs.empty),
-                    child: const Text('Get started'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _topBar(),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: _maxWidth),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTokens.spaceXl,
+                    ),
+                    child: PageTransitionSwitcher(
+                      transitionBuilder: (child, primary, secondary) =>
+                          FadeThroughTransition(
+                            animation: primary,
+                            secondaryAnimation: secondary,
+                            fillColor: Colors.transparent,
+                            child: child,
+                          ),
+                      child: KeyedSubtree(
+                        key: ValueKey(_machine.current),
+                        child: _stepBody(_machine.current, narrow),
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppTokens.spaceXs),
-                SizedBox(
-                  width: _buttonWidth,
-                  child: TextButton(
-                    onPressed: () => onDone(OnboardingInputs.empty),
-                    style: TextButton.styleFrom(shape: buttonShape),
-                    child: const Text('Skip for now'),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            _navBar(),
+          ],
         ),
       ),
     );
   }
+
+  // ── Chrome ────────────────────────────────────────────────────────────────
+
+  Widget _topBar() {
+    final showSkipAll =
+        !_machine.isLast; // no "skip" on the closing Done screen
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceXl,
+        AppTokens.spaceMd,
+        AppTokens.spaceMd,
+        0,
+      ),
+      child: Row(
+        children: [
+          _ProgressDots(count: _machine.steps.length, index: _machine.index),
+          const Spacer(),
+          if (showSkipAll)
+            TextButton(
+              onPressed: () => _apply(_machine.skipAll),
+              style: TextButton.styleFrom(shape: _buttonShape),
+              child: const Text('Skip setup'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _navBar() {
+    // Primary label reads as an action per step; the closing step commits.
+    final primaryLabel = switch (_machine.current) {
+      OnboardingStep.welcome => 'Get started',
+      OnboardingStep.done => 'Go to tracker',
+      _ => 'Next',
+    };
+    return Padding(
+      padding: const EdgeInsets.all(AppTokens.spaceXl),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _maxWidth),
+        child: Row(
+          children: [
+            if (!_machine.isFirst)
+              TextButton(
+                onPressed: () => _apply(_machine.back),
+                style: TextButton.styleFrom(shape: _buttonShape),
+                child: const Text('Back'),
+              ),
+            const Spacer(),
+            FilledButton(
+              onPressed: () => _apply(_machine.next),
+              child: Text(primaryLabel),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static final _buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+  );
+
+  // ── Step bodies ─────────────────────────────────────────────────────────
+
+  Widget _stepBody(OnboardingStep step, bool narrow) => switch (step) {
+    OnboardingStep.welcome => _welcome(narrow),
+    OnboardingStep.howItWorks => _howItWorks(),
+    OnboardingStep.business => _business(),
+    OnboardingStep.region => _region_(),
+    OnboardingStep.done => _done(),
+  };
+
+  Widget _welcome(bool narrow) => _CenteredStep(
+    children: [
+      SvgPicture.asset(
+        'assets/logo/timedart_logo_stacked.svg',
+        height: narrow ? 140 : 240,
+      ),
+      const SizedBox(height: AppTokens.spaceXl),
+      _title('Welcome'),
+      const SizedBox(height: AppTokens.spaceMd),
+      _body(
+        'Track time against your projects and send invoices tailored to your '
+        'brand.',
+      ),
+    ],
+  );
+
+  Widget _howItWorks() => _CenteredStep(
+    children: [
+      _title('How timedart works'),
+      const SizedBox(height: AppTokens.spaceLg),
+      // Placeholder chain — phase (f) animates this reveal.
+      Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: AppTokens.spaceXs,
+        runSpacing: AppTokens.spaceXs,
+        children: const [
+          _FlowChip('Client'),
+          _FlowArrow(),
+          _FlowChip('Project'),
+          _FlowArrow(),
+          _FlowChip('Task'),
+          _FlowArrow(),
+          _FlowChip('Timer'),
+          _FlowArrow(),
+          _FlowChip('Invoice'),
+        ],
+      ),
+      const SizedBox(height: AppTokens.spaceLg),
+      _body(
+        'Log time under a client\'s project and its tasks, then turn those '
+        'hours into an invoice.',
+      ),
+    ],
+  );
+
+  Widget _business() => _FormStep(
+    title: 'Your business',
+    hint: 'This brands your invoices. You can change it later in Settings.',
+    children: [
+      _logoField(),
+      const SizedBox(height: AppTokens.spaceMd),
+      EditorTextField(
+        controller: _businessName,
+        label: 'Business name',
+        persistentLabel: true,
+      ),
+      const SizedBox(height: AppTokens.spaceMd),
+      EditorTextField(
+        controller: _email,
+        label: 'Email',
+        persistentLabel: true,
+      ),
+    ],
+  );
+
+  Widget _region_() => _FormStep(
+    title: 'Your region',
+    hint:
+        'Sets your currency and tax label automatically. Change it later in '
+        'Settings.',
+    children: [
+      EditorDropdown<InvoiceRegion>(
+        label: 'Region',
+        value: _region,
+        items: [
+          for (final r in InvoiceRegion.values)
+            DropdownMenuItem(value: r, child: Text(r.label)),
+        ],
+        onChanged: (v) => setState(() => _region = v),
+      ),
+      if (_region != null) ...[
+        const SizedBox(height: AppTokens.spaceSm),
+        _body(_regionCaption(_region!)),
+      ],
+    ],
+  );
+
+  Widget _done() => _CenteredStep(
+    children: [
+      Icon(
+        Icons.check_circle_outline,
+        size: 64,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      const SizedBox(height: AppTokens.spaceLg),
+      _title('You\'re all set'),
+      const SizedBox(height: AppTokens.spaceMd),
+      _body(
+        'Create your first client and project in the tracker to get going.',
+      ),
+    ],
+  );
+
+  // ── Small pieces ──────────────────────────────────────────────────────────
+
+  Widget _logoField() {
+    final t = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 72,
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: t.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            border: Border.all(color: AppTokens.colorBorder),
+          ),
+          child: _logo == null
+              ? Icon(
+                  Icons.image_outlined,
+                  size: AppTokens.iconSm,
+                  color: t.colorScheme.onSurfaceVariant,
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(AppTokens.space3xs),
+                  child: Image.memory(_logo!, fit: BoxFit.contain),
+                ),
+        ),
+        const SizedBox(width: AppTokens.spaceXs),
+        TextButton(onPressed: _pickLogo, child: const Text('Logo…')),
+        if (_logo != null)
+          IconButton(
+            icon: const Icon(Icons.close, size: AppTokens.iconSm),
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Remove logo',
+            onPressed: () => setState(() {
+              _logo = null;
+              _logoMime = null;
+            }),
+          ),
+      ],
+    );
+  }
+
+  String _regionCaption(InvoiceRegion r) {
+    final parts = <String>[
+      if (r.defaultCurrency != null) 'Currency: ${r.defaultCurrency}',
+      r.defaultTaxLabel != null ? 'Tax: ${r.defaultTaxLabel}' : 'No sales tax',
+    ];
+    return parts.join('   ·   ');
+  }
+
+  Widget _title(String text) => Text(
+    text,
+    textAlign: TextAlign.center,
+    style: Theme.of(context).textTheme.headlineSmall,
+  );
+
+  Widget _body(String text) => Text(
+    text,
+    textAlign: TextAlign.center,
+    style: Theme.of(context).textTheme.bodyMedium,
+  );
+}
+
+/// A vertically-centred step (orientation screens): a min-height column.
+class _CenteredStep extends StatelessWidget {
+  const _CenteredStep({required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: children,
+    ),
+  );
+}
+
+/// An input step: left-aligned title + hint over a stretched field column,
+/// scrollable so it survives short/narrow windows.
+class _FormStep extends StatelessWidget {
+  const _FormStep({
+    required this.title,
+    required this.hint,
+    required this.children,
+  });
+  final String title;
+  final String hint;
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: t.textTheme.headlineSmall),
+          const SizedBox(height: AppTokens.space2xs),
+          Text(
+            hint,
+            style: t.textTheme.bodySmall?.copyWith(
+              color: t.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppTokens.spaceLg),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressDots extends StatelessWidget {
+  const _ProgressDots({required this.count, required this.index});
+  final int count;
+  final int index;
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Row(
+      children: [
+        for (var i = 0; i < count; i++)
+          Padding(
+            padding: const EdgeInsets.only(right: AppTokens.space2xs),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: i == index ? 20 : 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: i == index
+                    ? t.colorScheme.primary
+                    : AppTokens.colorBorder,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FlowChip extends StatelessWidget {
+  const _FlowChip(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSm,
+        vertical: AppTokens.spaceXs,
+      ),
+      decoration: BoxDecoration(
+        color: t.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: AppTokens.colorBorder),
+      ),
+      child: Text(label, style: t.textTheme.bodyMedium),
+    );
+  }
+}
+
+class _FlowArrow extends StatelessWidget {
+  const _FlowArrow();
+  @override
+  Widget build(BuildContext context) => Icon(
+    Icons.arrow_forward,
+    size: AppTokens.iconSm,
+    color: Theme.of(context).colorScheme.onSurfaceVariant,
+  );
 }
