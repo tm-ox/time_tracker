@@ -366,7 +366,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         project: project,
         onDone: _showTracker,
       ),
-      _Settings() => SettingsHome(onRerunOnboarding: widget.onRerunOnboarding),
+      _Settings() => const SettingsHome(),
       _TemplateEditorDetail(:final template, :final startEditing) =>
         TemplateEditor(
           key: ValueKey(('template', template?.id)),
@@ -462,6 +462,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
           onAddProfile: () => run(_addProfile),
           onEditProfile: (p, {startEditing = false}) =>
               run(() => _editProfile(p, startEditing: startEditing)),
+          onRerunOnboarding: widget.onRerunOnboarding,
           // Same footer as the normal panel; Shortcuts only where keys are live.
           onShowHelp: keyboardNav ? () => showShortcutsHelp(context) : null,
           onOpenSettings: () => run(_openSettings),
