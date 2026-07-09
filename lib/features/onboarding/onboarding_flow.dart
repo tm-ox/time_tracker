@@ -208,7 +208,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   Widget _stepBody(OnboardingStep step, bool narrow) => switch (step) {
     OnboardingStep.welcome => _welcome(narrow),
-    OnboardingStep.howItWorks => _howItWorks(),
+    OnboardingStep.howItWorks => _howItWorks(narrow),
     OnboardingStep.business => _business(),
     OnboardingStep.region => _region_(),
     OnboardingStep.done => _done(),
@@ -228,30 +228,39 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     ],
   );
 
-  Widget _howItWorks() => _CenteredStep(
+  // FIXME(#137): the how-it-works diagram is a placeholder — needs design work
+  // (bespoke illustrations, animated reveal, tidier mobile layout). Phase (f).
+  static const _flowCards = [
+    _FlowCard(Icons.person_outline, 'Client'),
+    _FlowArrow(),
+    _FlowCard(Icons.folder_outlined, 'Project'),
+    _FlowArrow(),
+    _FlowCard(Icons.check_circle_outline, 'Task'),
+    _FlowArrow(),
+    _FlowCard(Icons.timer_outlined, 'Timer'),
+    _FlowArrow(),
+    _FlowCard(Icons.receipt_long_outlined, 'Invoice'),
+  ];
+
+  Widget _howItWorks(bool narrow) => _CenteredStep(
     children: [
       _title('How timedart works'),
       const SizedBox(height: AppTokens.spaceLg),
-      // Equal-sized icon cards for each stage; phase (f) animates the reveal
-      // (and could swap the Material icons for bespoke illustrations).
-      // FittedBox keeps it one row, scaling down on narrow rather than wrapping.
-      FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            _FlowCard(Icons.person_outline, 'Client'),
-            _FlowArrow(),
-            _FlowCard(Icons.folder_outlined, 'Project'),
-            _FlowArrow(),
-            _FlowCard(Icons.check_circle_outline, 'Task'),
-            _FlowArrow(),
-            _FlowCard(Icons.timer_outlined, 'Timer'),
-            _FlowArrow(),
-            _FlowCard(Icons.receipt_long_outlined, 'Invoice'),
-          ],
+      // Wide: one row, scaling down if tight. Narrow (mobile): keep the cards
+      // full size and wrap onto multiple rows instead of shrinking.
+      if (narrow)
+        const Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: AppTokens.spaceXs,
+          runSpacing: AppTokens.spaceSm,
+          children: _flowCards,
+        )
+      else
+        const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(mainAxisSize: MainAxisSize.min, children: _flowCards),
         ),
-      ),
       const SizedBox(height: AppTokens.spaceLg),
       _body(
         'Log time under a client\'s project and its tasks, then turn those '
