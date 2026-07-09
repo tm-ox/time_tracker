@@ -363,24 +363,21 @@ Future<Uint8List> buildBrandedInvoicePdf({
         ),
         pw.SizedBox(height: _p(InvoiceLayout.partyBlockGap)),
 
-        // ── Recipient grid ──
+        // ── Recipient grid ── ORGANISATION | EMAIL | PHONE on one line;
+        // ADDRESS spans the org+email columns with the tax number aligned
+        // under PHONE (or ADDRESS full-width when there's no tax number).
+        // Mirrors invoice_preview.dart's recipient grid.
         pw.Row(
           children: [
-            pw.Expanded(child: field('TO', doc.recipientContact)),
+            pw.Expanded(
+              child: field(doc.region.organisationLabel, doc.organisation),
+            ),
             pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
             pw.Expanded(child: field('EMAIL', doc.recipientEmail)),
-          ],
-        ),
-        pw.SizedBox(height: _p(InvoiceLayout.recipientGap)),
-        pw.Row(
-          children: [
-            pw.Expanded(child: field('ORGANISATION', doc.organisation)),
             pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
             pw.Expanded(child: field('PHONE', doc.recipientPhone)),
           ],
         ),
-        // Buyer address + tax number — shown only when present. Mirrors
-        // invoice_preview.dart's recipient grid.
         if (doc.recipientAddress != null || doc.recipientAbn != null) ...[
           pw.SizedBox(height: _p(InvoiceLayout.recipientGap)),
           pw.Row(
@@ -390,12 +387,14 @@ Future<Uint8List> buildBrandedInvoicePdf({
                     ? field('ADDRESS', doc.recipientAddress)
                     : pw.SizedBox(),
               ),
-              pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
-              pw.Expanded(
-                child: doc.recipientAbn != null
-                    ? field(doc.recipientAbnLabel, doc.recipientAbn)
-                    : pw.SizedBox(),
-              ),
+              if (doc.recipientAbn != null) ...[
+                pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
+                // Fixed to one column so it lands on PHONE's edges above.
+                pw.SizedBox(
+                  width: _p(InvoiceLayout.recipientCol),
+                  child: field(doc.recipientAbnLabel, doc.recipientAbn),
+                ),
+              ],
             ],
           ),
         ],

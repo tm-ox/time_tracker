@@ -77,8 +77,8 @@ class InvoiceDocument {
   final String? senderAbn;
 
   // Recipient (from the client)
-  final String? attention; // client name — org/business (ATT:)
-  final String? recipientContact; // full contact name (TO person)
+  final String? attention; // full contact person (ATT:)
+  final String? recipientContact; // full contact name (retained; grid shows org)
   final String organisation; // client.name (ORGANISATION)
   final String? recipientEmail;
   final String? recipientPhone;
@@ -284,10 +284,9 @@ InvoiceDocument buildInvoiceDocument({
     senderWebsite: profile.website,
     senderAddress: profile.address,
     senderAbn: profile.abn,
-    // ATT: the client's Name field verbatim — often a business/org name, so
-    // it's shown in full (no first-name salutation). The informal/personal
-    // touch lives in TO: (contact name), left to the user (#139).
-    attention: client.name,
+    // ATT: the client's full contact person (#139). The organisation name
+    // moves into the recipient grid (ORGANISATION), replacing the old TO row.
+    attention: _blankToNull(client.contactName),
     recipientContact: _blankToNull(client.contactName),
     organisation: client.name,
     recipientEmail: client.email,

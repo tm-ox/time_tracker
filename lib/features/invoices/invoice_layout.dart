@@ -93,4 +93,9 @@ abstract class InvoiceLayout {
   // Width of the merged TIME + TOTAL value region (two columns + one gutter).
   static const double totalsValueWidth =
       _colUnit * (colTime + colTotal) + gridGutter;
+
+  // Recipient grid: three equal columns (ORGANISATION | EMAIL | PHONE). One
+  // column-width; the tax-no cell takes exactly this so it lands on the PHONE
+  // column's edges, and ADDRESS (an Expanded) fills the org+email span beside it.
+  static const double recipientCol = (contentWidth - 2 * gridGutter) / 3;
 }

@@ -328,49 +328,56 @@ class InvoicePreview extends StatelessWidget {
     ],
   );
 
-  Widget _recipientGrid() => Column(
-    children: [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: _field('TO', doc.recipientContact)),
-          const SizedBox(width: InvoiceLayout.gridGutter),
-          Expanded(child: _field('EMAIL', doc.recipientEmail)),
-        ],
-      ),
-      const SizedBox(height: InvoiceLayout.recipientGap),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: _field('ORGANISATION', doc.organisation)),
-          const SizedBox(width: InvoiceLayout.gridGutter),
-          Expanded(child: _field('PHONE', doc.recipientPhone)),
-        ],
-      ),
-      // Buyer address + tax number — required on compliant invoices above the
-      // local threshold. Shown only when present (unlike the fields above,
-      // which keep a '—' placeholder), so a client without them adds no rows.
-      if (doc.recipientAddress != null || doc.recipientAbn != null) ...[
-        const SizedBox(height: InvoiceLayout.recipientGap),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _recipientGrid() {
+    final hasTax = doc.recipientAbn != null;
+    // First line: ORGANISATION | EMAIL | PHONE (three equal columns). The
+    // company moved here (from the old TO row) now that ATT carries the
+    // contact person. Second line: ADDRESS spanning the org+email columns,
+    // with the tax number aligned under PHONE — or ADDRESS full-width when
+    // there's no tax number. Shown only when address/tax exist.
+    return LayoutBuilder(
+      builder: (context, c) {
+        final col = (c.maxWidth - 2 * InvoiceLayout.gridGutter) / 3;
+        return Column(
           children: [
-            Expanded(
-              child: doc.recipientAddress != null
-                  ? _field('ADDRESS', doc.recipientAddress)
-                  : const SizedBox(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _field(doc.region.organisationLabel, doc.organisation),
+                ),
+                const SizedBox(width: InvoiceLayout.gridGutter),
+                Expanded(child: _field('EMAIL', doc.recipientEmail)),
+                const SizedBox(width: InvoiceLayout.gridGutter),
+                Expanded(child: _field('PHONE', doc.recipientPhone)),
+              ],
             ),
-            const SizedBox(width: InvoiceLayout.gridGutter),
-            Expanded(
-              child: doc.recipientAbn != null
-                  ? _field(doc.recipientAbnLabel, doc.recipientAbn)
-                  : const SizedBox(),
-            ),
+            if (doc.recipientAddress != null || hasTax) ...[
+              const SizedBox(height: InvoiceLayout.recipientGap),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: doc.recipientAddress != null
+                        ? _field('ADDRESS', doc.recipientAddress)
+                        : const SizedBox(),
+                  ),
+                  if (hasTax) ...[
+                    const SizedBox(width: InvoiceLayout.gridGutter),
+                    // Fixed to one column so it lands on PHONE's edges above.
+                    SizedBox(
+                      width: col,
+                      child: _field(doc.recipientAbnLabel, doc.recipientAbn),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ],
-        ),
-      ],
-    ],
-  );
+        );
+      },
+    );
+  }
 
   Widget _field(String label, String? value) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
