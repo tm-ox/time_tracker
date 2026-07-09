@@ -77,7 +77,7 @@ class InvoiceDocument {
   final String? senderAbn;
 
   // Recipient (from the client)
-  final String? attention; // contact's first name (ATT:)
+  final String? attention; // client name — org/business (ATT:)
   final String? recipientContact; // full contact name (TO person)
   final String organisation; // client.name (ORGANISATION)
   final String? recipientEmail;
@@ -284,7 +284,10 @@ InvoiceDocument buildInvoiceDocument({
     senderWebsite: profile.website,
     senderAddress: profile.address,
     senderAbn: profile.abn,
-    attention: _firstName(client.contactName),
+    // ATT: the client's Name field verbatim — often a business/org name, so
+    // it's shown in full (no first-name salutation). The informal/personal
+    // touch lives in TO: (contact name), left to the user (#139).
+    attention: client.name,
     recipientContact: _blankToNull(client.contactName),
     organisation: client.name,
     recipientEmail: client.email,
@@ -494,12 +497,6 @@ String _label(Task? task, String? description) {
   final hasDesc = desc != null && desc.isNotEmpty;
   if (task == null) return hasDesc ? desc : '—';
   return hasDesc ? '${task.title} · $desc' : task.title;
-}
-
-String? _firstName(String? contact) {
-  final t = contact?.trim();
-  if (t == null || t.isEmpty) return null;
-  return t.split(RegExp(r'\s+')).first;
 }
 
 String? _blankToNull(String? s) {

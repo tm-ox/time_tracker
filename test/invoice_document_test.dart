@@ -266,9 +266,9 @@ void main() {
       expect(doc.issueDate, _issue);
     });
 
-    test('attention is the contact first name; org is client.name', () {
+    test('attention is the client name (org); contact is verbatim', () {
       final doc = _doc(entries: [_entry()]);
-      expect(doc.attention, 'Julien');
+      expect(doc.attention, 'Care Direct');
       expect(doc.recipientContact, 'Julien Remond');
       expect(doc.organisation, 'Care Direct');
     });
@@ -280,7 +280,9 @@ void main() {
         invoiceNumber: '  ',
       );
       expect(doc.invoiceNumber, isNull);
-      expect(doc.attention, isNull);
+      // ATT now tracks the client name (org), not the contact, so a blank
+      // contact leaves it intact.
+      expect(doc.attention, 'Care Direct');
       expect(doc.recipientContact, isNull);
     });
   });
