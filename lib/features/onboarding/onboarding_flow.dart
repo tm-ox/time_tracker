@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:time_tracker/constants/tokens.dart';
 import 'package:time_tracker/features/onboarding/onboarding_controller.dart';
 
@@ -16,9 +17,17 @@ class OnboardingFlow extends StatelessWidget {
   /// only ever passes [OnboardingInputs.empty]; phase (d) will fill it in.
   final ValueChanged<OnboardingInputs> onDone;
 
+  // Both action buttons share one narrow width so they line up.
+  static const double _buttonWidth = 240;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Match the app-wide button corner (radiusSm) so the text button's hover
+    // fill isn't the M3 stadium default.
+    final buttonShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+    );
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -27,10 +36,15 @@ class OnboardingFlow extends StatelessWidget {
             padding: const EdgeInsets.all(AppTokens.spaceXl),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                SvgPicture.asset(
+                  'assets/logo/timedart_logo_stacked.svg',
+                  height: 140,
+                ),
+                const SizedBox(height: AppTokens.spaceXl),
                 Text(
-                  'Welcome to timedart',
+                  'Welcome',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineSmall,
                 ),
@@ -42,14 +56,21 @@ class OnboardingFlow extends StatelessWidget {
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppTokens.spaceXl),
-                FilledButton(
-                  onPressed: () => onDone(OnboardingInputs.empty),
-                  child: const Text('Get started'),
+                SizedBox(
+                  width: _buttonWidth,
+                  child: FilledButton(
+                    onPressed: () => onDone(OnboardingInputs.empty),
+                    child: const Text('Get started'),
+                  ),
                 ),
                 const SizedBox(height: AppTokens.spaceXs),
-                TextButton(
-                  onPressed: () => onDone(OnboardingInputs.empty),
-                  child: const Text('Skip for now'),
+                SizedBox(
+                  width: _buttonWidth,
+                  child: TextButton(
+                    onPressed: () => onDone(OnboardingInputs.empty),
+                    style: TextButton.styleFrom(shape: buttonShape),
+                    child: const Text('Skip for now'),
+                  ),
                 ),
               ],
             ),
