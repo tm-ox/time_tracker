@@ -266,9 +266,9 @@ void main() {
       expect(doc.issueDate, _issue);
     });
 
-    test('attention is the contact first name; org is client.name', () {
+    test('attention is the full contact person; org is client.name', () {
       final doc = _doc(entries: [_entry()]);
-      expect(doc.attention, 'Julien');
+      expect(doc.attention, 'Julien Remond');
       expect(doc.recipientContact, 'Julien Remond');
       expect(doc.organisation, 'Care Direct');
     });

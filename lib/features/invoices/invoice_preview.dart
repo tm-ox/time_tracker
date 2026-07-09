@@ -152,13 +152,14 @@ class InvoicePreview extends StatelessWidget {
     );
   }
 
-  // Business details sit at the left edge; the logo anchors the right edge on
-  // the same top line. Separating the two gives whatever icon/logo the user
-  // supplies its own room rather than stacking text beneath it.
+  // Business details sit at the left edge; the logo anchors the right edge,
+  // both vertically centred so the logo sits on the details block's midline.
+  // Separating the two gives whatever icon/logo the user supplies its own room
+  // rather than stacking text beneath it.
   Widget _masthead() {
     final logo = _logo();
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: Column(
@@ -287,90 +288,93 @@ class InvoicePreview extends StatelessWidget {
           ),
         ),
       const SizedBox(height: InvoiceLayout.headlineGap),
-      Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('ATT:', style: _label),
-                Text(
-                  doc.attention ?? doc.organisation,
-                  style: TextStyle(
-                    color: _primary,
-                    fontSize: InvoiceLayout.fontHeadline,
-                    fontWeight: InvoiceLayout.fontWeightBold,
-                  ),
+      // ATT takes ORGANISATION's half-width (two quarters) so RE starts on
+      // the EMAIL column's left edge below, not the org/email seam.
+      LayoutBuilder(
+        builder: (context, c) {
+          final quarter = (c.maxWidth - 2 * InvoiceLayout.gridGutter) / 4;
+          Widget headField(String label, String value) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: _label),
+              Text(
+                value,
+                style: TextStyle(
+                  color: _primary,
+                  fontSize: InvoiceLayout.fontHeadline,
+                  fontWeight: InvoiceLayout.fontWeightBold,
                 ),
-              ],
-            ),
-          ),
-          // Same gutter as the recipient grid so RE lines up over the EMAIL column.
-          const SizedBox(width: InvoiceLayout.gridGutter),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('RE:', style: _label),
-                Text(
-                  doc.reference,
-                  style: TextStyle(
-                    color: _primary,
-                    fontSize: InvoiceLayout.fontHeadline,
-                    fontWeight: InvoiceLayout.fontWeightBold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+          return Row(
+            children: [
+              SizedBox(
+                width: 2 * quarter,
+                child: headField('ATT:', doc.attention ?? doc.organisation),
+              ),
+              const SizedBox(width: InvoiceLayout.gridGutter),
+              Expanded(child: headField('RE:', doc.reference)),
+            ],
+          );
+        },
       ),
     ],
   );
 
-  Widget _recipientGrid() => Column(
-    children: [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: _field('TO', doc.recipientContact)),
-          const SizedBox(width: InvoiceLayout.gridGutter),
-          Expanded(child: _field('EMAIL', doc.recipientEmail)),
-        ],
-      ),
-      const SizedBox(height: InvoiceLayout.recipientGap),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: _field('ORGANISATION', doc.organisation)),
-          const SizedBox(width: InvoiceLayout.gridGutter),
-          Expanded(child: _field('PHONE', doc.recipientPhone)),
-        ],
-      ),
-      // Buyer address + tax number — required on compliant invoices above the
-      // local threshold. Shown only when present (unlike the fields above,
-      // which keep a '—' placeholder), so a client without them adds no rows.
-      if (doc.recipientAddress != null || doc.recipientAbn != null) ...[
-        const SizedBox(height: InvoiceLayout.recipientGap),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _recipientGrid() {
+    final hasTax = doc.recipientAbn != null;
+    // First line: ORGANISATION (half) | EMAIL (quarter) | PHONE (quarter).
+    // ORGANISATION spans half so it sits under ATT above, and EMAIL/PHONE
+    // fall under RE. (The company moved here from the old TO row once ATT
+    // took the contact person.) Second line: ADDRESS spanning the org+email
+    // columns, with the tax number aligned under PHONE — or ADDRESS
+    // full-width when there's no tax number. Shown only when address/tax exist.
+    return LayoutBuilder(
+      builder: (context, c) {
+        // PHONE's quarter-width; the tax cell copies it to land on its edges.
+        final quarter = (c.maxWidth - 2 * InvoiceLayout.gridGutter) / 4;
+        return Column(
           children: [
-            Expanded(
-              child: doc.recipientAddress != null
-                  ? _field('ADDRESS', doc.recipientAddress)
-                  : const SizedBox(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: _field(doc.region.organisationLabel, doc.organisation),
+                ),
+                const SizedBox(width: InvoiceLayout.gridGutter),
+                Expanded(child: _field('EMAIL', doc.recipientEmail)),
+                const SizedBox(width: InvoiceLayout.gridGutter),
+                Expanded(child: _field('PHONE', doc.recipientPhone)),
+              ],
             ),
-            const SizedBox(width: InvoiceLayout.gridGutter),
-            Expanded(
-              child: doc.recipientAbn != null
-                  ? _field(doc.recipientAbnLabel, doc.recipientAbn)
-                  : const SizedBox(),
-            ),
+            if (doc.recipientAddress != null || hasTax) ...[
+              const SizedBox(height: InvoiceLayout.recipientGap),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: doc.recipientAddress != null
+                        ? _field('ADDRESS', doc.recipientAddress)
+                        : const SizedBox(),
+                  ),
+                  if (hasTax) ...[
+                    const SizedBox(width: InvoiceLayout.gridGutter),
+                    // Fixed to PHONE's quarter so it lands on its edges above.
+                    SizedBox(
+                      width: quarter,
+                      child: _field(doc.recipientAbnLabel, doc.recipientAbn),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ],
-        ),
-      ],
-    ],
-  );
+        );
+      },
+    );
+  }
 
   Widget _field(String label, String? value) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,

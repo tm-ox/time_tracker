@@ -54,6 +54,16 @@ void main() {
     });
   });
 
+  group('organisationLabel', () {
+    test('US uses the z-spelling; every other region uses the s', () {
+      expect(InvoiceRegion.us.organisationLabel, 'ORGANIZATION');
+      for (final r in InvoiceRegion.values) {
+        if (r == InvoiceRegion.us) continue;
+        expect(r.organisationLabel, 'ORGANISATION', reason: r.name);
+      }
+    });
+  });
+
   group('fromName', () {
     test('round-trips every region name', () {
       for (final r in InvoiceRegion.values) {

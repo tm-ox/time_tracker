@@ -83,6 +83,11 @@ enum InvoiceRegion {
   String invoiceTitle({required bool hasTax}) =>
       (this == InvoiceRegion.au && hasTax) ? 'Tax Invoice' : 'Invoice';
 
+  /// The recipient-block label for the buyer's company. US English spells it
+  /// with a 'z'; every other region uses the 's'.
+  String get organisationLabel =>
+      this == InvoiceRegion.us ? 'ORGANIZATION' : 'ORGANISATION';
+
   /// The region-specific bank identifiers, in display order. The universal
   /// fields (account name, sender tax ID, bank name) are shown around these by
   /// both the editor and the invoice, so they're not repeated here.
