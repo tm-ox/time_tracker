@@ -352,7 +352,7 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   Widget _done() => _CenteredStep(
     children: [
       Icon(
-        Icons.check_circle_outline,
+        Icons.check_circle_outline_outlined,
         size: 120,
         color: Theme.of(context).colorScheme.primary,
       ),
