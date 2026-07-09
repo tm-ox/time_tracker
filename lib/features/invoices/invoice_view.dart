@@ -34,11 +34,8 @@ class _InvoiceViewState extends State<InvoiceView> {
   // change settings.
   List<InvoiceProfile> _profiles = const [];
   int? _profileId; // null → the default profile
-  // Per-invoice inclusion overrides, seeded from the selected profile's
-  // defaults; a one-off can drop a block here without editing the profile.
-  bool _incBank = true;
-  bool _incPaymentLink = true;
-  bool _incTax = true;
+  // Which blocks (bank/payment link/tax) appear is the selected profile's
+  // concern — set once there, not per invoice.
   final _invoiceNumber = TextEditingController();
   // Last resolved doc+template, kept so a reload (e.g. typing an invoice number)
   // shows the previous preview instead of a spinner while the new one loads.
@@ -68,23 +65,9 @@ class _InvoiceViewState extends State<InvoiceView> {
       setState(() {
         _profiles = list;
         _profileId ??= _defaultProfileId(list);
-        _seedInclusion();
         _load();
       });
     });
-  }
-
-  // Seed the per-invoice inclusion toggles from the selected profile's stored
-  // defaults, so the export starts matching that profile before any override.
-  void _seedInclusion() {
-    for (final p in _profiles) {
-      if (p.id == _profileId) {
-        _incBank = p.showBank;
-        _incPaymentLink = p.showPaymentLink;
-        _incTax = p.showTax;
-        return;
-      }
-    }
   }
 
   @override
@@ -120,9 +103,8 @@ class _InvoiceViewState extends State<InvoiceView> {
       issueDate: DateTime.now(),
       profileId: _profileId,
       invoiceNumber: _invoiceNumberValue,
-      showBank: _incBank,
-      showPaymentLink: _incPaymentLink,
-      showTax: _incTax,
+      // showBank/showPaymentLink/showTax omitted → the profile's stored
+      // defaults apply (loadInvoiceDocument: showX ?? profile.showX).
     );
   }
 
@@ -291,7 +273,6 @@ class _InvoiceViewState extends State<InvoiceView> {
         ],
         onChanged: (v) => setState(() {
           _profileId = v;
-          _seedInclusion(); // adopt the newly-selected profile's defaults
           _load();
         }),
       ),
@@ -346,32 +327,6 @@ class _InvoiceViewState extends State<InvoiceView> {
     );
   }
 
-  // Per-invoice "include this block" chips, seeded from the profile defaults.
-  // Toggling affects only this export — the profile's saved defaults are
-  // unchanged. Reloads the preview so the effect is immediate.
-  Widget _inclusionChips() {
-    Widget chip(String label, bool value, ValueChanged<bool> onChanged) =>
-        FilterChip(
-          label: Text(label),
-          selected: value,
-          onSelected: (v) => setState(() {
-            onChanged(v);
-            _load();
-          }),
-        );
-    return Wrap(
-      spacing: AppTokens.spaceSm,
-      runSpacing: AppTokens.spaceXs,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text('Include:', style: Theme.of(context).textTheme.bodySmall),
-        chip('Bank details', _incBank, (v) => _incBank = v),
-        chip('Payment link', _incPaymentLink, (v) => _incPaymentLink = v),
-        chip('Tax', _incTax, (v) => _incTax = v),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -384,8 +339,6 @@ class _InvoiceViewState extends State<InvoiceView> {
         ),
         const SizedBox(height: AppTokens.spaceXs),
         _controls(),
-        const SizedBox(height: AppTokens.spaceSm),
-        _inclusionChips(),
         const SizedBox(height: AppTokens.spaceSm),
         Expanded(
           child: FutureBuilder<({InvoiceDocument doc, InvoiceTemplate template})?>(
