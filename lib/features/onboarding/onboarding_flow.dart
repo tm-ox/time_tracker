@@ -232,23 +232,23 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     children: [
       _title('How timedart works'),
       const SizedBox(height: AppTokens.spaceLg),
-      // Placeholder chain — phase (f) animates this reveal and (per tm) upgrades
-      // the chips to icon/illustration cards. FittedBox keeps it one row,
-      // scaling down on narrow windows rather than wrapping.
+      // Equal-sized icon cards for each stage; phase (f) animates the reveal
+      // (and could swap the Material icons for bespoke illustrations).
+      // FittedBox keeps it one row, scaling down on narrow rather than wrapping.
       FittedBox(
         fit: BoxFit.scaleDown,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: const [
-            _FlowChip('Client'),
+            _FlowCard(Icons.person_outline, 'Client'),
             _FlowArrow(),
-            _FlowChip('Project'),
+            _FlowCard(Icons.folder_outlined, 'Project'),
             _FlowArrow(),
-            _FlowChip('Task'),
+            _FlowCard(Icons.check_circle_outline, 'Task'),
             _FlowArrow(),
-            _FlowChip('Timer'),
+            _FlowCard(Icons.timer_outlined, 'Timer'),
             _FlowArrow(),
-            _FlowChip('Invoice'),
+            _FlowCard(Icons.receipt_long_outlined, 'Invoice'),
           ],
         ),
       ),
@@ -459,23 +459,35 @@ class _ProgressDots extends StatelessWidget {
   }
 }
 
-class _FlowChip extends StatelessWidget {
-  const _FlowChip(this.label);
+/// One stage of the flow as a fixed-size card: an icon over a label. All cards
+/// share [_size] so the row reads as a set of equal steps.
+class _FlowCard extends StatelessWidget {
+  const _FlowCard(this.icon, this.label);
+  final IconData icon;
   final String label;
+
+  static const double _size = 100;
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceSm,
-        vertical: AppTokens.spaceXs,
-      ),
+      width: _size,
+      height: _size,
+      padding: const EdgeInsets.all(AppTokens.spaceSm),
       decoration: BoxDecoration(
         color: t.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
         border: Border.all(color: AppTokens.colorBorder),
       ),
-      child: Text(label, style: t.textTheme.bodyMedium),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 32, color: t.colorScheme.primary),
+          const SizedBox(height: AppTokens.spaceXs),
+          Text(label, style: t.textTheme.bodyMedium),
+        ],
+      ),
     );
   }
 }
