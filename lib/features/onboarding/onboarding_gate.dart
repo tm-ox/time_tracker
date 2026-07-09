@@ -79,9 +79,18 @@ class _RootGateState extends State<RootGate> {
   }
 
   @override
-  Widget build(BuildContext context) => switch (_mode) {
-    _Mode.intro => OnboardingIntro(onFinish: _onIntroFinished),
-    _Mode.onboarding => OnboardingFlow(onDone: _finish),
-    _Mode.shell => AdaptiveShell(db: widget.db, onRerunOnboarding: _rerun),
-  };
+  Widget build(BuildContext context) {
+    final Widget child = switch (_mode) {
+      _Mode.intro => OnboardingIntro(onFinish: _onIntroFinished),
+      _Mode.onboarding => OnboardingFlow(onDone: _finish),
+      _Mode.shell => AdaptiveShell(db: widget.db, onRerunOnboarding: _rerun),
+    };
+    // Cross-fade between phases. Because the intro mirrors the Welcome step's
+    // logo geometry, a plain fade makes the logo read as staying put while the
+    // welcome copy fades in around it.
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      child: KeyedSubtree(key: ValueKey(_mode), child: child),
+    );
+  }
 }
