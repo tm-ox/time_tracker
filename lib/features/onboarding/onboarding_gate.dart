@@ -28,6 +28,10 @@ class _RootGateState extends State<RootGate> {
   bool _introDone = false;
   bool? _onboardingComplete;
 
+  // Resolved during bootstrap and handed to the shell so the tracker opens on a
+  // project without an empty first frame.
+  int? _defaultProjectId;
+
   @override
   void initState() {
     super.initState();
@@ -37,7 +41,7 @@ class _RootGateState extends State<RootGate> {
   // Seed defaults first (so the default profile exists before the wizard can
   // edit it), then resolve the flag and try to advance.
   Future<void> _bootstrap() async {
-    await widget.db.ensureDefaultProject();
+    _defaultProjectId = await widget.db.ensureDefaultProject();
     await widget.db.ensureInvoiceDefaults();
     final complete = await widget.db.isOnboardingComplete();
     if (!mounted) return;
@@ -87,7 +91,11 @@ class _RootGateState extends State<RootGate> {
       // arriving at the tracker (from the intro or from finishing onboarding)
       // eases in rather than snapping.
       _Mode.shell => _ShellEntrance(
-        child: AdaptiveShell(db: widget.db, onRerunOnboarding: _rerun),
+        child: AdaptiveShell(
+          db: widget.db,
+          onRerunOnboarding: _rerun,
+          initialSelectedProjectId: _defaultProjectId,
+        ),
       ),
     };
     // Cross-fade between phases. Because the intro mirrors the Welcome step's
