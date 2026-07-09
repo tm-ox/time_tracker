@@ -305,7 +305,8 @@ class InvoicePreview extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: InvoiceLayout.headlineGap),
+          // Same gutter as the recipient grid so RE lines up over the EMAIL column.
+          const SizedBox(width: InvoiceLayout.gridGutter),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

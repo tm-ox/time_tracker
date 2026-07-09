@@ -341,7 +341,8 @@ Future<Uint8List> buildBrandedInvoicePdf({
                 ],
               ),
             ),
-            pw.SizedBox(width: _p(InvoiceLayout.headlineGap)),
+            // Same gutter as the recipient grid so RE lines up over EMAIL.
+            pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
             pw.Expanded(
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
