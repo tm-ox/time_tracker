@@ -91,6 +91,13 @@ class InvoiceDocument {
   final String currency;
   final InvoiceTax? tax;
 
+  // Resolved invoice-inclusion flags (profile default, optionally overridden
+  // per invoice at export). Let the sender deliberately omit a block even when
+  // the data exists — no bank block on a card-paid invoice, no tax line on a
+  // tax-exempt job. (showTax off is applied upstream: [tax] is already null.)
+  final bool showBank;
+  final bool showPaymentLink;
+
   // Payment (from the profile). Which of these appear on the invoice — and in
   // what order — is decided per region (see [paymentFields]); the columns not
   // used by a region stay null.
@@ -134,6 +141,8 @@ class InvoiceDocument {
     required this.lines,
     required this.currency,
     required this.tax,
+    this.showBank = true,
+    this.showPaymentLink = true,
     required this.payeeName,
     required this.bankName,
     required this.bankBsb,
@@ -202,6 +211,11 @@ InvoiceDocument buildInvoiceDocument({
   required DateTime to,
   required DateTime issueDate,
   String? invoiceNumber,
+  // Per-invoice inclusion overrides (export-time); null → use the profile's
+  // stored default. Let one invoice drop a block without editing the profile.
+  bool? showBank,
+  bool? showPaymentLink,
+  bool? showTax,
 }) {
   final taskById = {for (final t in tasks) t.id: t};
 
@@ -216,10 +230,18 @@ InvoiceDocument buildInvoiceDocument({
       ),
   ];
 
+  final resolvedShowBank = showBank ?? profile.showBank;
+  final resolvedShowLink = showPaymentLink ?? profile.showPaymentLink;
+  final resolvedShowTax = showTax ?? profile.showTax;
+
   final subtotal = lines.fold<double>(0, (sum, l) => sum + l.amount);
   final taxLabel = profile.taxLabel?.trim();
   final taxRate = profile.taxRate;
-  final tax = (taxLabel != null && taxLabel.isNotEmpty && taxRate != null)
+  // showTax off removes the line AND its amount (a tax-exempt invoice).
+  final tax = (resolvedShowTax &&
+          taxLabel != null &&
+          taxLabel.isNotEmpty &&
+          taxRate != null)
       ? InvoiceTax(
           label: taxLabel,
           rate: taxRate,
@@ -237,6 +259,8 @@ InvoiceDocument buildInvoiceDocument({
     reference: project.code,
     region: region,
     title: region.invoiceTitle(hasTax: tax != null),
+    showBank: resolvedShowBank,
+    showPaymentLink: resolvedShowLink,
     businessName: profile.businessName,
     logo: profile.logo,
     // A real invoice: the default profile falls back to the timedart mark;
@@ -307,7 +331,11 @@ InvoiceDocument sampleInvoiceDocument({
   final subtotal = lines.fold<double>(0, (sum, l) => sum + l.amount);
   final taxLabel = profile.taxLabel?.trim();
   final taxRate = profile.taxRate;
-  final tax = (taxLabel != null && taxLabel.isNotEmpty && taxRate != null)
+  final tax =
+      (profile.showTax &&
+          taxLabel != null &&
+          taxLabel.isNotEmpty &&
+          taxRate != null)
       ? InvoiceTax(label: taxLabel, rate: taxRate, amount: subtotal * taxRate / 100)
       : null;
 
@@ -315,6 +343,8 @@ InvoiceDocument sampleInvoiceDocument({
 
   return InvoiceDocument(
     invoiceNumber: 'INV-0001',
+    showBank: profile.showBank,
+    showPaymentLink: profile.showPaymentLink,
     issueDate: issueDate,
     periodFrom: from,
     periodTo: issueDate,
@@ -372,7 +402,11 @@ InvoiceDocument profilePreviewDocument({
   final taxRate = profile.taxRate;
   // No lines to tax against, so amount is always 0 — the label/rate are the
   // only structurally meaningful part of a zero-transaction preview.
-  final tax = (taxLabel != null && taxLabel.isNotEmpty && taxRate != null)
+  final tax =
+      (profile.showTax &&
+          taxLabel != null &&
+          taxLabel.isNotEmpty &&
+          taxRate != null)
       ? InvoiceTax(label: taxLabel, rate: taxRate, amount: 0)
       : null;
 
@@ -380,6 +414,8 @@ InvoiceDocument profilePreviewDocument({
 
   return InvoiceDocument(
     invoiceNumber: null,
+    showBank: profile.showBank,
+    showPaymentLink: profile.showPaymentLink,
     issueDate: issueDate,
     periodFrom: issueDate,
     periodTo: issueDate,

@@ -204,7 +204,14 @@ Future<Uint8List> buildBrandedInvoicePdf({
     ],
   );
 
-  final paymentFields = doc.paymentFields;
+  // Inclusion flags let the invoice deliberately omit a block that has data.
+  final paymentFields = doc.showBank
+      ? doc.paymentFields
+      : const <(String, String)>[];
+  final showPaymentLink =
+      doc.showPaymentLink &&
+      doc.paymentLink != null &&
+      doc.paymentLink!.trim().isNotEmpty;
   final paymentRows = <List<(String, String)>>[
     for (var i = 0; i < paymentFields.length; i += payColumns)
       paymentFields.sublist(
@@ -515,7 +522,7 @@ Future<Uint8List> buildBrandedInvoicePdf({
         pw.SizedBox(height: _p(InvoiceLayout.sectionGap)),
 
         // ── Payments ── (omitted entirely when there's nothing to show)
-        if (paymentRows.isNotEmpty || present(doc.paymentLink)) ...[
+        if (paymentRows.isNotEmpty || showPaymentLink) ...[
           pw.Text(
             'Please make payments to:',
             style: pw.TextStyle(
@@ -525,15 +532,16 @@ Future<Uint8List> buildBrandedInvoicePdf({
             ),
           ),
           pw.SizedBox(height: _p(InvoiceLayout.paymentsHeadingGap)),
-          if (present(doc.paymentLink)) ...[
+          if (showPaymentLink) ...[
             field('Link', doc.paymentLink),
-            pw.SizedBox(height: _p(InvoiceLayout.paymentsFieldGap)),
+            if (paymentRows.isNotEmpty)
+              pw.SizedBox(height: _p(InvoiceLayout.paymentsFieldGap)),
           ],
           for (final (i, row) in paymentRows.indexed) ...[
             if (i > 0) pw.SizedBox(height: _p(InvoiceLayout.paymentsFieldGap)),
             paymentRow(row),
           ],
-          if (doc.region.paymentNote != null) ...[
+          if (paymentRows.isNotEmpty && doc.region.paymentNote != null) ...[
             pw.SizedBox(height: _p(InvoiceLayout.paymentsFieldGap)),
             pw.Text(
               doc.region.paymentNote!,

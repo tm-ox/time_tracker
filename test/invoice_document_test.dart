@@ -29,6 +29,9 @@ InvoiceProfile _profile({
   String? transitNumber,
   String? paymentLink,
   InvoiceRegion region = InvoiceRegion.au,
+  bool showBank = true,
+  bool showPaymentLink = true,
+  bool showTax = true,
 }) => InvoiceProfile(
   id: 1,
   name: 'Default',
@@ -52,9 +55,9 @@ InvoiceProfile _profile({
   paymentLink: paymentLink,
   isDefault: true,
   region: region.name,
-  showBank: true,
-  showPaymentLink: true,
-  showTax: true,
+  showBank: showBank,
+  showPaymentLink: showPaymentLink,
+  showTax: showTax,
   showRateColumn: true,
   showTimeColumn: true,
   reverseCharge: false,
@@ -120,6 +123,9 @@ InvoiceDocument _doc({
   List<Task>? tasks,
   required List<TimeEntry> entries,
   String? invoiceNumber,
+  bool? showBank,
+  bool? showPaymentLink,
+  bool? showTax,
 }) => buildInvoiceDocument(
   profile: profile ?? _profile(),
   project: project ?? _project(),
@@ -130,6 +136,9 @@ InvoiceDocument _doc({
   to: DateTime(2026, 4, 30),
   issueDate: _issue,
   invoiceNumber: invoiceNumber,
+  showBank: showBank,
+  showPaymentLink: showPaymentLink,
+  showTax: showTax,
 );
 
 void main() {
@@ -454,6 +463,60 @@ void main() {
       );
       expect(doc.title, 'Invoice');
       expect(doc.recipientAbnLabel, 'TAX NO.');
+    });
+  });
+
+  group('inclusion flags (deliberate omission)', () {
+    InvoiceProfile bankedTaxed() => _profile(
+      taxLabel: 'GST',
+      taxRate: 10,
+      payeeName: 'tmox',
+      bankBsb: '062-000',
+      bankAccount: '12345678',
+      paymentLink: 'https://pay.me/x',
+    );
+
+    test('profile defaults drive inclusion when no override', () {
+      final doc = _doc(
+        profile: bankedTaxed(),
+        entries: [_entry(seconds: 3600)],
+      );
+      expect(doc.showBank, isTrue);
+      expect(doc.showPaymentLink, isTrue);
+      expect(doc.tax, isNotNull);
+    });
+
+    test('showTax off (profile default) removes the tax line AND its amount',
+        () {
+      final doc = _doc(
+        profile: bankedTaxed().copyWith(showTax: false),
+        entries: [_entry(seconds: 3600)], // subtotal 46
+      );
+      expect(doc.tax, isNull);
+      expect(doc.total, closeTo(46, 1e-9)); // no GST added
+    });
+
+    test('per-invoice override beats the profile default', () {
+      final profile = bankedTaxed(); // all show* true
+      final doc = _doc(
+        profile: profile,
+        entries: [_entry(seconds: 3600)],
+        showBank: false,
+        showPaymentLink: false,
+        showTax: false,
+      );
+      expect(doc.showBank, isFalse);
+      expect(doc.showPaymentLink, isFalse);
+      expect(doc.tax, isNull);
+    });
+
+    test('override can also turn a block back ON over a false default', () {
+      final doc = _doc(
+        profile: bankedTaxed().copyWith(showBank: false),
+        entries: [_entry()],
+        showBank: true,
+      );
+      expect(doc.showBank, isTrue);
     });
   });
 }

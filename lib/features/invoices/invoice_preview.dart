@@ -564,9 +564,11 @@ class InvoicePreview extends StatelessWidget {
   static const _payColumns = 3;
 
   Widget _payments() {
-    final fields = doc.paymentFields;
+    // Inclusion flags let the invoice deliberately omit a block that has data.
+    final fields = doc.showBank ? doc.paymentFields : const <(String, String)>[];
+    final showLink = doc.showPaymentLink && _present(doc.paymentLink);
     // Nothing to pay to — omit the whole block rather than show an empty heading.
-    if (fields.isEmpty && !_present(doc.paymentLink)) {
+    if (fields.isEmpty && !showLink) {
       return const SizedBox.shrink();
     }
     final rows = <List<(String, String)>>[
@@ -588,15 +590,16 @@ class InvoicePreview extends StatelessWidget {
           ),
         ),
         const SizedBox(height: InvoiceLayout.paymentsHeadingGap),
-        if (_present(doc.paymentLink)) ...[
+        if (showLink) ...[
           _field('Link', doc.paymentLink),
-          const SizedBox(height: InvoiceLayout.paymentsFieldGap),
+          if (rows.isNotEmpty)
+            const SizedBox(height: InvoiceLayout.paymentsFieldGap),
         ],
         for (final (i, row) in rows.indexed) ...[
           if (i > 0) const SizedBox(height: InvoiceLayout.paymentsFieldGap),
           _paymentRow(row),
         ],
-        if (doc.region.paymentNote != null) ...[
+        if (fields.isNotEmpty && doc.region.paymentNote != null) ...[
           const SizedBox(height: InvoiceLayout.paymentsFieldGap),
           Text(
             doc.region.paymentNote!,

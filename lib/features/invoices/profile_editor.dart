@@ -46,6 +46,11 @@ class _ProfileEditorState extends State<ProfileEditor> {
   // The sender's region — shapes tax label/title + buyer tax-ID label, and
   // (from slice #121) which bank fields the editor exposes.
   late InvoiceRegion _region;
+  // Invoice-inclusion defaults: deliberately omit a block even when the data
+  // exists. Overridable per invoice at export.
+  late bool _showBank;
+  late bool _showPaymentLink;
+  late bool _showTax;
   // The business logo (PNG/JPG bytes) — identity, so it lives on the profile.
   Uint8List? _logo;
   String? _logoMime;
@@ -59,6 +64,9 @@ class _ProfileEditorState extends State<ProfileEditor> {
   late Map<String, String> _initialTexts;
   late bool _initialIsDefault;
   late InvoiceRegion _initialRegion;
+  late bool _initialShowBank;
+  late bool _initialShowPaymentLink;
+  late bool _initialShowTax;
   Uint8List? _initialLogo;
   String? _initialLogoMime;
   // Resolved once templates finish loading — see initState. Comparing against
@@ -107,12 +115,18 @@ class _ProfileEditorState extends State<ProfileEditor> {
     // Existing profile keeps its region; a new one defaults to AU (the app's
     // seeded heritage — GST/BSB), switchable in the picker.
     _region = p != null ? InvoiceRegion.fromName(p.region) : InvoiceRegion.au;
+    _showBank = p?.showBank ?? true;
+    _showPaymentLink = p?.showPaymentLink ?? true;
+    _showTax = p?.showTax ?? true;
     _logo = p?.logo;
     _logoMime = p?.logoMime;
     _templateId = p?.templateId;
     _initialTexts = {for (final f in _fields) f: _c[f]!.text};
     _initialIsDefault = _isDefault;
     _initialRegion = _region;
+    _initialShowBank = _showBank;
+    _initialShowPaymentLink = _showPaymentLink;
+    _initialShowTax = _showTax;
     _initialLogo = _logo;
     _initialLogoMime = _logoMime;
     _editing = !_isEdit || widget.startEditing;
@@ -138,6 +152,9 @@ class _ProfileEditorState extends State<ProfileEditor> {
     }
     if (_isDefault != _initialIsDefault) return true;
     if (_region != _initialRegion) return true;
+    if (_showBank != _initialShowBank) return true;
+    if (_showPaymentLink != _initialShowPaymentLink) return true;
+    if (_showTax != _initialShowTax) return true;
     if (_templateId != _initialTemplateId) return true;
     if (!listEquals(_logo, _initialLogo)) return true;
     if (_logoMime != _initialLogoMime) return true;
@@ -233,11 +250,11 @@ class _ProfileEditorState extends State<ProfileEditor> {
     payid: _n('payid'),
     institutionNumber: _n('institutionNumber'),
     transitNumber: _n('transitNumber'),
-    // Not yet edited here (slices #122–#123) — carry the profile's stored
-    // values through; defaults for a new profile.
-    showBank: widget.initial?.showBank ?? true,
-    showPaymentLink: widget.initial?.showPaymentLink ?? true,
-    showTax: widget.initial?.showTax ?? true,
+    showBank: _showBank,
+    showPaymentLink: _showPaymentLink,
+    showTax: _showTax,
+    // Not yet edited here (rate/time toggles are a follow-up; reverse charge is
+    // #123) — carry the profile's stored values through; defaults for a new one.
     showRateColumn: widget.initial?.showRateColumn ?? true,
     showTimeColumn: widget.initial?.showTimeColumn ?? true,
     reverseCharge: widget.initial?.reverseCharge ?? false,
@@ -270,6 +287,9 @@ class _ProfileEditorState extends State<ProfileEditor> {
     payid: Value(_n('payid')),
     institutionNumber: Value(_n('institutionNumber')),
     transitNumber: Value(_n('transitNumber')),
+    showBank: Value(_showBank),
+    showPaymentLink: Value(_showPaymentLink),
+    showTax: Value(_showTax),
     // isDefault flows through setDefaultProfile so there's only ever one.
   );
 
@@ -293,6 +313,9 @@ class _ProfileEditorState extends State<ProfileEditor> {
       _initialTexts = {for (final f in _fields) f: _c[f]!.text};
       _initialIsDefault = _isDefault;
       _initialRegion = _region;
+      _initialShowBank = _showBank;
+      _initialShowPaymentLink = _showPaymentLink;
+      _initialShowTax = _showTax;
       _initialTemplateId = _templateId;
       _initialLogo = _logo;
       _initialLogoMime = _logoMime;
@@ -341,6 +364,9 @@ class _ProfileEditorState extends State<ProfileEditor> {
       }
       _isDefault = _initialIsDefault;
       _region = _initialRegion;
+      _showBank = _initialShowBank;
+      _showPaymentLink = _initialShowPaymentLink;
+      _showTax = _initialShowTax;
       _templateId = _initialTemplateId;
       _logo = _initialLogo;
       _logoMime = _initialLogoMime;
@@ -487,6 +513,20 @@ class _ProfileEditorState extends State<ProfileEditor> {
           ]),
           FieldRow([Field(_field('paymentLink', 'Payment link'))]),
         ]),
+        FieldGroup('Show on invoice', [
+          FieldRow([
+            Field(
+              flex: 0,
+              _toggle('Bank details', _showBank, (v) => _showBank = v),
+            ),
+            Field(
+              flex: 0,
+              _toggle('Payment link', _showPaymentLink,
+                  (v) => _showPaymentLink = v),
+            ),
+            Field(flex: 0, _toggle('Tax', _showTax, (v) => _showTax = v)),
+          ]),
+        ]),
         FieldGroup('Region, currency & tax', [
           FieldRow([
             Field(
@@ -550,6 +590,26 @@ class _ProfileEditorState extends State<ProfileEditor> {
     // Non-blocking format hint, recomputed each keystroke (onChanged rebuilds).
     errorText: validator?.call(_c[key]!.text),
     onChanged: (_) => setState(_checkDirty),
+  );
+
+  // A compact labelled switch for an invoice-inclusion default.
+  Widget _toggle(String label, bool value, ValueChanged<bool> onChanged) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(label),
+      const SizedBox(width: AppTokens.space2xs),
+      Transform.scale(
+        scale: 0.8,
+        child: Switch(
+          value: value,
+          onChanged: (v) => setState(() {
+            onChanged(v);
+            _checkDirty();
+          }),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    ],
   );
 
   // Maps a region [BankField] to its text-controller key.

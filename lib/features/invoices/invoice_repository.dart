@@ -20,6 +20,10 @@ Future<({InvoiceDocument doc, InvoiceTemplate template})?> loadInvoiceDocument(
   required DateTime issueDate,
   int? profileId,
   String? invoiceNumber,
+  // Per-invoice inclusion overrides (null → the profile's stored default).
+  bool? showBank,
+  bool? showPaymentLink,
+  bool? showTax,
 }) async {
   final profile =
       profileId != null ? await db.profileById(profileId) : await db.defaultProfile();
@@ -43,6 +47,9 @@ Future<({InvoiceDocument doc, InvoiceTemplate template})?> loadInvoiceDocument(
     to: to,
     issueDate: issueDate,
     invoiceNumber: invoiceNumber,
+    showBank: showBank,
+    showPaymentLink: showPaymentLink,
+    showTax: showTax,
   );
   return (doc: doc, template: template);
 }
