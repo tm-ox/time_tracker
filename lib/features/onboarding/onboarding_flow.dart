@@ -39,7 +39,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   String? _logoMime;
   InvoiceRegion? _region;
 
-  static const double _maxWidth = 460;
+  static const double _maxWidth = 640;
 
   @override
   void dispose() {
@@ -112,14 +112,20 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                             child: _stepBody(_machine.current, narrow),
                           ),
                         ),
-                        const SizedBox(height: AppTokens.space2xl),
-                        _nav(),
+                        // Welcome's primary sits right below its byline; every
+                        // other step uses the fixed bottom nav so its buttons
+                        // land at a consistent height across screens.
+                        if (_machine.isFirst) ...[
+                          const SizedBox(height: AppTokens.space2xl),
+                          Center(child: _primaryButton()),
+                        ],
                       ],
                     ),
                   ),
                 ),
               ),
             ),
+            if (!_machine.isFirst) _bottomNav(),
           ],
         ),
       ),
@@ -154,30 +160,37 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     );
   }
 
-  // Step actions, sitting directly below the step content (centered in the
-  // content column). Welcome shows a single centred primary; later steps get a
-  // Back on the left and the primary on the right.
-  Widget _nav() {
-    final primaryLabel = switch (_machine.current) {
+  // Fixed bottom nav (steps 2..5): Back on the left, primary on the right,
+  // aligned to the content column so the actions line up with the body above.
+  Widget _bottomNav() => Padding(
+    padding: const EdgeInsets.all(AppTokens.spaceXl),
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _maxWidth),
+        child: Row(
+          children: [
+            TextButton(
+              onPressed: () => _apply(_machine.back),
+              style: TextButton.styleFrom(shape: _buttonShape),
+              child: const Text('Back'),
+            ),
+            const Spacer(),
+            _primaryButton(),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _primaryButton() {
+    final label = switch (_machine.current) {
       OnboardingStep.welcome => 'Get started',
       OnboardingStep.done => 'Go to tracker',
       _ => 'Next',
     };
-    final primary = FilledButton(
+    return FilledButton(
       onPressed: () => _apply(_machine.next),
-      child: Text(primaryLabel),
-    );
-    if (_machine.isFirst) return Center(child: primary);
-    return Row(
-      children: [
-        TextButton(
-          onPressed: () => _apply(_machine.back),
-          style: TextButton.styleFrom(shape: _buttonShape),
-          child: const Text('Back'),
-        ),
-        const Spacer(),
-        primary,
-      ],
+      child: Text(label),
     );
   }
 
@@ -204,10 +217,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       const SizedBox(height: AppTokens.spaceXl),
       _title('Welcome'),
       const SizedBox(height: AppTokens.spaceMd),
-      _body(
-        'Track time against your projects and send invoices tailored to your '
-        'brand.',
-      ),
+      _body('Track time against your projects and send invoices '),
+      _body('tailored to your brand.'),
     ],
   );
 
@@ -215,23 +226,25 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     children: [
       _title('How timedart works'),
       const SizedBox(height: AppTokens.spaceLg),
-      // Placeholder chain — phase (f) animates this reveal.
-      Wrap(
-        alignment: WrapAlignment.center,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: AppTokens.spaceXs,
-        runSpacing: AppTokens.spaceXs,
-        children: const [
-          _FlowChip('Client'),
-          _FlowArrow(),
-          _FlowChip('Project'),
-          _FlowArrow(),
-          _FlowChip('Task'),
-          _FlowArrow(),
-          _FlowChip('Timer'),
-          _FlowArrow(),
-          _FlowChip('Invoice'),
-        ],
+      // Placeholder chain — phase (f) animates this reveal and (per tm) upgrades
+      // the chips to icon/illustration cards. FittedBox keeps it one row,
+      // scaling down on narrow windows rather than wrapping.
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            _FlowChip('Client'),
+            _FlowArrow(),
+            _FlowChip('Project'),
+            _FlowArrow(),
+            _FlowChip('Task'),
+            _FlowArrow(),
+            _FlowChip('Timer'),
+            _FlowArrow(),
+            _FlowChip('Invoice'),
+          ],
+        ),
       ),
       const SizedBox(height: AppTokens.spaceLg),
       _body(
@@ -462,9 +475,12 @@ class _FlowChip extends StatelessWidget {
 class _FlowArrow extends StatelessWidget {
   const _FlowArrow();
   @override
-  Widget build(BuildContext context) => Icon(
-    Icons.arrow_forward,
-    size: AppTokens.iconSm,
-    color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXs),
+    child: Icon(
+      Icons.arrow_forward,
+      size: AppTokens.iconSm,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
   );
 }
