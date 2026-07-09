@@ -18,7 +18,7 @@ class OnboardingFlow extends StatelessWidget {
   final ValueChanged<OnboardingInputs> onDone;
 
   // Both action buttons share one narrow width so they line up.
-  static const double _buttonWidth = 240;
+  static const double _buttonWidth = 140;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +28,10 @@ class OnboardingFlow extends StatelessWidget {
     final buttonShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppTokens.radiusSm),
     );
+    // Shrink the logo on narrow (mobile) windows so it doesn't dominate.
+    final narrow =
+        MediaQuery.sizeOf(context).width < AppTokens.breakpointMd;
+    final logoHeight = narrow ? 140.0 : 240.0;
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -40,7 +44,7 @@ class OnboardingFlow extends StatelessWidget {
               children: [
                 SvgPicture.asset(
                   'assets/logo/timedart_logo_stacked.svg',
-                  height: 140,
+                  height: logoHeight,
                 ),
                 const SizedBox(height: AppTokens.spaceXl),
                 Text(
@@ -48,14 +52,14 @@ class OnboardingFlow extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineSmall,
                 ),
-                const SizedBox(height: AppTokens.spaceSm),
+                const SizedBox(height: AppTokens.spaceMd),
                 Text(
-                  'Track time against your projects and send invoices that look '
-                  'like you.',
+                  'Track time against your projects and send '
+                  'invoices tailored to your brand.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium,
                 ),
-                const SizedBox(height: AppTokens.spaceXl),
+                const SizedBox(height: AppTokens.space2xl),
                 SizedBox(
                   width: _buttonWidth,
                   child: FilledButton(
