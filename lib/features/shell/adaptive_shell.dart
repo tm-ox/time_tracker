@@ -55,8 +55,11 @@ class _ProfileEditorDetail extends _Detail {
 }
 
 class AdaptiveShell extends StatefulWidget {
-  const AdaptiveShell({super.key, required this.db});
+  const AdaptiveShell({super.key, required this.db, this.onRerunOnboarding});
   final AppDatabase db;
+  // Settings → "Re-run setup": replays the first-run onboarding flow. Wired by
+  // the root gate; null when the shell is mounted without one.
+  final Future<void> Function()? onRerunOnboarding;
   @override
   State<AdaptiveShell> createState() => _AdaptiveShellState();
 }
@@ -363,7 +366,7 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
         project: project,
         onDone: _showTracker,
       ),
-      _Settings() => const SettingsHome(),
+      _Settings() => SettingsHome(onRerunOnboarding: widget.onRerunOnboarding),
       _TemplateEditorDetail(:final template, :final startEditing) =>
         TemplateEditor(
           key: ValueKey(('template', template?.id)),
