@@ -363,13 +363,14 @@ Future<Uint8List> buildBrandedInvoicePdf({
         ),
         pw.SizedBox(height: _p(InvoiceLayout.partyBlockGap)),
 
-        // ── Recipient grid ── ORGANISATION | EMAIL | PHONE on one line;
-        // ADDRESS spans the org+email columns with the tax number aligned
-        // under PHONE (or ADDRESS full-width when there's no tax number).
-        // Mirrors invoice_preview.dart's recipient grid.
+        // ── Recipient grid ── ORGANISATION (half) | EMAIL (quarter) | PHONE
+        // (quarter) on one line; ADDRESS spans the org+email columns with the
+        // tax number aligned under PHONE (or ADDRESS full-width when there's no
+        // tax number). Mirrors invoice_preview.dart's recipient grid.
         pw.Row(
           children: [
             pw.Expanded(
+              flex: 2,
               child: field(doc.region.organisationLabel, doc.organisation),
             ),
             pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),

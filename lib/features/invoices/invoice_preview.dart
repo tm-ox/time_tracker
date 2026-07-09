@@ -330,20 +330,23 @@ class InvoicePreview extends StatelessWidget {
 
   Widget _recipientGrid() {
     final hasTax = doc.recipientAbn != null;
-    // First line: ORGANISATION | EMAIL | PHONE (three equal columns). The
-    // company moved here (from the old TO row) now that ATT carries the
-    // contact person. Second line: ADDRESS spanning the org+email columns,
-    // with the tax number aligned under PHONE — or ADDRESS full-width when
-    // there's no tax number. Shown only when address/tax exist.
+    // First line: ORGANISATION (half) | EMAIL (quarter) | PHONE (quarter).
+    // ORGANISATION spans half so it sits under ATT above, and EMAIL/PHONE
+    // fall under RE. (The company moved here from the old TO row once ATT
+    // took the contact person.) Second line: ADDRESS spanning the org+email
+    // columns, with the tax number aligned under PHONE — or ADDRESS
+    // full-width when there's no tax number. Shown only when address/tax exist.
     return LayoutBuilder(
       builder: (context, c) {
-        final col = (c.maxWidth - 2 * InvoiceLayout.gridGutter) / 3;
+        // PHONE's quarter-width; the tax cell copies it to land on its edges.
+        final quarter = (c.maxWidth - 2 * InvoiceLayout.gridGutter) / 4;
         return Column(
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
+                  flex: 2,
                   child: _field(doc.region.organisationLabel, doc.organisation),
                 ),
                 const SizedBox(width: InvoiceLayout.gridGutter),
@@ -364,9 +367,9 @@ class InvoicePreview extends StatelessWidget {
                   ),
                   if (hasTax) ...[
                     const SizedBox(width: InvoiceLayout.gridGutter),
-                    // Fixed to one column so it lands on PHONE's edges above.
+                    // Fixed to PHONE's quarter so it lands on its edges above.
                     SizedBox(
-                      width: col,
+                      width: quarter,
                       child: _field(doc.recipientAbnLabel, doc.recipientAbn),
                     ),
                   ],
