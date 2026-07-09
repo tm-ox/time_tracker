@@ -589,7 +589,8 @@ class _ProfileEditorState extends State<ProfileEditor> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(flex: 2, child: region),
-                const SizedBox(width: AppTokens.spaceLg),
+                // Match the FieldRow cell gap used elsewhere in the form.
+                const SizedBox(width: AppTokens.spaceSm),
                 Expanded(flex: 1, child: currency),
               ],
             );
