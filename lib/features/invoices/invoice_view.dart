@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:timedart/data/database.dart';
 import 'package:timedart/constants/tokens.dart';
 import 'package:timedart/features/invoices/invoice_document.dart';
 import 'package:timedart/features/invoices/invoice_pdf.dart';
 import 'package:timedart/features/invoices/invoice_preview.dart';
 import 'package:timedart/features/invoices/invoice_repository.dart';
+import 'package:timedart/features/invoices/pdf_saver.dart';
 import 'package:timedart/widgets/dropdown_field.dart';
 
 /// Read-only invoice builder for one project: pick a date range, preview the
@@ -190,14 +189,6 @@ class _InvoiceViewState extends State<InvoiceView> {
   Future<void> _exportPdf() async {
     try {
       final safe = widget.project.code.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-      // Let the user choose where to save (native file dialog).
-      final location = await getSaveLocation(
-        suggestedName: 'invoice_$safe.pdf',
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'PDF', extensions: ['pdf']),
-        ],
-      );
-      if (location == null) return; // cancelled
 
       // Build the branded document with the on-the-fly profile + invoice
       // number chosen above (issue date is today for now).
@@ -230,11 +221,13 @@ class _InvoiceViewState extends State<InvoiceView> {
         doc: loaded.doc,
         template: loaded.template,
       );
-      await File(location.path).writeAsBytes(bytes);
+      // Desktop prompts for a location and writes the file; web downloads it.
+      final saved = await savePdf(bytes, 'invoice_$safe.pdf');
+      if (saved == null) return; // cancelled (desktop only)
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Saved to ${location.path}')));
+        ).showSnackBar(SnackBar(content: Text('Saved to $saved')));
       }
     } catch (e) {
       if (mounted) {
