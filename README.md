@@ -1,10 +1,40 @@
-# timedart
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/timedart_logo_stacked_dark.png">
+    <img alt="timedart" width="200" src="assets/logo/timedart_logo_stacked_light.png">
+  </picture>
+</p>
 
-**Track your hours the way you think about your work — client, project, task — and turn them into an invoice in a couple of clicks.**
+<p align="center">
+  <strong>Track your hours the way you think about your work — client, project, task —<br>and turn them into an invoice in a couple of clicks.</strong>
+</p>
 
-timedart is a fast, local-first time tracker for people who bill by the hour. Your data lives on your machine, the timer is always one keypress away, and every recorded minute rolls straight up into a per-project PDF invoice. Built with Flutter, it runs as a native desktop app and adapts down to a phone from the same codebase.
+<p align="center">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-69e228.svg">
+  <img alt="Built with Flutter" src="https://img.shields.io/badge/built%20with-Flutter-02569B.svg?logo=flutter&logoColor=white">
+  <img alt="Platforms" src="https://img.shields.io/badge/desktop-Linux%20·%20macOS%20·%20Windows-4a5142.svg">
+  <img alt="Local-first" src="https://img.shields.io/badge/data-local--first-69e228.svg">
+</p>
 
----
+<p align="center">
+  <a href="#why-timedart">Why</a> ·
+  <a href="#feature-tour">Features</a> ·
+  <a href="#keyboard">Keyboard</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#roadmap">Roadmap</a>
+</p>
+
+<!-- SHOT: hero.png — the money shot. Main tracker view: side panel (clients →
+     projects → tasks) + a running timer + the task list. Dark theme, ~1600px wide.
+     See docs/media/SHOTLIST.md for the full brief. -->
+<p align="center">
+  <img src="docs/media/hero.png" alt="timedart in action" width="900">
+</p>
+
+timedart is a fast, **local-first** time tracker for people who bill by the hour. Your data lives on
+your machine, the timer is always one keypress away, and every recorded minute rolls straight up into a
+per-project PDF invoice. Built with Flutter, it runs as a native desktop app and adapts down to a phone
+from the same codebase.
 
 ## Why timedart
 
@@ -15,6 +45,32 @@ timedart is a fast, local-first time tracker for people who bill by the hour. Yo
 - **Yours, on your disk.** Everything persists locally in SQLite. No account, no cloud, no sync — nothing leaves your machine.
 - **Keyboard-first.** The whole app is drivable without the mouse, vim-style. Press `?` any time for the full shortcut map.
 - **One app, every screen.** A roomy two-pane layout on desktop folds into a drawer on narrow windows — same features throughout.
+
+## Screenshots
+
+<!-- SHOT: fill each cell below. Dark theme, matched widths (~800px each). See docs/media/SHOTLIST.md. -->
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/media/invoice.png" alt="Branded invoice preview"><br>
+      <sub><b>Invoices in seconds.</b> Hours roll straight into a branded, region-aware PDF.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/media/onboarding.png" alt="Guided first-run onboarding"><br>
+      <sub><b>A guided first run.</b> Learn the flow and set up your invoice identity.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/media/branding.png" alt="Invoice branding editor"><br>
+      <sub><b>Make it yours.</b> Reusable templates and profiles for how invoices look and read.</sub>
+    </td>
+    <td width="50%">
+      <img src="docs/media/keyboard.png" alt="Keyboard shortcut overlay"><br>
+      <sub><b>Fly it from the keyboard.</b> Press <code>?</code> for the full shortcut map.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Feature tour
 
@@ -49,7 +105,7 @@ timedart is built to be flown from the keyboard. Navigation is identical across 
 | `Ctrl`+`S` · `Esc` | save · cancel in any editor |
 | `?` | show the full shortcut overlay |
 
-## Running it
+## Install
 
 Requires the Flutter SDK ([install guide](https://docs.flutter.dev/get-started/install)).
 
@@ -68,7 +124,21 @@ drift on save) alongside `flutter run -d linux`, and hot-reloads on changes unde
 The database lives in the platform app-support directory (e.g. `~/.local/share/` on Linux), not the
 project folder.
 
-## Under the hood
+## Roadmap
+
+Core is complete and in daily-driver shape: first-run onboarding; persistent tracking across clients,
+projects, and tasks; full editing everywhere; per-project PDF invoices with customisable, region-aware
+branding; and end-to-end keyboard control. Next on the horizon:
+
+- PDF polish — print-safe margins, and A4 / Letter as a page-size setting.
+- Stored, immutable invoice snapshots.
+- Bulk actions to clear out old clients and projects in one deliberate step.
+- Archiving projects you're done with, to keep the working set tidy.
+- A richer, illustrated "how it works" step in onboarding.
+- Ongoing design polish.
+
+<details>
+<summary><b>Under the hood</b></summary>
 
 Flutter + [drift](https://drift.simonbinder.eu) (SQLite) with foreign keys enforced, so deletes can
 never orphan data. Organised **feature-first** — each feature owns its widgets, with shared
@@ -99,20 +169,13 @@ Templates / Profiles / General sections, driven by the same keyboard navigation.
 profile shows it read-only first; Edit reveals the form in place, and leaving with unsaved changes
 prompts to save, discard, or stay.
 
-## Roadmap
-
-Core is complete and in daily-driver shape: first-run onboarding; persistent tracking across clients,
-projects, and tasks; full editing everywhere; per-project PDF invoices with customisable, region-aware
-branding; and end-to-end keyboard control. Next on the horizon:
-
-- PDF polish — print-safe margins, and A4 / Letter as a page-size setting.
-- Stored, immutable invoice snapshots.
-- Bulk actions to clear out old clients and projects in one deliberate step.
-- Archiving projects you're done with, to keep the working set tidy.
-- A richer, illustrated "how it works" step in onboarding.
-- Ongoing design polish.
+</details>
 
 ## Development
 
 Work lands one change per branch, reviewed as a PR and squash-merged so `main` stays a clean,
 linear history. `flutter analyze` and `flutter test` should both pass before every PR.
+
+## License
+
+timedart is open source under the [MIT License](LICENSE) — © 2026 Craftox.
