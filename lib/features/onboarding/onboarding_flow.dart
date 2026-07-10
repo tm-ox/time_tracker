@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:animations/animations.dart';
@@ -18,9 +19,10 @@ import 'package:time_tracker/features/onboarding/onboarding_machine.dart';
 // whatever is captured is applied to the seeded default profile by the root
 // gate via [applyOnboarding].
 //
-// The "How it works" diagram is a static placeholder here — phase (f) animates
-// the Client → Project → Task → Timer → Invoice sequence. The startup intro
-// animation is phase (e), ahead of the gate.
+// The "How it works" step ([_HowItWorks]) auto-cycles through the
+// Client → Project → Task → Timer → Invoice sequence with a sliding panel and
+// tappable flow cards (#137); bespoke per-stage illustrations remain to come.
+// The startup intro animation is phase (e), ahead of the gate.
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key, required this.onDone});
 
@@ -112,44 +114,17 @@ class _OnboardingFlowState extends State<OnboardingFlow>
             // Top bar slides down as the intro resolves into Welcome.
             _entranceSlide(_topBar(), const Offset(0, -1)),
             Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTokens.spaceXl,
-                    vertical: AppTokens.spaceLg,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: _maxWidth),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        PageTransitionSwitcher(
-                          transitionBuilder: (child, primary, secondary) =>
-                              FadeThroughTransition(
-                                animation: primary,
-                                secondaryAnimation: secondary,
-                                fillColor: Colors.transparent,
-                                child: child,
-                              ),
-                          child: KeyedSubtree(
-                            key: ValueKey(_machine.current),
-                            child: _stepBody(_machine.current, narrow),
-                          ),
-                        ),
-                        // Welcome's primary sits right below its byline; every
-                        // other step uses the fixed bottom nav so its buttons
-                        // land at a consistent height across screens.
-                        if (_machine.isFirst) ...[
-                          const SizedBox(height: AppTokens.space2xl),
-                          _entranceSlide(
-                            Center(child: _primaryButton()),
-                            const Offset(0, 1),
-                          ),
-                        ],
-                      ],
+              child: PageTransitionSwitcher(
+                transitionBuilder: (child, primary, secondary) =>
+                    FadeThroughTransition(
+                      animation: primary,
+                      secondaryAnimation: secondary,
+                      fillColor: Colors.transparent,
+                      child: child,
                     ),
-                  ),
+                child: KeyedSubtree(
+                  key: ValueKey(_machine.current),
+                  child: _stepScaffold(_machine.current, narrow),
                 ),
               ),
             ),
@@ -159,6 +134,57 @@ class _OnboardingFlowState extends State<OnboardingFlow>
       ),
     );
   }
+
+  // Wraps a step body in the shared scroll-centred column: vertically centred,
+  // scrollable when it outgrows a short window, capped to [_maxWidth].
+  Widget _scrollCenter(Widget child) => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceXl,
+        vertical: AppTokens.spaceLg,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _maxWidth),
+        child: child,
+      ),
+    ),
+  );
+
+  // Places each step in the body area. Most steps are scroll-centred; the
+  // how-it-works diagram instead fills the height (title top, panel grows,
+  // flow cards near the bottom) so it uses the whole screen rather than
+  // floating a small box in a sea of empty space.
+  Widget _stepScaffold(OnboardingStep step, bool narrow) => switch (step) {
+    OnboardingStep.howItWorks => Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceXl,
+        vertical: AppTokens.spaceLg,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxWidth),
+          child: _HowItWorks(narrow: narrow),
+        ),
+      ),
+    ),
+    // Welcome's primary sits right below its byline (entrance-animated); every
+    // other step uses the fixed bottom nav so its buttons land at a consistent
+    // height across screens.
+    OnboardingStep.welcome => _scrollCenter(
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _welcome(narrow),
+          const SizedBox(height: AppTokens.space2xl),
+          _entranceSlide(Center(child: _primaryButton()), const Offset(0, 1)),
+        ],
+      ),
+    ),
+    OnboardingStep.business => _scrollCenter(_business()),
+    OnboardingStep.region => _scrollCenter(_region_()),
+    OnboardingStep.done => _scrollCenter(_done()),
+  };
 
   // ── Chrome ────────────────────────────────────────────────────────────────
 
@@ -205,7 +231,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
           children: [
             TextButton(
               onPressed: () => _apply(_machine.back),
-              style: TextButton.styleFrom(shape: _buttonShape),
+              style: TextButton.styleFrom(
+                shape: _buttonShape,
+                minimumSize: _navButtonSize,
+                side: const BorderSide(color: AppTokens.colorBorder),
+              ),
               child: const Text('Back'),
             ),
             const Spacer(),
@@ -224,6 +254,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
     };
     return FilledButton(
       onPressed: () => _apply(_machine.next),
+      // Match Back's footprint so the two nav buttons read as a pair.
+      style: FilledButton.styleFrom(
+        shape: _buttonShape,
+        minimumSize: _navButtonSize,
+      ),
       child: Text(label),
     );
   }
@@ -232,15 +267,9 @@ class _OnboardingFlowState extends State<OnboardingFlow>
     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
   );
 
-  // ── Step bodies ─────────────────────────────────────────────────────────
+  static const _navButtonSize = Size(112, 48);
 
-  Widget _stepBody(OnboardingStep step, bool narrow) => switch (step) {
-    OnboardingStep.welcome => _welcome(narrow),
-    OnboardingStep.howItWorks => _howItWorks(narrow),
-    OnboardingStep.business => _business(),
-    OnboardingStep.region => _region_(),
-    OnboardingStep.done => _done(),
-  };
+  // ── Step bodies ─────────────────────────────────────────────────────────
 
   Widget _welcome(bool narrow) => _CenteredStep(
     children: [
@@ -262,47 +291,6 @@ class _OnboardingFlowState extends State<OnboardingFlow>
           ],
         ),
         const Offset(0, 1),
-      ),
-    ],
-  );
-
-  // FIXME(#137): the how-it-works diagram is a placeholder — needs design work
-  // (bespoke illustrations, animated reveal, tidier mobile layout). Phase (f).
-  static const _flowCards = [
-    _FlowCard(Symbols.person, 'Client'),
-    _FlowArrow(),
-    _FlowCard(Symbols.folder, 'Project'),
-    _FlowArrow(),
-    _FlowCard(Symbols.check_circle, 'Task'),
-    _FlowArrow(),
-    _FlowCard(Symbols.timer, 'Timer'),
-    _FlowArrow(),
-    _FlowCard(Symbols.receipt_long, 'Invoice'),
-  ];
-
-  Widget _howItWorks(bool narrow) => _CenteredStep(
-    children: [
-      _title('How timedart works'),
-      const SizedBox(height: AppTokens.spaceLg),
-      // Wide: one row, scaling down if tight. Narrow (mobile): keep the cards
-      // full size and wrap onto multiple rows instead of shrinking.
-      if (narrow)
-        const Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: AppTokens.spaceXs,
-          runSpacing: AppTokens.spaceSm,
-          children: _flowCards,
-        )
-      else
-        const FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(mainAxisSize: MainAxisSize.min, children: _flowCards),
-        ),
-      const SizedBox(height: AppTokens.spaceLg),
-      _body(
-        'Log time under a client\'s project and its tasks, then turn those '
-        'hours into an invoice.',
       ),
     ],
   );
@@ -351,9 +339,13 @@ class _OnboardingFlowState extends State<OnboardingFlow>
 
   Widget _done() => _CenteredStep(
     children: [
+      // Material Symbols (variable font, weight 200) to match the how-it-works
+      // flow icons rather than the stock Material tick.
       Icon(
-        Icons.check_circle_outline_outlined,
+        Symbols.check_circle,
         size: 120,
+        weight: 200,
+        opticalSize: 48,
         color: Theme.of(context).colorScheme.primary,
       ),
       const SizedBox(height: AppTokens.spaceLg),
@@ -462,7 +454,12 @@ class _FormStep extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(title, style: t.textTheme.headlineSmall),
+        Text(
+          title,
+          style: t.textTheme.headlineSmall?.copyWith(
+            color: t.colorScheme.primary,
+          ),
+        ),
         const SizedBox(height: AppTokens.space2xs),
         Text(
           hint,
@@ -506,53 +503,243 @@ class _ProgressDots extends StatelessWidget {
   }
 }
 
-/// One stage of the flow as a fixed-size card: an icon over a label. All cards
-/// share [_size] so the row reads as a set of equal steps.
-class _FlowCard extends StatelessWidget {
-  const _FlowCard(this.icon, this.label);
-  final IconData icon;
-  final String label;
+/// The "How timedart works" step: a panel that cycles through the five stages
+/// (Client → Project → Task → Timer → Invoice) — auto-advancing on a timer and
+/// looping — over a row of flow cards. The current stage's card is highlighted;
+/// tapping any card jumps to it and restarts the dwell timer. The panel slides
+/// horizontally between stages (direction follows forward/backward moves).
+class _HowItWorks extends StatefulWidget {
+  const _HowItWorks({required this.narrow});
+  final bool narrow;
 
-  static const double _size = 120;
+  @override
+  State<_HowItWorks> createState() => _HowItWorksState();
+}
+
+class _HowItWorksState extends State<_HowItWorks> {
+  // (icon, card label, panel explanation) per stage.
+  static const _stages = <(IconData, String, String)>[
+    (Symbols.face, 'Client', 'Add the people or companies you work for.'),
+    (
+      Symbols.file_present,
+      'Project',
+      'Group work under a client as a project.',
+    ),
+    (Symbols.task, 'Task', 'Break a project into tasks you can track.'),
+    (
+      Symbols.hourglass_bottom,
+      'Timer',
+      'Clock time against a task as you work.',
+    ),
+    (
+      Symbols.diagnosis,
+      'Invoice',
+      'Turn tracked hours into a branded invoice.',
+    ),
+  ];
+  static const _dwell = Duration(seconds: 4);
+
+  int _index = 0;
+  bool _forward = true; // slide direction for the next panel transition
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _restartTimer();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _restartTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(_dwell, (_) {
+      setState(() {
+        _forward = true;
+        _index = (_index + 1) % _stages.length;
+      });
+    });
+  }
+
+  // Tapping a card jumps there and restarts the dwell so the chosen stage gets
+  // a full interval before auto-advance resumes.
+  void _jump(int i) {
+    if (i == _index) return;
+    setState(() {
+      _forward = i > _index;
+      _index = i;
+    });
+    _restartTimer();
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return Container(
-      width: _size,
-      height: _size,
-      padding: const EdgeInsets.all(AppTokens.spaceXs),
-      decoration: BoxDecoration(
-        color: t.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        border: Border.all(color: AppTokens.colorBorder),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Material Symbols is a variable font: `weight` sets stroke thickness
-          // (100–700; lower = finer) and `opticalSize` tunes detail for the
-          // rendered size. Dial these to taste.
-          Icon(
-            icon,
-            size: 64,
-            weight: 300,
-            opticalSize: 48,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'How timedart works',
+          textAlign: TextAlign.center,
+          style: t.textTheme.headlineSmall?.copyWith(
             color: t.colorScheme.primary,
           ),
-          const SizedBox(height: AppTokens.spaceXs),
-          Text(label, style: t.textTheme.bodyMedium),
-        ],
+        ),
+        const SizedBox(height: AppTokens.spaceLg),
+        Expanded(child: _panel(t)),
+        const SizedBox(height: AppTokens.spaceLg),
+        _cards(),
+      ],
+    );
+  }
+
+  Widget _panel(ThemeData t) {
+    final (icon, _, copy) = _stages[_index];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTokens.spaceLg),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      child: PageTransitionSwitcher(
+        duration: const Duration(milliseconds: 350),
+        reverse: !_forward,
+        transitionBuilder: (child, primary, secondary) => SharedAxisTransition(
+          animation: primary,
+          secondaryAnimation: secondary,
+          transitionType: SharedAxisTransitionType.horizontal,
+          fillColor: Colors.transparent,
+          child: child,
+        ),
+        child: Column(
+          key: ValueKey(_index),
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  // Fill the shorter side of the available space, capped so the
+                  // icon doesn't get oversized on desktop. Sizing the Icon
+                  // directly (vs FittedBox) keeps the glyph sharp and lets the
+                  // variable-font weight apply at the real size.
+                  final size = c.biggest.shortestSide.clamp(0.0, 440.0);
+                  return Center(
+                    child: Icon(
+                      icon,
+                      size: size,
+                      weight: 100,
+                      opticalSize: 48,
+                      color: t.colorScheme.primary,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: AppTokens.spaceLg),
+            Text(
+              copy,
+              textAlign: TextAlign.center,
+              style: t.textTheme.bodyLarge?.copyWith(
+                color: t.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cards() {
+    // Mobile: compact cards + tighter arrows so the whole sequence stays on one
+    // line. Either way the row is scaled down to fit if it would still overflow.
+    final compact = widget.narrow;
+    final children = <Widget>[];
+    for (var i = 0; i < _stages.length; i++) {
+      if (i > 0) children.add(_FlowArrow(compact: compact));
+      final (icon, label, _) = _stages[i];
+      children.add(
+        _FlowCard(
+          icon: icon,
+          label: label,
+          active: i == _index,
+          compact: compact,
+          onTap: () => _jump(i),
+        ),
+      );
+    }
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+}
+
+/// One stage of the flow as a fixed-size, tappable card: an icon over a label.
+/// All cards share one size so the row reads as a set of equal steps ([compact]
+/// shrinks them for mobile). The active card renders in the primary colour
+/// (heavier stroke); the rest are muted.
+class _FlowCard extends StatelessWidget {
+  const _FlowCard({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.compact = false,
+  });
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final color = active ? t.colorScheme.primary : t.colorScheme.secondary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      child: SizedBox(
+        width: compact ? 64 : 100,
+        height: compact ? 64 : 100,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Material Symbols is a variable font: `weight` sets stroke
+            // thickness (100–700; lower = finer). The active card thickens to
+            // reinforce the highlight; `opticalSize` tunes detail for the size.
+            Icon(
+              icon,
+              size: compact ? 34 : 48,
+              weight: active ? 400 : 200,
+              opticalSize: 48,
+              color: color,
+            ),
+            SizedBox(height: compact ? AppTokens.space3xs : AppTokens.spaceXs),
+            Text(
+              label,
+              style: (compact ? t.textTheme.bodySmall : t.textTheme.bodyMedium)
+                  ?.copyWith(color: color),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _FlowArrow extends StatelessWidget {
-  const _FlowArrow();
+  const _FlowArrow({this.compact = false});
+  final bool compact;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXs),
+    padding: EdgeInsets.symmetric(
+      horizontal: compact ? AppTokens.space3xs : AppTokens.spaceXs,
+    ),
     child: Icon(
       Icons.arrow_forward,
       size: AppTokens.iconSm,
