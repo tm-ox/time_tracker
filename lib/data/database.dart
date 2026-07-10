@@ -415,6 +415,13 @@ class AppDatabase extends _$AppDatabase {
       databaseDirectory:
           getApplicationSupportDirectory, // ~/.local/share, not ~/Documents
     ),
+    // Web demo: drift_flutter branches platforms internally, so this block is
+    // ignored on native. Assets ship in web/ (version-matched to drift). No
+    // COOP/COEP headers → storage falls back to IndexedDB (fine for a demo).
+    web: DriftWebOptions(
+      sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+      driftWorker: Uri.parse('drift_worker.js'),
+    ),
   );
 
   Future<int> ensureDefaultProject() async {
