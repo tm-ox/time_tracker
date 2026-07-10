@@ -48,29 +48,31 @@ from the same codebase.
 
 ## Screenshots
 
-<!-- SHOT: fill each cell below. Dark theme, matched widths (~800px each). See docs/media/SHOTLIST.md. -->
-<table>
+<!-- onboarding leads, full width -->
+<p align="center">
+  <img src="docs/media/onboarding.png" alt="Guided first-run onboarding" width="900"><br>
+  <sub><b>A guided first run.</b> Learn the flow and set up your invoice identity.</sub>
+</p>
+
+<!-- the two invoice screens, side by side -->
+<table align="center">
   <tr>
-    <td width="50%">
+    <td width="50%" valign="top" align="center">
       <img src="docs/media/invoice.png" alt="Branded invoice preview"><br>
       <sub><b>Invoices in seconds.</b> Hours roll straight into a branded, region-aware PDF.</sub>
     </td>
-    <td width="50%">
-      <img src="docs/media/onboarding.png" alt="Guided first-run onboarding"><br>
-      <sub><b>A guided first run.</b> Learn the flow and set up your invoice identity.</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
+    <td width="50%" valign="top" align="center">
       <img src="docs/media/branding.png" alt="Invoice branding editor"><br>
       <sub><b>Make it yours.</b> Reusable templates and profiles for how invoices look and read.</sub>
     </td>
-    <td width="50%">
-      <img src="docs/media/keyboard.png" alt="Keyboard shortcut overlay"><br>
-      <sub><b>Fly it from the keyboard.</b> Press <code>?</code> for the full shortcut map.</sub>
-    </td>
   </tr>
 </table>
+
+<!-- keyboard closes it out -->
+<p align="center">
+  <img src="docs/media/keyboard.png" alt="Keyboard shortcut overlay" width="720"><br>
+  <sub><b>Fly it from the keyboard.</b> Press <code>?</code> for the full shortcut map.</sub>
+</p>
 
 ## Feature tour
 
