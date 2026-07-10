@@ -231,7 +231,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
           children: [
             TextButton(
               onPressed: () => _apply(_machine.back),
-              style: TextButton.styleFrom(shape: _buttonShape),
+              style: TextButton.styleFrom(
+                shape: _buttonShape,
+                minimumSize: _navButtonSize,
+                side: const BorderSide(color: AppTokens.colorBorder),
+              ),
               child: const Text('Back'),
             ),
             const Spacer(),
@@ -250,6 +254,11 @@ class _OnboardingFlowState extends State<OnboardingFlow>
     };
     return FilledButton(
       onPressed: () => _apply(_machine.next),
+      // Match Back's footprint so the two nav buttons read as a pair.
+      style: FilledButton.styleFrom(
+        shape: _buttonShape,
+        minimumSize: _navButtonSize,
+      ),
       child: Text(label),
     );
   }
@@ -257,6 +266,8 @@ class _OnboardingFlowState extends State<OnboardingFlow>
   static final _buttonShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
   );
+
+  static const _navButtonSize = Size(112, 48);
 
   // ── Step bodies ─────────────────────────────────────────────────────────
 
@@ -328,9 +339,13 @@ class _OnboardingFlowState extends State<OnboardingFlow>
 
   Widget _done() => _CenteredStep(
     children: [
+      // Material Symbols (variable font, weight 200) to match the how-it-works
+      // flow icons rather than the stock Material tick.
       Icon(
-        Icons.check_circle_outline_outlined,
+        Symbols.check_circle,
         size: 120,
+        weight: 200,
+        opticalSize: 48,
         color: Theme.of(context).colorScheme.primary,
       ),
       const SizedBox(height: AppTokens.spaceLg),
@@ -439,7 +454,12 @@ class _FormStep extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(title, style: t.textTheme.headlineSmall),
+        Text(
+          title,
+          style: t.textTheme.headlineSmall?.copyWith(
+            color: t.colorScheme.primary,
+          ),
+        ),
         const SizedBox(height: AppTokens.space2xs),
         Text(
           hint,
@@ -499,12 +519,20 @@ class _HowItWorks extends StatefulWidget {
 class _HowItWorksState extends State<_HowItWorks> {
   // (icon, card label, panel explanation) per stage.
   static const _stages = <(IconData, String, String)>[
-    (Symbols.person, 'Client', 'Add the people or companies you work for.'),
-    (Symbols.folder, 'Project', 'Group work under a client as a project.'),
-    (Symbols.check_circle, 'Task', 'Break a project into tasks you can track.'),
-    (Symbols.timer, 'Timer', 'Clock time against a task as you work.'),
+    (Symbols.face, 'Client', 'Add the people or companies you work for.'),
     (
-      Symbols.receipt_long,
+      Symbols.file_present,
+      'Project',
+      'Group work under a client as a project.',
+    ),
+    (Symbols.task, 'Task', 'Break a project into tasks you can track.'),
+    (
+      Symbols.hourglass_bottom,
+      'Timer',
+      'Clock time against a task as you work.',
+    ),
+    (
+      Symbols.diagnosis,
       'Invoice',
       'Turn tracked hours into a branded invoice.',
     ),
@@ -557,7 +585,9 @@ class _HowItWorksState extends State<_HowItWorks> {
         Text(
           'How timedart works',
           textAlign: TextAlign.center,
-          style: t.textTheme.headlineSmall,
+          style: t.textTheme.headlineSmall?.copyWith(
+            color: t.colorScheme.primary,
+          ),
         ),
         const SizedBox(height: AppTokens.spaceLg),
         Expanded(child: _panel(t)),
@@ -574,7 +604,6 @@ class _HowItWorksState extends State<_HowItWorks> {
       padding: const EdgeInsets.all(AppTokens.spaceLg),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        border: Border.all(color: AppTokens.colorBorder),
       ),
       child: PageTransitionSwitcher(
         duration: const Duration(milliseconds: 350),
@@ -590,15 +619,34 @@ class _HowItWorksState extends State<_HowItWorks> {
           key: ValueKey(_index),
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 88,
-              weight: 200,
-              opticalSize: 48,
-              color: t.colorScheme.primary,
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  // Fill the shorter side of the available space, capped so the
+                  // icon doesn't get oversized on desktop. Sizing the Icon
+                  // directly (vs FittedBox) keeps the glyph sharp and lets the
+                  // variable-font weight apply at the real size.
+                  final size = c.biggest.shortestSide.clamp(0.0, 440.0);
+                  return Center(
+                    child: Icon(
+                      icon,
+                      size: size,
+                      weight: 100,
+                      opticalSize: 48,
+                      color: t.colorScheme.primary,
+                    ),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: AppTokens.spaceLg),
-            Text(copy, textAlign: TextAlign.center, style: t.textTheme.bodyLarge),
+            Text(
+              copy,
+              textAlign: TextAlign.center,
+              style: t.textTheme.bodyLarge?.copyWith(
+                color: t.colorScheme.primary,
+              ),
+            ),
           ],
         ),
       ),
@@ -606,65 +654,58 @@ class _HowItWorksState extends State<_HowItWorks> {
   }
 
   Widget _cards() {
+    // Mobile: compact cards + tighter arrows so the whole sequence stays on one
+    // line. Either way the row is scaled down to fit if it would still overflow.
+    final compact = widget.narrow;
     final children = <Widget>[];
     for (var i = 0; i < _stages.length; i++) {
-      if (i > 0) children.add(const _FlowArrow());
+      if (i > 0) children.add(_FlowArrow(compact: compact));
       final (icon, label, _) = _stages[i];
       children.add(
         _FlowCard(
           icon: icon,
           label: label,
           active: i == _index,
+          compact: compact,
           onTap: () => _jump(i),
         ),
       );
     }
-    // Wide: one row, scaled down if it would overflow. Narrow (mobile): wrap
-    // onto multiple centred rows at full size.
-    return widget.narrow
-        ? Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: AppTokens.spaceXs,
-            runSpacing: AppTokens.spaceSm,
-            children: children,
-          )
-        : FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(mainAxisSize: MainAxisSize.min, children: children),
-          );
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(mainAxisSize: MainAxisSize.min, children: children),
+    );
   }
 }
 
 /// One stage of the flow as a fixed-size, tappable card: an icon over a label.
-/// All cards share [_size] so the row reads as a set of equal steps. The active
-/// card renders in the primary colour (heavier stroke); the rest are muted.
+/// All cards share one size so the row reads as a set of equal steps ([compact]
+/// shrinks them for mobile). The active card renders in the primary colour
+/// (heavier stroke); the rest are muted.
 class _FlowCard extends StatelessWidget {
   const _FlowCard({
     required this.icon,
     required this.label,
     required this.active,
     required this.onTap,
+    this.compact = false,
   });
   final IconData icon;
   final String label;
   final bool active;
   final VoidCallback onTap;
-
-  static const double _size = 100;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final color = active
-        ? t.colorScheme.primary
-        : t.colorScheme.onSurfaceVariant;
+    final color = active ? t.colorScheme.primary : t.colorScheme.secondary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppTokens.radiusSm),
       child: SizedBox(
-        width: _size,
-        height: _size,
+        width: compact ? 64 : 100,
+        height: compact ? 64 : 100,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -673,13 +714,17 @@ class _FlowCard extends StatelessWidget {
             // reinforce the highlight; `opticalSize` tunes detail for the size.
             Icon(
               icon,
-              size: 52,
+              size: compact ? 34 : 48,
               weight: active ? 400 : 200,
               opticalSize: 48,
               color: color,
             ),
-            const SizedBox(height: AppTokens.spaceXs),
-            Text(label, style: t.textTheme.bodyMedium?.copyWith(color: color)),
+            SizedBox(height: compact ? AppTokens.space3xs : AppTokens.spaceXs),
+            Text(
+              label,
+              style: (compact ? t.textTheme.bodySmall : t.textTheme.bodyMedium)
+                  ?.copyWith(color: color),
+            ),
           ],
         ),
       ),
@@ -688,10 +733,13 @@ class _FlowCard extends StatelessWidget {
 }
 
 class _FlowArrow extends StatelessWidget {
-  const _FlowArrow();
+  const _FlowArrow({this.compact = false});
+  final bool compact;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXs),
+    padding: EdgeInsets.symmetric(
+      horizontal: compact ? AppTokens.space3xs : AppTokens.spaceXs,
+    ),
     child: Icon(
       Icons.arrow_forward,
       size: AppTokens.iconSm,
