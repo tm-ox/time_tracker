@@ -619,39 +619,24 @@ class _HowItWorksState extends State<_HowItWorks> {
           key: ValueKey(_index),
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Large framed panel behind the hero glyph: just a faint accent
-            // border (no fill) so the bright glyph reads at full contrast on the
-            // background. radiusLg so the big surface reads softer than the 7px
-            // badges.
             Expanded(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppTokens.spaceXl),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-                  border: Border.all(
-                    color: AppTokens.colorBrandPrimary.withValues(alpha: 0.30),
-                    width: AppTokens.strokeThin,
-                  ),
-                ),
-                child: LayoutBuilder(
-                  builder: (context, c) {
-                    // Fill the shorter side of the available space, capped so the
-                    // icon doesn't get oversized on desktop. Sizing the Icon
-                    // directly (vs FittedBox) keeps the glyph sharp and lets the
-                    // variable-font weight apply at the real size.
-                    final size = c.biggest.shortestSide.clamp(0.0, 440.0);
-                    return Center(
-                      child: Icon(
-                        icon,
-                        size: size,
-                        weight: 100,
-                        opticalSize: 48,
-                        color: AppTokens.colorAccentText,
-                      ),
-                    );
-                  },
-                ),
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  // Fill the shorter side of the available space, capped so the
+                  // icon doesn't get oversized on desktop. Sizing the Icon
+                  // directly (vs FittedBox) keeps the glyph sharp and lets the
+                  // variable-font weight apply at the real size.
+                  final size = c.biggest.shortestSide.clamp(0.0, 440.0);
+                  return Center(
+                    child: Icon(
+                      icon,
+                      size: size,
+                      weight: 100,
+                      opticalSize: 48,
+                      color: t.colorScheme.primary,
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: AppTokens.spaceLg),
