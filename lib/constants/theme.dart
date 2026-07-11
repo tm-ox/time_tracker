@@ -190,6 +190,34 @@ ThemeData buildAppTheme(Brightness brightness) {
       ),
     ),
 
+    // ── Switches ── ON state mirrors the primary button's tint: dim-green
+    // track + bright-green thumb + faint accent outline (vs M3's solid bright
+    // fill). OFF stays neutral.
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) return borderColor;
+        if (states.contains(WidgetState.selected)) {
+          return AppTokens.colorAccentText;
+        }
+        return scheme.onSurfaceVariant;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return scheme.surfaceContainerHighest;
+        }
+        if (states.contains(WidgetState.selected)) {
+          return AppTokens.colorAccentDim;
+        }
+        return scheme.surface;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return AppTokens.colorBrandPrimary.withValues(alpha: 0.30);
+        }
+        return borderColor;
+      }),
+    ),
+
     // ── Dialogs ── 8px corner (radiusSm), not M3's large default. Covers the
     // entry editor and confirm dialogs alike.
     dialogTheme: DialogThemeData(shape: panelShape),
