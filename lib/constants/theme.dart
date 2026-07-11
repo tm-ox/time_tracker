@@ -51,6 +51,14 @@ ThemeData buildAppTheme(Brightness brightness) {
         fontWeight: FontWeight.w300,
         letterSpacing: 5,
       ),
+      // Display heading — Raleway Medium Italic, matched to the marketing site.
+      // Only the onboarding flow uses headlineSmall today; size inherits the M3
+      // default. Extend to other headings as we decide where else it fits.
+      headlineSmall: const TextStyle(
+        fontFamily: AppTokens.fontFamilyHeading,
+        fontWeight: FontWeight.w500,
+        fontStyle: FontStyle.italic,
+      ),
       titleLarge: const TextStyle(
         fontFamily: AppTokens.fontFamily,
         color: AppTokens.colorBrandPrimary,
