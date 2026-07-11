@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/logo/
     - assets/fonts/
+    - assets/icons/
 
   # Mona Sans is a variable font. Flutter maps the theme's `fontWeight` onto its
   # `wght` axis (200–900), so all app weights resolve from the single file.

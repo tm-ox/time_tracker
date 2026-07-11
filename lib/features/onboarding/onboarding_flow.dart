@@ -517,24 +517,38 @@ class _HowItWorks extends StatefulWidget {
 }
 
 class _HowItWorksState extends State<_HowItWorks> {
-  // (icon, card label, panel explanation) per stage.
-  static const _stages = <(IconData, String, String)>[
-    (Symbols.face, 'Client', 'Add the people or companies you work for.'),
+  // (badge icon, card label, panel explanation, hero duo-SVG) per stage. The
+  // hero uses the custom two-tone SVG; the step badges keep Material Symbols.
+  static const _stages = <(IconData, String, String, String)>[
+    (
+      Symbols.face,
+      'Client',
+      'Add the people or companies you work for.',
+      'assets/icons/client-duo.svg',
+    ),
     (
       Symbols.file_present,
       'Project',
       'Group work under a client as a project.',
+      'assets/icons/project-duo.svg',
     ),
-    (Symbols.task, 'Task', 'Break a project into tasks you can track.'),
+    (
+      Symbols.task,
+      'Task',
+      'Break a project into tasks you can track.',
+      'assets/icons/task-duo.svg',
+    ),
     (
       Symbols.hourglass_bottom,
       'Timer',
       'Clock time against a task as you work.',
+      'assets/icons/time-duo.svg',
     ),
     (
       Symbols.diagnosis,
       'Invoice',
       'Turn tracked hours into a branded invoice.',
+      'assets/icons/invoice-duo.svg',
     ),
   ];
   static const _dwell = Duration(seconds: 4);
@@ -598,7 +612,7 @@ class _HowItWorksState extends State<_HowItWorks> {
   }
 
   Widget _panel(ThemeData t) {
-    final (icon, _, copy) = _stages[_index];
+    final (_, _, copy, asset) = _stages[_index];
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppTokens.spaceLg),
@@ -623,17 +637,15 @@ class _HowItWorksState extends State<_HowItWorks> {
               child: LayoutBuilder(
                 builder: (context, c) {
                   // Fill the shorter side of the available space, capped so the
-                  // icon doesn't get oversized on desktop. Sizing the Icon
-                  // directly (vs FittedBox) keeps the glyph sharp and lets the
-                  // variable-font weight apply at the real size.
+                  // hero doesn't get oversized on desktop. Colours are baked
+                  // into the two-tone SVG, so no colorFilter here.
                   final size = c.biggest.shortestSide.clamp(0.0, 440.0);
                   return Center(
-                    child: Icon(
-                      icon,
-                      size: size,
-                      weight: 100,
-                      opticalSize: 48,
-                      color: t.colorScheme.primary,
+                    child: SvgPicture.asset(
+                      asset,
+                      width: size,
+                      height: size,
+                      fit: BoxFit.contain,
                     ),
                   );
                 },
@@ -660,7 +672,7 @@ class _HowItWorksState extends State<_HowItWorks> {
     final children = <Widget>[];
     for (var i = 0; i < _stages.length; i++) {
       if (i > 0) children.add(_FlowArrow(compact: compact));
-      final (icon, label, _) = _stages[i];
+      final (icon, label, _, _) = _stages[i];
       children.add(
         _FlowCard(
           icon: icon,
