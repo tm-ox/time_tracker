@@ -21,8 +21,11 @@ permissions:
   contents: write # create the Release + upload assets
 
 env:
-  # Marks -beta / v0.x tags as GitHub pre-releases.
-  PRERELEASE: ${{ contains(github.ref_name, '-beta') || startsWith(github.ref_name, 'v0.') }}
+  # Pre-release only for a pre-release tag of a 1.0+ version (e.g. v1.1.0-beta.1).
+  # While pre-1.0 (v0.x) every beta publishes as the *latest* release so it shows
+  # in the repo sidebar and /releases/latest resolves — there's no stable release
+  # to protect yet. Once 1.0 ships, 1.x betas correctly fall back to pre-release.
+  PRERELEASE: ${{ !startsWith(github.ref_name, 'v0.') && contains(github.ref_name, '-') }}
 
 jobs:
   # ── Linux: AppImage + tarball ──────────────────────────────────────────────
