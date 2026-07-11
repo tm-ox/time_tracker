@@ -15,7 +15,22 @@ ThemeData buildAppTheme(Brightness brightness) {
   // outlines (outlined buttons, focused inputs) stay primary — see below.
   const borderColor = AppTokens.colorBorder;
 
+  // Buttons match the marketing site's .btn: 7px radius, 16×8 padding, Mona
+  // 600 @ 15.5. Inputs/dialogs keep radiusSm (8px) via their own shapes below.
   final buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(AppTokens.radiusButton),
+  );
+  const buttonPadding = EdgeInsets.symmetric(
+    horizontal: AppTokens.spaceMd, // 16
+    vertical: AppTokens.spaceXs, // 8
+  );
+  const buttonTextStyle = TextStyle(
+    fontFamily: AppTokens.fontFamily,
+    fontSize: AppTokens.fontSizeButton,
+    fontWeight: FontWeight.w600,
+  );
+  // Dialogs/inputs stay on the 8px corner — decoupled from the button radius.
+  final panelShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
   );
 
@@ -36,10 +51,21 @@ ThemeData buildAppTheme(Brightness brightness) {
         fontWeight: FontWeight.w300,
         letterSpacing: 5,
       ),
+      // Display heading — Raleway Medium Italic, matched to the marketing site.
+      // Only the onboarding flow uses headlineSmall today; size inherits the M3
+      // default. Extend to other headings as we decide where else it fits.
+      headlineSmall: const TextStyle(
+        fontFamily: AppTokens.fontFamilyHeading,
+        fontWeight: FontWeight.w500,
+        fontStyle: FontStyle.italic,
+      ),
+      // Screen/dialog titles — Raleway Medium Italic, matching the onboarding
+      // headings and the marketing site. Keeps the primary colour + tracking.
       titleLarge: const TextStyle(
-        fontFamily: AppTokens.fontFamily,
+        fontFamily: AppTokens.fontFamilyHeading,
+        fontStyle: FontStyle.italic,
         color: AppTokens.colorBrandPrimary,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
         letterSpacing: 1.25,
       ),
       titleMedium: const TextStyle(
@@ -107,25 +133,116 @@ ThemeData buildAppTheme(Brightness brightness) {
       selectedTileColor: scheme.surfaceContainerHighest,
     ),
 
-    // --- Buttons ---
+    // --- Buttons (matched to the marketing site's .btn variants) ---
+    // Primary = site .btn-primary: a *tinted* fill (dim green bg + bright green
+    // text + faint accent border), not M3's solid fill. Hover inverts to a
+    // bright fill with near-black text.
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(shape: buttonShape),
+      style:
+          FilledButton.styleFrom(
+            shape: buttonShape,
+            padding: buttonPadding,
+            textStyle: buttonTextStyle,
+            side: BorderSide(
+              color: AppTokens.colorBrandPrimary.withValues(alpha: 0.30),
+              width: AppTokens.strokeThin,
+            ),
+          ).copyWith(
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.hovered)
+                  ? AppTokens.colorAccentText
+                  : AppTokens.colorAccentDim,
+            ),
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.hovered)
+                  ? AppTokens.colorOnAccent
+                  : AppTokens.colorAccentText,
+            ),
+          ),
     ),
+    // Ghost = site .btn-ghost: transparent, neutral border at rest, accent
+    // border + text on hover.
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: ButtonStyle(
-        side: WidgetStateProperty.resolveWith((states) {
-          final color = states.contains(WidgetState.disabled)
-              ? borderColor // disabled → the shared muted border
-              : scheme.primary; // primary otherwise
-          return BorderSide(color: color, width: AppTokens.strokeThick);
-        }),
-        shape: WidgetStatePropertyAll(buttonShape),
+      style:
+          OutlinedButton.styleFrom(
+            shape: buttonShape,
+            padding: buttonPadding,
+            textStyle: buttonTextStyle,
+          ).copyWith(
+            side: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return const BorderSide(
+                  color: borderColor,
+                  width: AppTokens.strokeThin,
+                );
+              }
+              final hovered =
+                  states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.focused);
+              return BorderSide(
+                color: hovered ? scheme.primary : borderColor,
+                width: AppTokens.strokeThin,
+              );
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.hovered)
+                  ? AppTokens.colorAccentText
+                  : scheme.onSurface,
+            ),
+          ),
+    ),
+    // Text buttons share the button typography; accent-coloured like a link.
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        shape: buttonShape,
+        padding: buttonPadding,
+        textStyle: buttonTextStyle,
+        foregroundColor: AppTokens.colorAccentText,
       ),
     ),
 
-    // ── Dialogs ── same corner radius as buttons/inputs (radiusSm), not M3's
-    // large default. Covers the entry editor and confirm dialogs alike.
-    dialogTheme: DialogThemeData(shape: buttonShape),
+    // ── Switches ── ON state mirrors the primary button's tint: dim-green
+    // track + bright-green thumb + faint accent outline (vs M3's solid bright
+    // fill). OFF stays neutral.
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) return borderColor;
+        if (states.contains(WidgetState.selected)) {
+          return AppTokens.colorAccentText;
+        }
+        return scheme.onSurfaceVariant;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return scheme.surfaceContainerHighest;
+        }
+        if (states.contains(WidgetState.selected)) {
+          return AppTokens.colorAccentDim;
+        }
+        return scheme.surface;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return AppTokens.colorBrandPrimary.withValues(alpha: 0.30);
+        }
+        return borderColor;
+      }),
+    ),
+
+    // ── Dialogs ── 8px corner (radiusSm), not M3's large default. Covers the
+    // entry editor and confirm dialogs alike.
+    dialogTheme: DialogThemeData(
+      shape: panelShape,
+      // Modal titles: Raleway Medium Italic (like other headings) in the primary
+      // colour. M3 would otherwise fall back to headlineSmall at onSurface.
+      titleTextStyle: TextStyle(
+        fontFamily: AppTokens.fontFamilyHeading,
+        fontStyle: FontStyle.italic,
+        fontWeight: FontWeight.w500,
+        fontSize: 24, // M3 headlineSmall size
+        color: scheme.primary,
+      ),
+    ),
 
     // ── Floating action button ──
     floatingActionButtonTheme: FloatingActionButtonThemeData(

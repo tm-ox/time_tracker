@@ -20,16 +20,21 @@ abstract class AppTokens {
   // ── 3. Borders & Shapes ──
   static const double radiusSm = 8.0;
   static const double radiusLg = 12.0;
+  // Buttons match the marketing site's .btn (tokens.css --radius-md = 7px);
+  // inputs/dialogs stay on radiusSm. Unify here if the two ever converge.
+  static const double radiusButton = 7.0;
 
   static const double strokeThin = 1.0;
   static const double strokeThick = 1.5;
 
   // ── 4. Typography ──
   static const String fontFamily = 'Mona';
+  static const String fontFamilyHeading = 'Raleway'; // display headings, italic
   static const double fontHeightDefault = 1.4;
   static const double fontSizeXs = 13.0;
   static const double fontSizeSm = 14.0;
   static const double fontSizeMd = 18.0;
+  static const double fontSizeButton = 15.5; // site --text-base-plus
 
   // ── 5. Color Palette ──
   // Seed drives the M3 surface tones; keep it as the brand primary so the
@@ -39,6 +44,12 @@ abstract class AppTokens {
   static const Color colorBrandOnPrimary = Colors.black;
   static const Color colorBrandSecondary = Color(0xFF2E6C0F);
   static const Color colorBrandOnSecondary = Colors.white;
+  // Accent scale for the tinted "primary" button — matched to the marketing
+  // site's dark-theme button tokens (tokens.css). Dim fill + bright text at
+  // rest; on hover the fill becomes accentText and text becomes onAccent.
+  static const Color colorAccentDim = Color(0xFF1F480A); // btn rest bg
+  static const Color colorAccentText = Color(0xFF7CE838); // btn rest text
+  static const Color colorOnAccent = Color(0xFF0B1004); // text on a bright fill
   // Structural borders app-wide: dividers, app-bar hairline, input rest state,
   // side-panel section/vertical dividers. The one knob — brighten/darken here.
   static const Color colorBorder = Color(0xFF4A5142);

@@ -310,15 +310,19 @@ Widget editorHeader({
   final titleWidget = Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Text(title, style: theme.textTheme.titleLarge),
+      // Label ("Template:"/"Profile:") — colon included — keeps the Raleway
+      // italic titleLarge; only the entity name drops back to Mona.
+      Text(hasName ? '$title:' : title, style: theme.textTheme.titleLarge),
       if (hasName)
         Flexible(
           child: Text(
-            ' : ${name.trim()}',
+            ' ${name.trim()}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.primary,
+              fontFamily: AppTokens.fontFamily,
+              fontStyle: FontStyle.normal,
+              color: theme.colorScheme.onSurface,
             ),
           ),
         ),

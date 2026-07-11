@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/logo/
     - assets/fonts/
+    - assets/icons/
 
   # Mona Sans is a variable font. Flutter maps the theme's `fontWeight` onto its
   # `wght` axis (200–900), so all app weights resolve from the single file.
@@ -85,3 +86,11 @@ flutter:
     - family: Mona
       fonts:
         - asset: assets/fonts/MonaSans-VariableFont_wdth,wght.ttf
+    # Raleway (variable) — display headings, matched to the marketing site's
+    # italic headings. fontWeight maps onto the wght axis; the italic file is
+    # selected by fontStyle: italic (so w500 + italic = Medium Italic).
+    - family: Raleway
+      fonts:
+        - asset: assets/fonts/Raleway-VariableFont_wght.ttf
+        - asset: assets/fonts/Raleway-Italic-VariableFont_wght.ttf
+          style: italic
