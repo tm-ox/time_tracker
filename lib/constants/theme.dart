@@ -15,7 +15,22 @@ ThemeData buildAppTheme(Brightness brightness) {
   // outlines (outlined buttons, focused inputs) stay primary — see below.
   const borderColor = AppTokens.colorBorder;
 
+  // Buttons match the marketing site's .btn: 7px radius, 16×8 padding, Mona
+  // 600 @ 15.5. Inputs/dialogs keep radiusSm (8px) via their own shapes below.
   final buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(AppTokens.radiusButton),
+  );
+  const buttonPadding = EdgeInsets.symmetric(
+    horizontal: AppTokens.spaceMd, // 16
+    vertical: AppTokens.spaceXs, // 8
+  );
+  const buttonTextStyle = TextStyle(
+    fontFamily: AppTokens.fontFamily,
+    fontSize: AppTokens.fontSizeButton,
+    fontWeight: FontWeight.w600,
+  );
+  // Dialogs/inputs stay on the 8px corner — decoupled from the button radius.
+  final panelShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(AppTokens.radiusSm),
   );
 
@@ -107,25 +122,77 @@ ThemeData buildAppTheme(Brightness brightness) {
       selectedTileColor: scheme.surfaceContainerHighest,
     ),
 
-    // --- Buttons ---
+    // --- Buttons (matched to the marketing site's .btn variants) ---
+    // Primary = site .btn-primary: a *tinted* fill (dim green bg + bright green
+    // text + faint accent border), not M3's solid fill. Hover inverts to a
+    // bright fill with near-black text.
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(shape: buttonShape),
+      style:
+          FilledButton.styleFrom(
+            shape: buttonShape,
+            padding: buttonPadding,
+            textStyle: buttonTextStyle,
+            side: BorderSide(
+              color: AppTokens.colorBrandPrimary.withValues(alpha: 0.30),
+              width: AppTokens.strokeThin,
+            ),
+          ).copyWith(
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.hovered)
+                  ? AppTokens.colorAccentText
+                  : AppTokens.colorAccentDim,
+            ),
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.hovered)
+                  ? AppTokens.colorOnAccent
+                  : AppTokens.colorAccentText,
+            ),
+          ),
     ),
+    // Ghost = site .btn-ghost: transparent, neutral border at rest, accent
+    // border + text on hover.
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: ButtonStyle(
-        side: WidgetStateProperty.resolveWith((states) {
-          final color = states.contains(WidgetState.disabled)
-              ? borderColor // disabled → the shared muted border
-              : scheme.primary; // primary otherwise
-          return BorderSide(color: color, width: AppTokens.strokeThick);
-        }),
-        shape: WidgetStatePropertyAll(buttonShape),
+      style:
+          OutlinedButton.styleFrom(
+            shape: buttonShape,
+            padding: buttonPadding,
+            textStyle: buttonTextStyle,
+          ).copyWith(
+            side: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return const BorderSide(
+                  color: borderColor,
+                  width: AppTokens.strokeThin,
+                );
+              }
+              final hovered =
+                  states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.focused);
+              return BorderSide(
+                color: hovered ? scheme.primary : borderColor,
+                width: AppTokens.strokeThin,
+              );
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.hovered)
+                  ? AppTokens.colorAccentText
+                  : scheme.onSurface,
+            ),
+          ),
+    ),
+    // Text buttons share the button typography; accent-coloured like a link.
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        shape: buttonShape,
+        padding: buttonPadding,
+        textStyle: buttonTextStyle,
+        foregroundColor: AppTokens.colorAccentText,
       ),
     ),
 
-    // ── Dialogs ── same corner radius as buttons/inputs (radiusSm), not M3's
-    // large default. Covers the entry editor and confirm dialogs alike.
-    dialogTheme: DialogThemeData(shape: buttonShape),
+    // ── Dialogs ── 8px corner (radiusSm), not M3's large default. Covers the
+    // entry editor and confirm dialogs alike.
+    dialogTheme: DialogThemeData(shape: panelShape),
 
     // ── Floating action button ──
     floatingActionButtonTheme: FloatingActionButtonThemeData(
