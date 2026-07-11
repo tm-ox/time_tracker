@@ -41,7 +41,7 @@ class _ProjectFormState extends State<ProjectForm> {
   late int? _clientId =
       widget.initial?.clientId ?? widget.initialClientId; // preselect
   late final _rate = TextEditingController(
-    text: widget.initial?.rate?.toString() ?? '',
+    text: rateText(widget.initial?.rate),
   );
   String? _rateError;
 

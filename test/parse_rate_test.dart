@@ -31,4 +31,16 @@ void main() {
       expect(r.error, isNotNull);
     });
   });
+
+  group('rateText', () {
+    test('null is empty', () => expect(rateText(null), ''));
+    test('whole rate has no trailing decimal', () {
+      expect(rateText(100), '100');
+      expect(rateText(100.0), '100');
+    });
+    test('fractional rate keeps its decimals', () {
+      expect(rateText(95.5), '95.5');
+      expect(rateText(95.25), '95.25');
+    });
+  });
 }

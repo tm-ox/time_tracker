@@ -30,7 +30,7 @@ class TaskForm extends StatefulWidget {
 class _TaskFormState extends State<TaskForm> {
   late final _title = TextEditingController(text: widget.task?.title ?? '');
   late final _rate = TextEditingController(
-    text: widget.task?.rate?.toString() ?? '',
+    text: rateText(widget.task?.rate),
   );
   String? _titleError;
   String? _rateError;

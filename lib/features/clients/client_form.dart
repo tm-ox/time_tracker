@@ -35,7 +35,7 @@ class _ClientFormState extends State<ClientForm> {
   );
   late final _abn = TextEditingController(text: widget.initial?.abn ?? '');
   late final _rate = TextEditingController(
-    text: widget.initial?.defaultRate.toString() ?? '',
+    text: rateText(widget.initial?.defaultRate),
   );
   String? _rateError;
 
