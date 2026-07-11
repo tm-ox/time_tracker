@@ -10,3 +10,11 @@
   if (n == null) return (value: null, error: 'Enter a number, or leave blank');
   return (value: n, error: null);
 }
+
+/// Format a stored rate for an editable field: a whole-number rate shows plain
+/// ("100", not "100.0" — the common case), a fractional rate keeps its decimals
+/// ("95.5"). Null (no rate) is the empty string.
+String rateText(double? rate) {
+  if (rate == null) return '';
+  return rate == rate.roundToDouble() ? rate.toStringAsFixed(0) : rate.toString();
+}
