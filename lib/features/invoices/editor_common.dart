@@ -310,7 +310,15 @@ Widget editorHeader({
   final titleWidget = Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Text(title, style: theme.textTheme.titleLarge),
+      // Editor section header — kept in Mona (not the Raleway titleLarge),
+      // reads as a label rather than a screen/dialog title.
+      Text(
+        title,
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontFamily: AppTokens.fontFamily,
+          fontStyle: FontStyle.normal,
+        ),
+      ),
       if (hasName)
         Flexible(
           child: Text(
@@ -318,6 +326,8 @@ Widget editorHeader({
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleLarge?.copyWith(
+              fontFamily: AppTokens.fontFamily,
+              fontStyle: FontStyle.normal,
               color: theme.colorScheme.primary,
             ),
           ),
