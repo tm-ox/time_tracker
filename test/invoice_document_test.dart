@@ -342,7 +342,7 @@ void main() {
       expect(doc.paymentFields, [
         ('NAME', 'tmox Pty Ltd'),
         ('BSB', '062-000'),
-        ('ACCOUNT', '12345678'),
+        ('ACCOUNT NO.', '12345678'),
         ('SWIFT/BIC', 'CTBAAU2S'),
         ('ABN', '12 345 678 901'), // sender tax ID, region-labelled
         ('BANK', 'Commonwealth Bank'),
@@ -360,7 +360,7 @@ void main() {
       );
       expect(doc.paymentFields, [
         ('NAME', 'tmox Pty Ltd'),
-        ('ACCOUNT', '12345678'),
+        ('ACCOUNT NO.', '12345678'),
       ]);
     });
 
@@ -402,7 +402,7 @@ void main() {
       expect(doc.paymentFields, [
         ('NAME', 'Acme LLC'),
         ('ROUTING (ABA)', '021000021'),
-        ('ACCOUNT', '000123456789'),
+        ('ACCOUNT NO.', '000123456789'),
         ('SWIFT/BIC', 'CMFGUS33'),
       ]);
       expect(doc.region.paymentNote, contains('ACH'));
@@ -423,7 +423,7 @@ void main() {
       expect(doc.paymentFields, [
         ('NAME', 'Ltd Co'),
         ('SORT CODE', '20-30-40'),
-        ('ACCOUNT', '12345678'),
+        ('ACCOUNT NO.', '12345678'),
         ('IBAN', 'GB33BUKB20201555555555'),
         ('SWIFT/BIC', 'BUKBGB22'),
       ]);
