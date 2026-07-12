@@ -350,8 +350,9 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     );
     if (!confirmed || !mounted) return;
 
+    final SnapshotRepair repair;
     try {
-      await restoreBackup(widget.db, backup);
+      repair = await restoreBackup(widget.db, backup);
     } on BackupIncompatibleException catch (e) {
       if (!mounted) return;
       await showInfoDialog(
@@ -373,7 +374,11 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
     // tracker — the build re-defaults selection from the refreshed stream.
     setState(() => _selectedProjectId = null);
     _showTracker();
-    messenger.showSnackBar(const SnackBar(content: Text('Data imported.')));
+    final skipped = repair.isClean
+        ? ''
+        : ' Skipped ${repair.total} orphaned row(s) from earlier deleted '
+              'projects.';
+    messenger.showSnackBar(SnackBar(content: Text('Data imported.$skipped')));
   }
 
   // App Settings home.
