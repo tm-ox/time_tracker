@@ -37,6 +37,7 @@ class TimerController extends ChangeNotifier {
   int get elapsed => _store.session.elapsed;
   bool get isRunning => _store.session.isRunning;
   bool get hasSession => _store.session.hasSession;
+  String? get boundProjectId => _store.session.boundProjectId;
   String? get boundTaskId => _store.session.boundTaskId;
 
   /// Recover a persisted timer on startup and resume its ticker if it was
@@ -152,6 +153,9 @@ class _TimerViewState extends State<TimerView> {
   final Set<String> _expanded = {}; // expanded task ids
   List<TaskListRow> _rows = const [];
   int _cursor = 0;
+  // One-shot: on first load with a recovered/running session, move the cursor to
+  // the active task and scroll it into view (once its row is present).
+  bool _revealedActiveTask = false;
   final _cursorKey = GlobalKey(); // rides the focused row for ensureVisible
   final _scroll = ScrollController();
   static const _estRowHeight = 56.0; // rough row height for off-screen jumps
@@ -499,6 +503,21 @@ class _TimerViewState extends State<TimerView> {
     );
     if (_cursor >= _rows.length) {
       _cursor = _rows.isEmpty ? 0 : _rows.length - 1;
+    }
+
+    // Reveal the in-progress task once its row is available (after recovery has
+    // rebuilt the session and this project's tasks have loaded). Post-frame so
+    // we don't setState mid-build; guarded to fire only once.
+    if (!_revealedActiveTask && _c.hasSession) {
+      final i = _rows.indexWhere(
+        (r) => r is TaskHeaderRow && r.taskId == _c.boundTaskId,
+      );
+      if (i >= 0) {
+        _revealedActiveTask = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _jumpTo(i);
+        });
+      }
     }
 
     return ListenableBuilder(

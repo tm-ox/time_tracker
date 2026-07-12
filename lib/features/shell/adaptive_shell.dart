@@ -396,8 +396,15 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
   void initState() {
     super.initState();
     // DB-backed timer: build with the db and recover any persisted running
-    // session so it survives a restart (PRD #189, Phase 3).
-    _timer = TimerController(widget.db)..recover();
+    // session so it survives a restart (PRD #189, Phase 3). If a session comes
+    // back bound to a project, select it so the tracker opens on the work in
+    // progress (the tracker then reveals the active task itself).
+    _timer = TimerController(widget.db);
+    _timer.recover().then((_) {
+      if (!mounted) return;
+      final pid = _timer.boundProjectId;
+      if (pid != null) setState(() => _selectedProjectId = pid);
+    });
     // Start with the gate-resolved selection so the tracker paints content on
     // its first frame; fall back to seeding a default only if none was passed.
     _selectedProjectId = widget.initialSelectedProjectId;
