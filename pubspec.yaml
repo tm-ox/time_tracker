@@ -49,6 +49,7 @@ dependencies:
   animations: ^2.2.0
   material_symbols_icons: ^4.2951.0
   web: ^1.1.0 # browser Blob download for the web-demo PDF export
+  uuid: ^4.5.0 # UUIDv7 primary keys for sync (PRD #189, Phase 2c)
 dev_dependencies:
   flutter_test:
     sdk: flutter
