@@ -135,11 +135,94 @@ Future<Uint8List> exportBackupBytes(
   );
 }
 
+/// What [sanitizeSnapshot] dropped to make a backup referentially consistent.
+/// Real DBs can carry orphans SQLite never caught (FK isn't enforced
+/// retroactively, so a historical delete/migration with FK off leaves children
+/// pointing at a gone parent); a faithful export dumps them, and a restore must
+/// not choke on them. [total] > 0 means the imported data differs from the file.
+class SnapshotRepair {
+  final int droppedProjects; // client missing
+  final int droppedTasks; // project missing
+  final int droppedEntries; // project or task missing
+  final int clearedTemplateRefs; // profile.templateId pointed at a gone template
+  const SnapshotRepair({
+    this.droppedProjects = 0,
+    this.droppedTasks = 0,
+    this.droppedEntries = 0,
+    this.clearedTemplateRefs = 0,
+  });
+  int get total =>
+      droppedProjects + droppedTasks + droppedEntries + clearedTemplateRefs;
+  bool get isClean => total == 0;
+}
+
+/// Make a snapshot referentially consistent: drop rows whose FK parent is
+/// absent (cascading — dropping a project drops its tasks and entries), and null
+/// a profile's dangling `templateId` (nullable → resolves to the default).
+/// Pure; returns the cleaned snapshot and a [SnapshotRepair] of what changed.
+({BackupSnapshot snapshot, SnapshotRepair repair}) sanitizeSnapshot(
+  BackupSnapshot s,
+) {
+  final clientIds = {for (final c in s.clients) c.id};
+  final projects = [
+    for (final p in s.projects)
+      if (clientIds.contains(p.clientId)) p,
+  ];
+  final projectIds = {for (final p in projects) p.id};
+  final tasks = [
+    for (final t in s.tasks)
+      if (projectIds.contains(t.projectId)) t,
+  ];
+  final taskIds = {for (final t in tasks) t.id};
+  final entries = [
+    for (final e in s.timeEntries)
+      if (projectIds.contains(e.projectId) &&
+          (e.taskId == null || taskIds.contains(e.taskId)))
+        e,
+  ];
+  final templateIds = {for (final t in s.templates) t.id};
+  var clearedTemplateRefs = 0;
+  final profiles = [
+    for (final p in s.profiles)
+      if (p.templateId == null || templateIds.contains(p.templateId))
+        p
+      else
+        () {
+          clearedTemplateRefs++;
+          return p.copyWith(templateId: const Value(null));
+        }(),
+  ];
+
+  final clean = BackupSnapshot(
+    clients: s.clients,
+    projects: projects,
+    tasks: tasks,
+    timeEntries: entries,
+    templates: s.templates,
+    profiles: profiles,
+    settings: s.settings,
+  );
+  return (
+    snapshot: clean,
+    repair: SnapshotRepair(
+      droppedProjects: s.projects.length - projects.length,
+      droppedTasks: s.tasks.length - tasks.length,
+      droppedEntries: s.timeEntries.length - entries.length,
+      clearedTemplateRefs: clearedTemplateRefs,
+    ),
+  );
+}
+
 /// Restore a decoded [backup] into [db], **replacing all existing data**
-/// (PRD #189, Phase 1b, #191). Runs in one transaction: wipe every table
-/// children-first, then re-insert the snapshot parents-first (FK enforcement
-/// stays on), preserving the stored row ids. All-or-nothing — a failure rolls
-/// back and leaves the current data intact.
+/// (PRD #189, Phase 1b, #191). Runs in one transaction: wipe every table, then
+/// re-insert the snapshot preserving row ids. All-or-nothing — a failure rolls
+/// back and leaves the current data intact. Returns a [SnapshotRepair] so the
+/// caller can tell the user if any orphaned rows were skipped.
+///
+/// The snapshot is [sanitizeSnapshot]d first, so a backup with dangling FKs
+/// (orphans from historical data) restores what's valid instead of failing.
+/// FK checks are deferred to commit as a belt-and-suspenders against insert
+/// order (the pragma auto-resets at end of transaction).
 ///
 /// Forward-compatibility seam: a backup from a *newer* schema is rejected
 /// ([BackupIncompatibleException]); a same-or-older backup is imported. Once the
@@ -147,13 +230,13 @@ Future<Uint8List> exportBackupBytes(
 /// int-keyed export is slotted in ahead of this insert (it needs the new schema
 /// to target, so it belongs with that change, not here). Today the only schema
 /// is v10, so a v10 export restores directly.
-Future<void> restoreBackup(AppDatabase db, Backup backup) async {
+Future<SnapshotRepair> restoreBackup(AppDatabase db, Backup backup) async {
   if (backup.schemaVersion > db.schemaVersion) {
     throw BackupIncompatibleException(backup.schemaVersion, db.schemaVersion);
   }
-  final s = backup.snapshot;
+  final (snapshot: s, :repair) = sanitizeSnapshot(backup.snapshot);
   await db.transaction(() async {
-    // Children before parents (FK pragma is on).
+    await db.customStatement('PRAGMA defer_foreign_keys = ON');
     await db.delete(db.timeEntries).go();
     await db.delete(db.tasks).go();
     await db.delete(db.projects).go();
@@ -161,8 +244,8 @@ Future<void> restoreBackup(AppDatabase db, Backup backup) async {
     await db.delete(db.templates).go();
     await db.delete(db.clients).go();
     await db.delete(db.appSettings).go();
-    // Parents before children, ids preserved (nullToAbsent: false keeps
-    // explicit nulls so the restore is exact).
+    // ids preserved (nullToAbsent: false keeps explicit nulls so the restore is
+    // exact).
     await db.batch((b) {
       b.insertAll(db.clients, [for (final r in s.clients) r.toCompanion(false)]);
       b.insertAll(db.templates, [
@@ -183,6 +266,7 @@ Future<void> restoreBackup(AppDatabase db, Backup backup) async {
       ]);
     });
   });
+  return repair;
 }
 
 /// Serialise a snapshot to pretty-printed JSON bytes with the version envelope.

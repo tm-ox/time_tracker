@@ -264,6 +264,57 @@ void main() {
       expect(clients.map((c) => c.name), ['NewCo']);
     });
 
+    test('restores a multi-project snapshot regardless of insert order', () async {
+      // Regression: drift's batch groups statements by SQL and can insert a
+      // child (task/entry) before its parent (project), tripping FK 787 on real
+      // data. restoreBackup defers FK checks to commit, so this must succeed.
+      final source = AppDatabase(NativeDatabase.memory());
+      addTearDown(source.close);
+      await source.ensureInvoiceDefaults();
+      final client = await source.addClient(name: 'MultiCo', defaultRate: 100);
+      final projectIds = <int>[];
+      for (var i = 1; i <= 6; i++) {
+        projectIds.add(
+          await source.addProject(
+            clientId: client,
+            code: 'P$i',
+            title: 'Proj $i',
+          ),
+        );
+      }
+      // Task + entry under a non-first project (mirrors the field failure: a
+      // task on project id 3).
+      final midProject = projectIds[2];
+      final taskId = await source.addTask(
+        projectId: midProject,
+        title: 'Mid task',
+      );
+      await source.addEntry(
+        projectId: midProject,
+        taskId: taskId,
+        startedAt: DateTime.utc(2026, 6, 2, 9),
+        endedAt: DateTime.utc(2026, 6, 2, 10),
+        seconds: 3600,
+      );
+      final wanted = await readBackupSnapshot(source);
+      final backup = decodeBackup(
+        encodeBackup(
+          wanted,
+          schemaVersion: source.schemaVersion,
+          exportedAt: DateTime.utc(2026, 7, 12),
+        ),
+      );
+
+      // Target already has (different) data to be replaced.
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final old = await db.addClient(name: 'OldCo', defaultRate: 1);
+      await db.addProject(clientId: old, code: 'OLD', title: 'Legacy');
+
+      await restoreBackup(db, backup);
+      expect(await readBackupSnapshot(db), wanted);
+    });
+
     test('rejects a backup from a newer schema', () async {
       final db = AppDatabase(NativeDatabase.memory());
       addTearDown(db.close);
@@ -287,31 +338,138 @@ void main() {
       );
     });
 
+    test('repairs orphaned rows (dangling FKs) instead of failing', () async {
+      // Reproduces the field failure: a real export where a project was deleted
+      // long ago (FK off) leaving orphaned tasks + entries pointing at it. The
+      // import must drop the orphans and restore what's valid, reporting counts.
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      final backup = Backup(
+        formatVersion: backupFormatVersion,
+        schemaVersion: db.schemaVersion,
+        exportedAt: DateTime.utc(2026, 7, 12),
+        snapshot: BackupSnapshot(
+          clients: [
+            Client(
+              id: 1,
+              name: 'Co',
+              contactName: null,
+              email: null,
+              phone: null,
+              address: null,
+              abn: null,
+              defaultRate: 100,
+              archivedAt: null,
+            ),
+          ],
+          projects: [
+            Project(
+              id: 1,
+              clientId: 1,
+              code: 'P1',
+              title: 'Real',
+              rate: null,
+              status: 'active',
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ],
+          tasks: [
+            // valid (project 1)
+            Task(
+              id: 1,
+              projectId: 1,
+              title: 'Keep',
+              rate: null,
+              status: 'active',
+              createdAt: DateTime(2026, 1, 1),
+            ),
+            // orphan (project 3 gone)
+            Task(
+              id: 5,
+              projectId: 3,
+              title: 'Orphan',
+              rate: null,
+              status: 'active',
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ],
+          timeEntries: [
+            // valid
+            TimeEntry(
+              id: 1,
+              projectId: 1,
+              taskId: 1,
+              description: null,
+              startedAt: DateTime(2026, 1, 1, 9),
+              endedAt: DateTime(2026, 1, 1, 10),
+              seconds: 3600,
+            ),
+            // orphan (project 3 gone)
+            TimeEntry(
+              id: 8,
+              projectId: 3,
+              taskId: 5,
+              description: null,
+              startedAt: DateTime(2026, 1, 1, 9),
+              endedAt: DateTime(2026, 1, 1, 10),
+              seconds: 3600,
+            ),
+          ],
+          templates: const [],
+          profiles: const [],
+          settings: const [],
+        ),
+      );
+
+      final repair = await restoreBackup(db, backup);
+
+      expect(repair.droppedTasks, 1);
+      expect(repair.droppedEntries, 1);
+      expect(repair.isClean, isFalse);
+      // The valid rows landed; the orphans did not.
+      expect(await db.select(db.tasks).get(), hasLength(1));
+      expect((await db.select(db.tasks).get()).single.title, 'Keep');
+      expect(await db.select(db.timeEntries).get(), hasLength(1));
+    });
+
     test('a failing restore rolls back, leaving current data intact', () async {
       final db = AppDatabase(NativeDatabase.memory());
       addTearDown(db.close);
       final keep = await db.addClient(name: 'KeepCo', defaultRate: 5);
       await db.addProject(clientId: keep, code: 'K-1', title: 'Keep');
 
-      // A backup with a dangling FK (project → non-existent client) makes the
-      // parents-first insert fail; the transaction must roll back.
+      // Two projects sharing a code violates the UNIQUE(code) constraint —
+      // something sanitize can't fix — so the batch insert fails and the whole
+      // transaction must roll back.
+      Project proj(int id, String code) => Project(
+        id: id,
+        clientId: 1,
+        code: code,
+        title: 'P$id',
+        rate: null,
+        status: 'active',
+        createdAt: DateTime(2026, 1, 1),
+      );
       final broken = Backup(
         formatVersion: backupFormatVersion,
         schemaVersion: db.schemaVersion,
         exportedAt: DateTime.utc(2026, 7, 12),
         snapshot: BackupSnapshot(
-          clients: const [],
-          projects: [
-            Project(
+          clients: [
+            Client(
               id: 1,
-              clientId: 999, // no such client
-              code: 'X',
-              title: 'Dangling',
-              rate: null,
-              status: 'active',
-              createdAt: DateTime(2026, 1, 1),
+              name: 'NewCo',
+              contactName: null,
+              email: null,
+              phone: null,
+              address: null,
+              abn: null,
+              defaultRate: 1,
+              archivedAt: null,
             ),
           ],
+          projects: [proj(1, 'DUP'), proj(2, 'DUP')], // clash
           tasks: const [],
           timeEntries: const [],
           templates: const [],
