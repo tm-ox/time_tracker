@@ -689,16 +689,19 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
           required VoidCallback onTap,
         }) {
           final fg = active ? scheme.primary : scheme.onSurfaceVariant;
+          // Match the centre button's exact height (iconMd + spaceSm top/bottom
+          // padding). All three are centred in the bar, so pinning icon→top and
+          // label→bottom over this height lines the tab up with the button.
+          const tabHeight = AppTokens.iconMd + AppTokens.spaceSm * 2;
           return InkWell(
             onTap: onTap,
             child: SizedBox(
               width: 76,
+              height: tabHeight,
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   icon(fg),
-                  const SizedBox(height: AppTokens.space4xs),
                   Text(
                     label,
                     maxLines: 1,
@@ -718,24 +721,23 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
           // Same logo-bar style as the wide layout, but full-width with no
           // rounding; a gap above matches the search field's gap in the drawer.
           appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(AppTokens.spaceLg + 44),
+            preferredSize: const Size.fromHeight(44),
+            // Flush to the top: only the SafeArea inset (status bar/notch) sits
+            // above the logo bar — no extra margin, to reclaim vertical space.
             child: SafeArea(
               bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppTokens.spaceLg),
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 36),
-                  color: scheme.surfaceContainerHighest,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTokens.spaceMd,
-                    vertical: AppTokens.spaceXs,
-                  ),
-                  // Logo centred now the hamburger is gone (nav is the bottom bar).
-                  child: Center(
-                    child: SvgPicture.asset(
-                      'assets/logo/timedart_logo_horizontal.svg',
-                      height: 18,
-                    ),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 36),
+                color: scheme.surfaceContainerHighest,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTokens.spaceMd,
+                  vertical: AppTokens.spaceXs,
+                ),
+                // Logo centred now the hamburger is gone (nav is the bottom bar).
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/logo/timedart_logo_horizontal.svg',
+                    height: 18,
                   ),
                 ),
               ),
@@ -763,10 +765,17 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                         mobileTab(
                           active: !_inSettings,
                           label: 'Tracker',
-                          icon: (c) => SvgPicture.asset(
-                            'assets/logo/timedart_symbol.svg',
-                            height: AppTokens.iconMd,
-                            colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+                          // Nudged down by half the icon-size gap (iconLg−iconMd)
+                          // so its centre lines up with the larger Settings gear.
+                          icon: (c) => Padding(
+                            padding: const EdgeInsets.only(
+                              top: AppTokens.space4xs,
+                            ),
+                            child: SvgPicture.asset(
+                              'assets/logo/timedart_symbol.svg',
+                              height: AppTokens.iconMd,
+                              colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+                            ),
                           ),
                           onTap: _showTracker,
                         ),
@@ -808,9 +817,12 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                         mobileTab(
                           active: _inSettings,
                           label: 'Settings',
+                          // iconLg (not iconMd) so the Material gear's built-in
+                          // glyph padding reads the same visual size as the
+                          // edge-to-edge Tracker SVG at iconMd.
                           icon: (c) => Icon(
                             Icons.settings,
-                            size: AppTokens.iconMd,
+                            size: AppTokens.iconLg,
                             color: c,
                           ),
                           onTap: _openSettings,
