@@ -19,6 +19,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
     required this.rowTitle,
     required this.sectionHeader,
     required this.rowTitleSmall,
+    required this.entryTitle,
     required this.rowMeta,
   });
 
@@ -34,6 +35,9 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
   /// A row's own title at high density (project row, template/profile entity row)
   /// — same weight as [rowMeta] but the row's primary colour, not muted.
   final TextStyle rowTitleSmall;
+
+  /// Entry row title text at high density.
+  final TextStyle entryTitle;
 
   /// Secondary/meta text at high density (subtitles, entry rows) — muted.
   final TextStyle rowMeta;
@@ -66,6 +70,12 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
       letterSpacing: 1,
       color: scheme.onSurface,
     ),
+    entryTitle: TextStyle(
+      fontFamily: AppTokens.fontFamily,
+      fontSize: AppTokens.fontSizeSm,
+      fontWeight: FontWeight.w400,
+      color: scheme.onSurfaceVariant,
+    ),
     rowMeta: TextStyle(
       fontFamily: AppTokens.fontFamily,
       fontSize: AppTokens.fontSizeXs,
@@ -80,12 +90,14 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
     TextStyle? rowTitle,
     TextStyle? sectionHeader,
     TextStyle? rowTitleSmall,
+    TextStyle? entryTitle,
     TextStyle? rowMeta,
   }) => AppTextStyles(
     panelHeading: panelHeading ?? this.panelHeading,
     rowTitle: rowTitle ?? this.rowTitle,
     sectionHeader: sectionHeader ?? this.sectionHeader,
     rowTitleSmall: rowTitleSmall ?? this.rowTitleSmall,
+    entryTitle: entryTitle ?? this.entryTitle,
     rowMeta: rowMeta ?? this.rowMeta,
   );
 

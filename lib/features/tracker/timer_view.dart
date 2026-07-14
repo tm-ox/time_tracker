@@ -8,6 +8,7 @@ import 'package:timedart/features/tracker/timer_session.dart';
 import 'package:timedart/features/tracker/timer_store.dart';
 import 'package:timedart/constants/format.dart';
 import 'package:timedart/constants/tokens.dart';
+import 'package:timedart/constants/layout.dart';
 import 'package:timedart/features/tracker/task_rows.dart';
 import 'package:timedart/features/tracker/task_list.dart';
 import 'package:timedart/features/tracker/task_editor.dart';
@@ -605,6 +606,14 @@ class _TimerViewState extends State<TimerView> {
   }
 
   Widget _body(BuildContext context, double counterSize) {
+    // Tighten the vertical rhythm on mobile to reclaim space; desktop keeps the
+    // roomier gaps. Tune these narrow values to taste.
+    final narrow = context.isNarrow;
+    final gapCounter = narrow ? AppTokens.spaceXs : AppTokens.spaceSm; // 8 / 12
+    final gapControls = narrow
+        ? AppTokens.spaceSm
+        : AppTokens.spaceLg; // 12 / 20
+    final gapTasks = narrow ? AppTokens.spaceSm : AppTokens.spaceXl; // 12 / 24
     return Column(
       children: [
         Column(
@@ -622,7 +631,7 @@ class _TimerViewState extends State<TimerView> {
                 ),
               ),
             ),
-            const SizedBox(height: AppTokens.spaceSm),
+            SizedBox(height: gapCounter),
             TimerControls(
               running: _c.isRunning,
               hasSession: _c.hasSession,
@@ -634,9 +643,9 @@ class _TimerViewState extends State<TimerView> {
                   : null,
               onFinish: _c.hasSession ? _finish : null,
             ),
-            const SizedBox(height: AppTokens.spaceLg),
+            SizedBox(height: gapControls),
             _armedLabel(context),
-            const SizedBox(height: AppTokens.spaceLg),
+            SizedBox(height: gapControls),
             // Optional note for this session; becomes the entry's description on
             // finish. Esc returns to the row cursor; Enter starts if armed.
             CallbackShortcuts(
@@ -659,7 +668,7 @@ class _TimerViewState extends State<TimerView> {
             ),
           ],
         ),
-        const SizedBox(height: AppTokens.spaceXl),
+        SizedBox(height: gapTasks),
         // 2. Tasks section: header (add task + per-project Invoice action) + list
         if (widget.projectId != null) ...[
           _TasksHeader(
@@ -670,30 +679,34 @@ class _TimerViewState extends State<TimerView> {
           const Divider(),
         ],
         Expanded(
-          child: StreamBuilder<(Project, Client)?>(
-            stream: _projectStream,
-            builder: (context, snap) {
-              final data = snap.data;
-              // Effective project/client rate; a task may override it per-row.
-              final rate = data == null
-                  ? null
-                  : (data.$1.rate ?? data.$2.defaultRate);
-              return TaskList(
-                rows: _rows,
-                rate: rate,
-                selectedTaskId: _activeTaskId,
-                cursor: _cursor,
-                cursorActive: _cursorActive,
-                cursorKey: _cursorKey,
-                scrollController: _scroll,
-                onSelectTask: _selectTask,
-                onToggle: _toggleTask,
-                onAddEntryToTask: (taskId) =>
-                    _openEntryEditor(null, taskId: taskId),
-                onEditTask: _openTaskEditor,
-                onEditEntry: _openEntryEditor,
-              );
-            },
+          // Hard-clip the list to the scroll box so nothing paints over the
+          // Tasks header as it scrolls out.
+          child: ClipRect(
+            child: StreamBuilder<(Project, Client)?>(
+              stream: _projectStream,
+              builder: (context, snap) {
+                final data = snap.data;
+                // Effective project/client rate; a task may override it per-row.
+                final rate = data == null
+                    ? null
+                    : (data.$1.rate ?? data.$2.defaultRate);
+                return TaskList(
+                  rows: _rows,
+                  rate: rate,
+                  selectedTaskId: _activeTaskId,
+                  cursor: _cursor,
+                  cursorActive: _cursorActive,
+                  cursorKey: _cursorKey,
+                  scrollController: _scroll,
+                  onSelectTask: _selectTask,
+                  onToggle: _toggleTask,
+                  onAddEntryToTask: (taskId) =>
+                      _openEntryEditor(null, taskId: taskId),
+                  onEditTask: _openTaskEditor,
+                  onEditEntry: _openEntryEditor,
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -760,6 +773,7 @@ class _TasksHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final narrow = context.isNarrow;
     return StreamBuilder<(Project, Client)?>(
       stream: projectStream,
       builder: (context, snap) {
@@ -782,10 +796,12 @@ class _TasksHeader extends StatelessWidget {
                 onPressed: project == null ? null : () => onInvoice(project),
                 icon: const Icon(Icons.receipt_long, size: AppTokens.iconSm),
                 label: const Text('Invoice'),
-                // Strip padding so the label sits flush to the right edge.
+                // Strip padding so the label sits flush to the right edge; on
+                // narrow floor the height at 48 to match the add-task button's
+                // touch target (width still hugs the label).
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
+                  minimumSize: Size(0, narrow ? AppTokens.minTouchTarget : 0),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),

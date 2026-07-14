@@ -89,7 +89,8 @@ class SettingsPanel extends StatefulWidget {
   State<SettingsPanel> createState() => _SettingsPanelState();
 }
 
-enum _Section { templates, profiles, general }
+// Order here drives the panel's section order: General first, then the lists.
+enum _Section { general, templates, profiles }
 
 String _sectionLabel(_Section s) => switch (s) {
   _Section.templates => 'Templates',
@@ -150,8 +151,9 @@ class _SettingsPanelState extends State<SettingsPanel> {
       .watchTemplates();
   late final Stream<List<InvoiceProfile>> _profiles = widget.db.watchProfiles();
 
-  // Sections start open — a settings surface reads best fully expanded.
-  final Set<_Section> _expanded = {..._Section.values};
+  // Sections start collapsed so the menu isn't overwhelming on open; the user
+  // expands what they need, and that's remembered while they stay in Settings.
+  final Set<_Section> _expanded = <_Section>{};
   FocusNode? _internalCursor;
   FocusNode get _cursorNode =>
       widget.cursorFocusNode ??
@@ -652,6 +654,8 @@ class _ActionTile extends StatelessWidget {
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
+      // Match the entity rows' touch height on narrow (was missing here).
+      minTileHeight: context.isNarrow ? AppTokens.minTouchTarget : null,
       contentPadding: const EdgeInsets.fromLTRB(
         AppTokens.spaceLg,
         AppTokens.space3xs,
