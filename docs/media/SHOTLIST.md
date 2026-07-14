@@ -20,6 +20,7 @@ chrome — the site draws the phone bezel in CSS). Same dark theme / dummy data 
 
 | File | What to capture | Target width |
 | --- | --- | --- |
+| `mobile-welcome.png` | The first-run welcome screen (logo + tagline + Get started). Phone mirror of `welcome.png`. | ~390px |
 | `mobile-tracker.png` | The tracker on phone: client + timer + Start/Finish + task list + bottom nav. Phone mirror of `hero.png`. | ~390px |
 | `mobile-drawer.png` | The clients → projects → tasks drawer/sheet open. | ~390px |
 | `mobile-onboarding.png` | The "How timedart works" onboarding step. | ~390px |
