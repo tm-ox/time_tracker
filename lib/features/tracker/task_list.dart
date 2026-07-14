@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:timedart/constants/format.dart';
 import 'package:timedart/constants/text_styles.dart';
 import 'package:timedart/constants/tokens.dart';
@@ -110,13 +111,83 @@ class TaskList extends StatelessWidget {
       if (effective != null) '@${formatMoney(effective)}/hr',
       if (amount != null) formatMoney(amount),
     ].join(' · ');
-    return ListTile(
+    final narrow = context.isNarrow;
+    final armed = row.taskId == selectedTaskId;
+    final actionBg = armed
+        ? theme
+              .colorScheme
+              .surfaceContainerHighest // == selectedTileColor
+        : theme.colorScheme.surface; // == the unselected row bg
+
+    final duration = Text(
+      Duration(seconds: row.totalSeconds).hms,
+      // rowTitle (not rowMeta) to match this row's title size — this
+      // trailing text previously had no explicit style of its own and
+      // inherited size/weight from the ListTile theme default.
+      style: theme.extension<AppTextStyles>()!.rowTitle.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
+
+    // Wide: Add-entry then edit sit to the LEFT of the fixed-width time so the
+    // time column stays aligned and the action icons line up (like the panel
+    // caps). On narrow those move to the swipe panel; the time joins the meta
+    // line and the swipe-hint chevron rides the title line (see below).
+    final Widget? wideTrailing = narrow
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              appIconButton(
+                icon: Icons.add,
+                iconSize: AppTokens.iconMd,
+                tooltip: 'Add entry (A)',
+                onPressed: () => onAddEntryToTask(row.taskId),
+              ),
+              const SizedBox(width: AppTokens.spaceSm),
+              appIconButton(
+                icon: Icons.edit_note,
+                tooltip: 'Edit task (e)',
+                onPressed: () => onEditTask(row.task),
+              ),
+              // Wider gap before the time so its column aligns with the "Tasks"
+              // header (add button → Invoice uses spaceMd).
+              const SizedBox(width: AppTokens.spaceXl),
+              duration,
+            ],
+          );
+
+    // Narrow swipe-hint chevron — non-interactive, on the title line. The glyph
+    // is centred in a square icon box, so a small horizontal nudge lands it in
+    // the same column as the time on the meta line below (tune this offset).
+    final chevronHint = Transform.translate(
+      offset: const Offset(AppTokens.space4xs, 0),
+      child: Icon(
+        Icons.chevron_left,
+        size: AppTokens.iconSm,
+        color: theme.colorScheme.primary,
+      ),
+    );
+
+    // Narrow time — meta size/colour, sitting in-line on the meta line (so the
+    // swipe-hint chevron above it stays column-aligned).
+    final metaDuration = Text(
+      Duration(seconds: row.totalSeconds).hms,
+      style: theme.extension<AppTextStyles>()!.rowMeta.copyWith(
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
+
+    final tile = ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
       minTileHeight: context.isNarrow ? AppTokens.minTouchTarget : null,
-      selected: row.taskId == selectedTaskId, // armed/tracking → green pill
+      // Armed fill is painted by an in-flow ColoredBox around the tile (below),
+      // not ListTile.selectedTileColor — the latter could paint past the row and
+      // over the header while scrolling. A bounded box can't overflow the row.
       // A hair of horizontal content inset so text/actions aren't flush to the
-      // edge; the selected fill still spans the full tile width.
+      // edge; the fill still spans the full tile width.
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppTokens.space3xs,
       ),
@@ -133,47 +204,86 @@ class TaskList extends StatelessWidget {
               : theme.colorScheme.onSurfaceVariant,
         ),
       ),
-      title: Text(
-        row.task.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.extension<AppTextStyles>()!.rowTitle,
-      ),
-      subtitle: Text(
-        subtitle,
-        style: theme.extension<AppTextStyles>()!.rowMeta,
-      ),
-      // Add-entry then edit sit to the LEFT of the fixed-width time so the time
-      // column stays aligned and the action icons line up (like the panel caps).
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          appIconButton(
-            icon: Icons.add,
-            iconSize: AppTokens.iconMd,
-            tooltip: 'Add entry (A)',
-            onPressed: () => onAddEntryToTask(row.taskId),
-          ),
-          const SizedBox(width: AppTokens.spaceSm),
-          appIconButton(
-            icon: Icons.edit_note,
-            tooltip: 'Edit task (e)',
-            onPressed: () => onEditTask(row.task),
-          ),
-          // Wider gap before the time so its column aligns with the "Tasks"
-          // header (add button → Invoice uses spaceMd).
-          const SizedBox(width: AppTokens.spaceMd),
-          Text(
-            Duration(seconds: row.totalSeconds).hms,
-            // rowTitle (not rowMeta) to match this row's title size — this
-            // trailing text previously had no explicit style of its own and
-            // inherited size/weight from the ListTile theme default.
-            style: theme.extension<AppTextStyles>()!.rowTitle.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontFeatures: const [FontFeature.tabularFigures()],
+      // Narrow puts the swipe-hint chevron on the title line and the small time
+      // in-line on the meta line; wide keeps plain text + the trailing actions.
+      title: narrow
+          ? Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    row.task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.extension<AppTextStyles>()!.rowTitle,
+                  ),
+                ),
+                chevronHint,
+              ],
+            )
+          : Text(
+              row.task.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.extension<AppTextStyles>()!.rowTitle,
             ),
-          ),
-        ],
+      subtitle: narrow
+          ? Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.extension<AppTextStyles>()!.rowMeta,
+                  ),
+                ),
+                const SizedBox(width: AppTokens.space2xs),
+                metaDuration,
+              ],
+            )
+          : Text(subtitle, style: theme.extension<AppTextStyles>()!.rowMeta),
+      trailing: wideTrailing,
+    );
+
+    // Bounded armed fill: a ColoredBox around the row, so it can never paint
+    // past the row's own box (e.g. over the header) the way selectedTileColor
+    // could while scrolling.
+    Widget armedWrap(Widget child) => armed
+        ? ColoredBox(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: child,
+          )
+        : child;
+
+    if (!narrow) return armedWrap(tile);
+
+    // Narrow: swipe left to reveal Add entry / Edit task, freeing the row's
+    // width so the meta line stops wrapping. A basic first pass — auto-peek
+    // hint and affordance polish (#222) come after we confirm the space win.
+    return armedWrap(
+      Slidable(
+        key: ValueKey(row.taskId),
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          extentRatio: 0.5,
+          children: [
+            SlidableAction(
+              onPressed: (_) => onAddEntryToTask(row.taskId),
+              icon: Icons.add,
+              label: 'Add',
+              backgroundColor: actionBg,
+              foregroundColor: theme.colorScheme.primary,
+            ),
+            SlidableAction(
+              onPressed: (_) => onEditTask(row.task),
+              icon: Icons.edit_note,
+              label: 'Edit',
+              backgroundColor: actionBg,
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          ],
+        ),
+        child: tile,
       ),
     );
   }
@@ -188,6 +298,21 @@ class TaskList extends StatelessWidget {
         '${time(e.startedAt)} – ${time(e.endedAt)}';
     final desc = e.description?.trim();
     final hasName = desc != null && desc.isNotEmpty;
+    final narrow = context.isNarrow;
+
+    final whenText = Text(
+      when,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: theme.extension<AppTextStyles>()!.rowMeta,
+    );
+    // Narrow: small time in-line on the meta (when) line, matching the task row.
+    final entryTimeSmall = Text(
+      Duration(seconds: e.seconds).hms,
+      style: theme.extension<AppTextStyles>()!.rowMeta.copyWith(
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: -4),
@@ -201,32 +326,40 @@ class TaskList extends StatelessWidget {
       horizontalTitleGap: AppTokens.space2xs,
       leading: SizedBox(width: _leadingWidth(context)),
       onTap: () => onEditEntry(e),
-      title: Text(
-        hasName ? desc : when,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.extension<AppTextStyles>()!.rowMeta,
-      ),
-      subtitle: hasName
-          ? Text(
-              when,
-              style: theme.extension<AppTextStyles>()!.rowMeta.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.7,
-                ),
-              ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasName)
+            Text(
+              desc,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.extension<AppTextStyles>()!.entryTitle,
+            ),
+          if (narrow)
+            Row(
+              children: [
+                Expanded(child: whenText),
+                const SizedBox(width: AppTokens.space2xs),
+                entryTimeSmall,
+              ],
             )
-          : null,
-      trailing: Text(
-        Duration(seconds: e.seconds).hms,
-        // rowTitle (not rowMeta) — like the task row's duration above, this
-        // previously had no explicit style and inherited the ListTile theme
-        // default's size, independent of this row's own (smaller) title.
-        style: theme.extension<AppTextStyles>()!.rowTitle.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
+          else
+            whenText,
+        ],
       ),
+      subtitle: null,
+      // Wide keeps the larger time in the centred trailing slot; narrow moved it
+      // in-line above.
+      trailing: narrow
+          ? null
+          : Text(
+              Duration(seconds: e.seconds).hms,
+              style: theme.extension<AppTextStyles>()!.rowTitle.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
     );
   }
 }
