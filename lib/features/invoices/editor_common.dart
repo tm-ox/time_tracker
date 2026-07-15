@@ -347,18 +347,25 @@ Widget editorHeader({
         ),
     ],
   );
+  final editButton = FilledButton(onPressed: onEdit, child: const Text('Edit'));
+  final deleteButton = IconButton(
+    onPressed: onDelete,
+    icon: const Icon(Icons.delete_outline),
+    color: theme.colorScheme.primary,
+    tooltip: 'Delete',
+  );
+  final cancelButton = OutlinedButton(
+    onPressed: onCancel,
+    child: const Text('Cancel'),
+  );
+  final saveButton = FilledButton(onPressed: onSave, child: const Text('Save'));
   final actions = <Widget>[
     if (!editing)
-      FilledButton(onPressed: onEdit, child: const Text('Edit'))
+      editButton
     else ...[
-      if (isEdit)
-        TextButton.icon(
-          onPressed: onDelete,
-          icon: const Icon(Icons.delete_outline, size: AppTokens.iconSm),
-          label: const Text('Delete'),
-        ),
-      OutlinedButton(onPressed: onCancel, child: const Text('Cancel')),
-      FilledButton(onPressed: onSave, child: const Text('Save')),
+      if (isEdit) deleteButton,
+      cancelButton,
+      saveButton,
     ],
   ];
   return LayoutBuilder(
@@ -384,19 +391,37 @@ Widget editorHeader({
       final actionsWidth = (editing ? 260.0 : 96.0) * textScaler.scale(1);
       final stack = titleWidth + AppTokens.spaceLg + actionsWidth > c.maxWidth;
       if (stack) {
-        // Title on its own line with the actions beneath, right-aligned and free
-        // to wrap, so the header never overflows on a phone-width pane.
+        // Title on its own line with the actions beneath. While editing, the
+        // actions form a full-width row — Delete pinned left, Cancel + Save
+        // sharing the rest as big thumb targets. In view mode there's only the
+        // lone Edit button, so keep it right-aligned in a wrapping row.
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             titleWidget,
             const SizedBox(height: AppTokens.spaceSm),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: AppTokens.spaceSm,
-              runSpacing: AppTokens.spaceXs,
-              children: actions,
-            ),
+            if (editing)
+              SizedBox(
+                height: AppTokens.minTouchTarget,
+                child: Row(
+                  children: [
+                    if (isEdit) ...[
+                      deleteButton,
+                      const SizedBox(width: AppTokens.spaceSm),
+                    ],
+                    Expanded(child: cancelButton),
+                    const SizedBox(width: AppTokens.spaceSm),
+                    Expanded(child: saveButton),
+                  ],
+                ),
+              )
+            else
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: AppTokens.spaceSm,
+                runSpacing: AppTokens.spaceXs,
+                children: actions,
+              ),
           ],
         );
       }
