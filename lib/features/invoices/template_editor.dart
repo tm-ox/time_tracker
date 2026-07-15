@@ -7,6 +7,7 @@ import 'package:timedart/features/invoices/editor_common.dart';
 import 'package:timedart/features/invoices/editor_session.dart';
 import 'package:timedart/features/invoices/invoice_document.dart';
 import 'package:timedart/features/invoices/invoice_preview.dart';
+import 'package:timedart/widgets/color_picker.dart';
 import 'package:timedart/widgets/confirm_dialog.dart';
 
 /// Content-pane editor for an invoice [InvoiceTemplate] — colours and font (the
@@ -56,7 +57,11 @@ class _TemplateEditorState extends State<TemplateEditor> {
   static const _fontFamilies = ['Mona'];
 
   late final TextEditingController _name;
-  late int _bg, _surface, _primary, _text, _accent;
+  late int _bg, _surface, _primary, _text;
+  // Retained (loaded + saved unchanged) but no longer user-editable or drawn on
+  // the invoice — kept so the column round-trips and a colour can be re-added
+  // later without a migration or data loss.
+  late int _accent;
   late String _fontFamily;
   late bool _isDefault;
 
@@ -280,89 +285,142 @@ class _TemplateEditorState extends State<TemplateEditor> {
   // together — keeping Name over Background, Font over Surface aligned above it.
   static const double _gridStackBelow = AppTokens.breakpointMd;
 
-  // Shared decoration so every text/dropdown input is the same height.
+  Widget _nameField() => EditorTextField(
+    controller: _name,
+    label: 'Name',
+    persistentLabel: true,
+    onChanged: (_) => setState(_session.recompute),
+  );
+
+  Widget _fontField() => EditorDropdown<String>(
+    label: 'Font',
+    value: _fontFamily,
+    items: [
+      for (final f in _fontFamilies)
+        DropdownMenuItem(value: f, child: Text(f)),
+    ],
+    onChanged: (v) => setState(() {
+      _fontFamily = v ?? _fontFamily;
+      _session.recompute();
+    }),
+  );
+
+  Widget _defaultToggle() => brandingDefaultToggle(
+    value: _isDefault,
+    onChanged: (v) => setState(() {
+      _isDefault = v;
+      _session.recompute();
+    }),
+  );
+
   Widget _settings() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top row spans the same 5 tracks as the colours below: Name and Font
-        // take one each over Background·Surface, and the Default toggle fills the
-        // trailing three (right-aligned) over Primary·Text·Accent. (The logo
-        // control used to sit here; it now lives on the profile editor.)
+        // Name spans two tracks (over Background + Surface), Font takes one
+        // (over Primary), and the Default toggle the last (over Text),
+        // right-aligned — so the row's four tracks line up with the colours.
         FieldRow(stackBelow: _gridStackBelow, [
-          Field(
-            EditorTextField(
-              controller: _name,
-              label: 'Name',
-              persistentLabel: true,
-              onChanged: (_) => setState(_session.recompute),
-            ),
-          ),
-          Field(
-            EditorDropdown<String>(
-              label: 'Font',
-              value: _fontFamily,
-              items: [
-                for (final f in _fontFamilies)
-                  DropdownMenuItem(value: f, child: Text(f)),
-              ],
-              onChanged: (v) => setState(() {
-                _fontFamily = v ?? _fontFamily;
-                _session.recompute();
-              }),
-            ),
-          ),
-          Field(
-            flex: 3,
-            Align(
-              alignment: Alignment.centerRight,
-              child: brandingDefaultToggle(
-                value: _isDefault,
-                onChanged: (v) => setState(() {
-                  _isDefault = v;
-                  _session.recompute();
-                }),
-              ),
-            ),
-          ),
+          Field(flex: 2, _nameField()),
+          Field(_fontField()),
+          Field(Align(alignment: Alignment.centerRight, child: _defaultToggle())),
         ]),
         const SizedBox(height: AppTokens.spaceSm),
-        FieldRow(stackBelow: _gridStackBelow, [
-          Field(_colorField('Background', _bg, (v) => _bg = v)),
-          Field(_colorField('Surface', _surface, (v) => _surface = v)),
-          Field(_colorField('Primary', _primary, (v) => _primary = v)),
-          Field(_colorField('Text', _text, (v) => _text = v)),
-          Field(_colorField('Accent', _accent, (v) => _accent = v)),
-        ]),
+        _colorRow(),
       ],
     );
   }
 
-  Widget _colorField(String label, int value, void Function(int) set) =>
-      _ColorField(
-        value: value,
-        decoration: fieldDecoration(
-          context,
-          label,
-          prefixText: '#',
-          prefixIcon: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXs),
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                color: Color(value),
-                borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-                border: Border.all(color: AppTokens.colorBorder),
+  // The four editable colours.
+  Widget _colorRow() {
+    final fields = [
+      _colorField('Background', _bg, (v) => _bg = v),
+      _colorField('Surface', _surface, (v) => _surface = v),
+      _colorField('Primary', _primary, (v) => _primary = v),
+      _colorField('Text', _text, (v) => _text = v),
+    ];
+    return LayoutBuilder(
+      builder: (context, c) {
+        // Wide: four quarter-columns via a FieldRow, so the tracks line up
+        // exactly with the Name/Font row above (same full-width-÷-flex maths).
+        if (c.maxWidth >= _gridStackBelow) {
+          return FieldRow([for (final f in fields) Field(f)]);
+        }
+        // Narrow: a forced 2×2 grid rather than a tall single stack — a plain
+        // FieldRow would drop to one column below its two-column floor, but the
+        // compact hex fields read fine two-up down to phone width.
+        final rows = <Widget>[];
+        for (var i = 0; i < fields.length; i += 2) {
+          if (i > 0) rows.add(const SizedBox(height: AppTokens.spaceSm));
+          final chunk = fields.sublist(i, i + 2);
+          rows.add(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var j = 0; j < chunk.length; j++) ...[
+                  if (j > 0) const SizedBox(width: AppTokens.spaceSm),
+                  Expanded(child: chunk[j]),
+                ],
+              ],
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: rows,
+        );
+      },
+    );
+  }
+
+  Widget _colorField(String label, int value, void Function(int) set) {
+    void apply(int v) => setState(() {
+      set(v);
+      _session.recompute();
+    });
+    return _ColorField(
+      value: value,
+      decoration: fieldDecoration(
+        context,
+        label,
+        prefixText: '#',
+        // Tapping the swatch opens the visual picker; the hex field stays for
+        // anyone who'd rather type a code. Either path syncs the other. The
+        // whole 48×48 leading square is the tap target (a bare swatch is far
+        // below the min touch size) — the visible swatch is centred within it.
+        prefixIcon: Tooltip(
+          message: 'Pick colour',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            onTap: () async {
+              final picked = await showColorPicker(
+                context,
+                initial: value,
+                label: label,
+              );
+              if (picked != null) apply(picked);
+            },
+            child: SizedBox(
+              width: AppTokens.minTouchTarget,
+              height: AppTokens.minTouchTarget,
+              child: Center(
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: Color(value),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                    border: Border.all(color: AppTokens.colorBorder),
+                  ),
+                ),
               ),
             ),
           ),
         ),
-        onChanged: (v) => setState(() {
-          set(v);
-          _session.recompute();
-        }),
-      );
+      ),
+      onChanged: apply,
+    );
+  }
 
   Widget _preview() {
     return FutureBuilder<InvoiceProfile?>(
