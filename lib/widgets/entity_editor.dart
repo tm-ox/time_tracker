@@ -89,7 +89,12 @@ class EntityForm extends StatelessWidget {
           Row(
             children: [
               if (showDelete)
-                TextButton(onPressed: onDelete, child: const Text('Delete')),
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline),
+                  color: Theme.of(context).colorScheme.primary,
+                  tooltip: 'Delete',
+                ),
               const Spacer(),
               OutlinedButton(onPressed: onCancel, child: const Text('Cancel')),
               const SizedBox(width: AppTokens.spaceSm),

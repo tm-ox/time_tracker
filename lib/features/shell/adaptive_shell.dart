@@ -528,11 +528,14 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                   ? margin + AppTokens.spaceLg + AppTokens.spaceMd
                   : AppTokens.spaceLg;
               return Padding(
+                // Narrow: trim the bottom inset — the bottom nav bar below
+                // already separates content from the chrome (matches
+                // content_body.dart; keep the two in sync).
                 padding: EdgeInsets.fromLTRB(
                   left,
                   AppTokens.spaceLg,
                   AppTokens.spaceLg,
-                  AppTokens.spaceLg,
+                  wide ? AppTokens.spaceLg : AppTokens.spaceMd,
                 ),
                 child: animatedDetail,
               );

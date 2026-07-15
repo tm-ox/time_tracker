@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:timedart/constants/layout.dart';
 import 'package:timedart/constants/tokens.dart';
 
 class ContentBody extends StatelessWidget {
@@ -10,7 +11,14 @@ class ContentBody extends StatelessWidget {
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: AppTokens.maxContentWidth),
       child: Padding(
-        padding: const EdgeInsets.all(AppTokens.spaceLg),
+        // Trim the bottom inset on narrow: the bottom nav bar below already
+        // supplies separation, so the full spaceLg reads loose against it.
+        padding: EdgeInsets.fromLTRB(
+          AppTokens.spaceLg,
+          AppTokens.spaceLg,
+          AppTokens.spaceLg,
+          context.isNarrow ? AppTokens.spaceMd : AppTokens.spaceLg,
+        ),
         child: child,
       ),
     ),

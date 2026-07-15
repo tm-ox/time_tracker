@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:timedart/constants/format.dart';
+import 'package:timedart/constants/layout.dart';
 import 'package:timedart/constants/tokens.dart';
 import 'package:timedart/data/database.dart';
 import 'package:timedart/features/invoices/invoice_document.dart';
@@ -66,9 +67,121 @@ Widget invoicePreviewPage({
           child: sheet,
         ),
       );
+      // On a phone the fit-to-width page renders design text at ~6px — faithful
+      // but unreadable. Make the preview zoomable: fit-to-width is the resting/
+      // overview scale, pinch or double-tap to zoom in and pan to read. Same
+      // page widget, so preview still == PDF layout.
+      if (context.isNarrow) {
+        final zoomable = _ZoomablePage(page: page);
+        // The invoice view hands us a bounded slot (an Expanded) to fill, so
+        // the viewer pans within that. The editor previews (scrollable: false)
+        // sit in an unbounded outer scroll with no viewport of their own, so
+        // give the zoom window an A4-proportioned box: the resting (fit-width)
+        // view then shows a whole page in true proportion rather than a
+        // crunched slice, and pinch/pan reveals a longer invoice that overflows.
+        if (scrollable) return zoomable;
+        return SizedBox(
+          width: targetWidth,
+          height: targetWidth * size.ratio,
+          child: zoomable,
+        );
+      }
       return scrollable ? SingleChildScrollView(child: page) : page;
     },
   );
+}
+
+/// Wraps the fit-to-width invoice [page] in an [InteractiveViewer] so a phone
+/// user can pinch or double-tap to zoom past the tiny overview scale and pan to
+/// read. `constrained: false` lets the page keep its natural (fit-width) size as
+/// the scale-1 resting state — that's the overview — with [_maxScale] headroom
+/// to zoom in and vertical pan covering a page taller than the viewport.
+class _ZoomablePage extends StatefulWidget {
+  const _ZoomablePage({required this.page});
+
+  final Widget page;
+
+  @override
+  State<_ZoomablePage> createState() => _ZoomablePageState();
+}
+
+class _ZoomablePageState extends State<_ZoomablePage>
+    with SingleTickerProviderStateMixin {
+  // Fit-width text renders at ~0.44 scale on a ~360px phone, so ~2.5x brings
+  // 14px design text back to a readable size. maxScale leaves pinch headroom.
+  static const double _doubleTapScale = 2.5;
+  static const double _maxScale = 5;
+
+  final _controller = TransformationController();
+  // Created eagerly in initState, not as a lazy `late` field: a lazy initializer
+  // would first run inside dispose() if the user never double-tapped, and
+  // building an AnimationController there does a TickerMode ancestor lookup on a
+  // deactivated element — a crash on close.
+  late final AnimationController _anim;
+  Animation<Matrix4>? _zoomAnim;
+  TapDownDetails? _lastTap;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onDoubleTap() {
+    final current = _controller.value;
+    final zoomedIn = current.getMaxScaleOnAxis() > 1.01;
+    final Matrix4 target;
+    if (zoomedIn) {
+      target = Matrix4.identity();
+    } else {
+      // Zoom in centred on the tapped point: scale up, then translate so that
+      // point stays put under the finger.
+      final focal = _lastTap?.localPosition ?? Offset.zero;
+      target = Matrix4.identity()
+        ..translateByDouble(
+          -focal.dx * (_doubleTapScale - 1),
+          -focal.dy * (_doubleTapScale - 1),
+          0,
+          1,
+        )
+        ..scaleByDouble(
+          _doubleTapScale,
+          _doubleTapScale,
+          _doubleTapScale,
+          1,
+        );
+    }
+    _zoomAnim = Matrix4Tween(begin: current, end: target).animate(
+      CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic),
+    )..addListener(() => _controller.value = _zoomAnim!.value);
+    _anim.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onDoubleTapDown: (d) => _lastTap = d,
+      onDoubleTap: _onDoubleTap,
+      child: InteractiveViewer(
+        constrained: false,
+        minScale: 1,
+        maxScale: _maxScale,
+        boundaryMargin: const EdgeInsets.all(AppTokens.spaceLg),
+        transformationController: _controller,
+        child: widget.page,
+      ),
+    );
+  }
 }
 
 /// On-screen WYSIWYG preview of an [InvoiceDocument] rendered with an

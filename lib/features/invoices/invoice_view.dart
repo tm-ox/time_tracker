@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:timedart/data/database.dart';
+import 'package:timedart/constants/layout.dart';
 import 'package:timedart/constants/tokens.dart';
 import 'package:timedart/features/invoices/invoice_document.dart';
 import 'package:timedart/features/invoices/invoice_pdf.dart';
@@ -265,47 +266,42 @@ class _InvoiceViewState extends State<InvoiceView> {
       icon: const Icon(Icons.date_range, size: AppTokens.iconSm),
       label: const Text('Change dates'),
     );
-    final profileField = SizedBox(
-      width: 220,
-      child: DropdownButtonFormField<String>(
-        initialValue: _profileId,
-        isExpanded: true,
-        icon: kDropdownChevron,
-        decoration: const InputDecoration(labelText: 'Profile'),
-        items: [
-          for (final p in _profiles)
-            DropdownMenuItem(value: p.id, child: Text(p.name)),
-        ],
-        onChanged: (v) => setState(() {
-          _profileId = v;
-          _load();
-        }),
-      ),
+    final profileDropdown = DropdownButtonFormField<String>(
+      initialValue: _profileId,
+      isExpanded: true,
+      icon: kDropdownChevron,
+      decoration: const InputDecoration(labelText: 'Profile'),
+      items: [
+        for (final p in _profiles)
+          DropdownMenuItem(value: p.id, child: Text(p.name)),
+      ],
+      onChanged: (v) => setState(() {
+        _profileId = v;
+        _load();
+      }),
     );
-    final invoiceField = SizedBox(
-      width: 180,
-      child: TextField(
-        controller: _invoiceNumber,
-        decoration: const InputDecoration(labelText: 'Invoice #'),
-        // Live in the preview; _last keeps it flicker-free while loading.
-        onChanged: (_) => setState(_load),
-      ),
+    final invoiceInput = TextField(
+      controller: _invoiceNumber,
+      decoration: const InputDecoration(labelText: 'Invoice #'),
+      // Live in the preview; _last keeps it flicker-free while loading.
+      onChanged: (_) => setState(_load),
     );
 
     return LayoutBuilder(
       builder: (context, c) {
         if (c.maxWidth >= AppTokens.breakpointMd) {
           // Plain (not Flexible) date text: with only the Spacer taking the
-          // slack, the branding fields sit flush against the right edge.
+          // slack, the branding fields sit flush against the right edge. Fixed
+          // widths keep the fields from stretching across the wide pane.
           return Row(
             children: [
               dateText,
               const SizedBox(width: AppTokens.spaceSm),
               changeDates,
               const Spacer(),
-              profileField,
+              SizedBox(width: 220, child: profileDropdown),
               const SizedBox(width: AppTokens.spaceSm),
-              invoiceField,
+              SizedBox(width: 180, child: invoiceInput),
             ],
           );
         }
@@ -320,15 +316,53 @@ class _InvoiceViewState extends State<InvoiceView> {
               ],
             ),
             const SizedBox(height: AppTokens.spaceSm),
-            Wrap(
-              spacing: AppTokens.spaceSm,
-              runSpacing: AppTokens.spaceSm,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [profileField, invoiceField],
+            // Share one line, flexing to the pane — profile a touch wider than
+            // the invoice number, mirroring the desktop 220:180 proportion.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 220, child: profileDropdown),
+                const SizedBox(width: AppTokens.spaceSm),
+                Expanded(flex: 180, child: invoiceInput),
+              ],
             ),
           ],
         );
       },
+    );
+  }
+
+  // Close + Export PDF. On desktop they sit right-aligned; on a narrow pane
+  // they span the full width, each half, at a full touch-target height.
+  Widget _actions(bool empty) {
+    final close = OutlinedButton(
+      onPressed: widget.onDone,
+      child: const Text('Close'),
+    );
+    final export = FilledButton.icon(
+      onPressed: empty ? null : _exportPdf,
+      icon: const Icon(Icons.picture_as_pdf),
+      label: const Text('Export PDF'),
+    );
+    if (context.isNarrow) {
+      return SizedBox(
+        height: AppTokens.minTouchTarget,
+        child: Row(
+          children: [
+            Expanded(child: close),
+            const SizedBox(width: AppTokens.spaceSm),
+            Expanded(child: export),
+          ],
+        ),
+      );
+    }
+    return Row(
+      children: [
+        const Spacer(),
+        close,
+        const SizedBox(width: AppTokens.spaceSm),
+        export,
+      ],
     );
   }
 
@@ -394,21 +428,7 @@ class _InvoiceViewState extends State<InvoiceView> {
                     ),
                   ),
                   const SizedBox(height: AppTokens.spaceSm),
-                  Row(
-                    children: [
-                      const Spacer(),
-                      OutlinedButton(
-                        onPressed: widget.onDone,
-                        child: const Text('Close'),
-                      ),
-                      const SizedBox(width: AppTokens.spaceSm),
-                      FilledButton.icon(
-                        onPressed: empty ? null : _exportPdf,
-                        icon: const Icon(Icons.picture_as_pdf),
-                        label: const Text('Export PDF'),
-                      ),
-                    ],
-                  ),
+                  _actions(empty),
                 ],
               );
             },
