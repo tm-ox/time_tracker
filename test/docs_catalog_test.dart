@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timedart/features/docs/docs_catalog.dart';
 
@@ -215,6 +217,32 @@ void main() {
       expect(c.groups, isEmpty);
       expect(c.pages, isEmpty);
       expect(c.getPage('anything'), isNull);
+    });
+  });
+
+  // A regression guard over the actual bundled docs (read from disk, not the
+  // asset bundle — same files the AssetManifest glob picks up at runtime): they
+  // must all parse and land in the contracted group order.
+  group('bundled docs', () {
+    DocsCatalog realCatalog() {
+      final dir = Directory('docs/content');
+      final sources = {
+        for (final f in dir.listSync().whereType<File>())
+          if (f.path.endsWith('.md')) f.path: f.readAsStringSync(),
+      };
+      return DocsCatalog.fromSources(sources);
+    }
+
+    test('all pages parse and order into the expected groups', () {
+      final c = realCatalog();
+      expect(c.pages, hasLength(5));
+      expect(c.groups.map((g) => g.title), [
+        'Getting started',
+        'Tracking',
+        'Invoicing',
+        'Data',
+        'Reference',
+      ]);
     });
   });
 }
