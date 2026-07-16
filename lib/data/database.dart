@@ -1194,23 +1194,33 @@ class AppDatabase extends _$AppDatabase {
     return projectIdCol.isInQuery(projectIds);
   }
 
-  Future<int> _countLive<Tbl extends HasResultSet, Row>(
-    SimpleSelectStatement<Tbl, Row> q,
-  ) => q.get().then((rows) => rows.length);
+  // Count matching rows with a SQL COUNT aggregate rather than fetching them —
+  // an impact preview shouldn't load a client's whole entry history into memory.
+  Future<int> _countLive<T extends HasResultSet, R>(
+    ResultSetImplementation<T, R> table,
+    Expression<bool> filter,
+  ) {
+    final c = countAll();
+    return (selectOnly(table)
+          ..addColumns([c])
+          ..where(filter))
+        .map((row) => row.read(c)!)
+        .getSingle();
+  }
 
   /// Live descendant counts under a client (projects, tasks, entries).
   Future<DeleteImpact> clientDeleteImpact(String id) async {
     final projectCount = await _countLive(
-      select(projects)
-        ..where((p) => p.clientId.equals(id) & p.deletedAt.isNull()),
+      projects,
+      projects.clientId.equals(id) & projects.deletedAt.isNull(),
     );
     final taskCount = await _countLive(
-      select(tasks)
-        ..where((t) => _underClient(t.projectId, id) & t.deletedAt.isNull()),
+      tasks,
+      _underClient(tasks.projectId, id) & tasks.deletedAt.isNull(),
     );
     final entryCount = await _countLive(
-      select(timeEntries)
-        ..where((e) => _underClient(e.projectId, id) & e.deletedAt.isNull()),
+      timeEntries,
+      _underClient(timeEntries.projectId, id) & timeEntries.deletedAt.isNull(),
     );
     return DeleteImpact(
       projects: projectCount,
@@ -1222,12 +1232,12 @@ class AppDatabase extends _$AppDatabase {
   /// Live descendant counts under a project (tasks, entries).
   Future<DeleteImpact> projectDeleteImpact(String id) async {
     final taskCount = await _countLive(
-      select(tasks)
-        ..where((t) => t.projectId.equals(id) & t.deletedAt.isNull()),
+      tasks,
+      tasks.projectId.equals(id) & tasks.deletedAt.isNull(),
     );
     final entryCount = await _countLive(
-      select(timeEntries)
-        ..where((e) => e.projectId.equals(id) & e.deletedAt.isNull()),
+      timeEntries,
+      timeEntries.projectId.equals(id) & timeEntries.deletedAt.isNull(),
     );
     return DeleteImpact(tasks: taskCount, entries: entryCount);
   }
@@ -1235,8 +1245,8 @@ class AppDatabase extends _$AppDatabase {
   /// Live entry count under a task.
   Future<DeleteImpact> taskDeleteImpact(String id) async {
     final entryCount = await _countLive(
-      select(timeEntries)
-        ..where((e) => e.taskId.equals(id) & e.deletedAt.isNull()),
+      timeEntries,
+      timeEntries.taskId.equals(id) & timeEntries.deletedAt.isNull(),
     );
     return DeleteImpact(entries: entryCount);
   }
