@@ -1177,6 +1177,30 @@ class AppDatabase extends _$AppDatabase {
     );
   });
 
+  // ── Active-timer guard (#248) ─────────────────────────────────────────────
+  // A running timer binds one project (and optionally its task). Deleting or
+  // archiving anything that binding falls under would strand the active_timers
+  // row: on finish the store writes a live TimeEntry under a tombstoned/archived
+  // parent — an orphan hidden from the active lists. The confirm flows call
+  // these to block that (rare) case and ask the user to stop the timer first.
+  // Each returns true iff the single LIVE timer is bound inside the subtree.
+  Future<bool> isTimerBoundToTask(String taskId) async =>
+      (await activeTimer())?.taskId == taskId;
+
+  Future<bool> isTimerBoundToProject(String projectId) async =>
+      (await activeTimer())?.projectId == projectId;
+
+  Future<bool> isTimerBoundToClient(String clientId) async {
+    final projectId = (await activeTimer())?.projectId;
+    if (projectId == null) return false;
+    // Raw lookup (no deletedAt filter): a timer bound to an already-tombstoned
+    // project is exactly the dangling state we're guarding, so still count it.
+    final project =
+        await (select(projects)..where((p) => p.id.equals(projectId)))
+            .getSingleOrNull();
+    return project?.clientId == clientId;
+  }
+
   // ── Cascade (bulk) delete (#75) ──────────────────────────────────────────
   // The per-level guards above stay the default; these are the deliberate,
   // count-warned escape hatch offered when a guarded delete is blocked. Each
