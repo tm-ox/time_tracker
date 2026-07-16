@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:timedart/constants/layout.dart';
 import 'package:timedart/constants/tokens.dart';
+import 'package:timedart/features/docs/docs_screen.dart';
 
 /// The Settings-mode content pane before a Template or Profile has been
 /// selected from the side panel. Also the home for future non-invoicing
@@ -75,18 +76,13 @@ class _SettingsHomeState extends State<SettingsHome> {
               label: const Text('Visit website'),
             ),
             const SizedBox(width: AppTokens.spaceSm),
-            // Docs don't exist yet — present but disabled so the affordance is
-            // there and lights up the day they land.
-            Tooltip(
-              message: 'Documentation coming soon',
-              child: TextButton.icon(
-                onPressed: null,
-                icon: const Icon(
-                  Icons.menu_book_outlined,
-                  size: AppTokens.iconSm,
-                ),
-                label: const Text('Documentation'),
+            TextButton.icon(
+              onPressed: () => openDocs(context),
+              icon: const Icon(
+                Icons.menu_book_outlined,
+                size: AppTokens.iconSm,
               ),
+              label: const Text('Documentation'),
             ),
           ],
         ),

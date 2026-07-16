@@ -53,6 +53,8 @@ dependencies:
   share_plus: ^13.2.0
   flutter_slidable: ^4.0.3
   package_info_plus: ^10.2.0
+  flutter_markdown_plus: ^1.0.12
+  markdown: ^7.3.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -101,6 +103,12 @@ flutter:
     - assets/logo/
     - assets/fonts/
     - assets/icons/
+    # In-app documentation (#252): markdown pages + their images. Directory
+    # globs, so dropping another .md page (or an image beside it) into
+    # docs/content needs no pubspec change — DocsCatalog picks it up from the
+    # asset manifest. Docs ship bundled so they work fully offline.
+    - docs/content/
+    - docs/content/assets/
 
   # Mona Sans is a variable font. Flutter maps the theme's `fontWeight` onto its
   # `wght` axis (200–900), so all app weights resolve from the single file.
