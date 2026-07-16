@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timedart/data/database.dart';
@@ -357,5 +358,77 @@ void main() {
     } on DeleteBlockedException catch (e) {
       expect(e.entity, 'client');
     }
+  });
+
+  // #248: the confirm flows call these to block delete/archive when a live
+  // timer is bound inside the subtree, so finish can't orphan an entry under a
+  // tombstoned/archived parent. The binding is on the active_timers row's
+  // projectId/taskId; a client is bound via its project.
+  group('running-timer guard (isTimerBoundTo*)', () {
+    late String clientId, projectId, taskId;
+
+    setUp(() async {
+      clientId = await seedClient();
+      projectId = await db.addProject(
+        clientId: clientId,
+        code: 'P1',
+        title: 'Site',
+      );
+      taskId = await db.addTask(projectId: projectId, title: 'Build');
+    });
+
+    Future<void> bindTimer({String? project, String? task}) => db.saveActiveTimer(
+      ActiveTimersCompanion(
+        id: const Value('t1'),
+        projectId: Value(project),
+        taskId: Value(task),
+      ),
+    );
+
+    test('no active timer → nothing is bound', () async {
+      expect(await db.isTimerBoundToTask(taskId), isFalse);
+      expect(await db.isTimerBoundToProject(projectId), isFalse);
+      expect(await db.isTimerBoundToClient(clientId), isFalse);
+    });
+
+    test('a task-bound timer blocks its task, project and client', () async {
+      await bindTimer(project: projectId, task: taskId);
+      expect(await db.isTimerBoundToTask(taskId), isTrue);
+      expect(await db.isTimerBoundToProject(projectId), isTrue);
+      expect(await db.isTimerBoundToClient(clientId), isTrue);
+    });
+
+    test('a project-level timer (no task) blocks project + client only', () async {
+      await bindTimer(project: projectId);
+      expect(await db.isTimerBoundToTask(taskId), isFalse);
+      expect(await db.isTimerBoundToProject(projectId), isTrue);
+      expect(await db.isTimerBoundToClient(clientId), isTrue);
+    });
+
+    test('a timer bound elsewhere blocks nothing here', () async {
+      final other = await db.addProject(
+        clientId: await db.addClient(name: 'Other', defaultRate: 50),
+        code: 'P2',
+        title: 'Other',
+      );
+      await bindTimer(project: other);
+      expect(await db.isTimerBoundToProject(projectId), isFalse);
+      expect(await db.isTimerBoundToClient(clientId), isFalse);
+    });
+
+    test('a tombstoned (finished) timer binds nothing', () async {
+      await bindTimer(project: projectId, task: taskId);
+      await db.tombstoneActiveTimer('t1');
+      expect(await db.isTimerBoundToTask(taskId), isFalse);
+      expect(await db.isTimerBoundToProject(projectId), isFalse);
+      expect(await db.isTimerBoundToClient(clientId), isFalse);
+    });
+
+    test('still fires when the bound project is already tombstoned', () async {
+      await bindTimer(project: projectId, task: taskId);
+      // The exact dangling state: parent deleted, timer row still live.
+      await db.deleteProjectCascade(projectId);
+      expect(await db.isTimerBoundToClient(clientId), isTrue);
+    });
   });
 }

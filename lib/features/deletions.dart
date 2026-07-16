@@ -42,6 +42,29 @@ class DeleteHotkey extends StatelessWidget {
 // the guard stays the default, this is the explicit escape hatch. Returns true
 // only if something was deleted.
 
+// A running timer bound inside the subtree blocks delete/archive (#248):
+// proceeding would strand the active_timers row (finish writes an orphan entry
+// under a tombstoned/archived parent). Rare — only fires when a timer is
+// actually bound — so it just tells the user to stop the timer first. [where]
+// completes "A timer is running on …". Returns true iff blocked (dialog shown).
+Future<bool> _blockedByRunningTimer(
+  BuildContext context, {
+  required Future<bool> Function() bound,
+  required String where,
+  required String verb,
+}) async {
+  if (!await bound()) return false;
+  if (context.mounted) {
+    await showInfoDialog(
+      context,
+      title: 'Timer running',
+      message: 'A timer is running on $where. '
+          'Stop the timer before you $verb.',
+    );
+  }
+  return true;
+}
+
 String _plural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
 
 /// "3 projects, 8 tasks and 41 time entries" — non-zero parts only, Oxford-less
@@ -84,17 +107,13 @@ Future<bool> _confirmDeleteCascading(
     return false;
   }
 
-  final ok = await confirmDelete(
-    context,
-    title: 'Delete $noun?',
-    message: '"$name" will be removed. This can\'t be undone.',
-  );
-  if (!ok) return false;
-  try {
-    await delete();
-  } on DeleteBlockedException {
-    final counts = await impact();
-    if (!context.mounted) return false;
+  // Count dependents up-front so the very first dialog names what goes with it
+  // — total > 0 is exactly when the guarded single delete would be blocked, so
+  // one dialog covers both cases (no confirm-then-surprise second step).
+  final counts = await impact();
+  if (!context.mounted) return false;
+
+  if (counts.total > 0) {
     final go = await confirmAction(
       context,
       title: cascadeTitle,
@@ -109,6 +128,16 @@ Future<bool> _confirmDeleteCascading(
       return failed();
     }
     return true;
+  }
+
+  final ok = await confirmDelete(
+    context,
+    title: 'Delete $noun?',
+    message: '"$name" will be removed. This can\'t be undone.',
+  );
+  if (!ok) return false;
+  try {
+    await delete();
   } catch (_) {
     return failed();
   }
@@ -119,46 +148,79 @@ Future<bool> confirmDeleteClient(
   BuildContext context,
   AppDatabase db,
   Client client,
-) => _confirmDeleteCascading(
-  context,
-  noun: 'client',
-  name: client.name,
-  cascadeTitle: 'Delete client and everything under it?',
-  cascadeClause: 'Deleting the client removes all of it',
-  delete: () => db.deleteClient(client.id),
-  impact: () => db.clientDeleteImpact(client.id),
-  cascade: () => db.deleteClientCascade(client.id),
-);
+) async {
+  if (await _blockedByRunningTimer(
+    context,
+    bound: () => db.isTimerBoundToClient(client.id),
+    where: 'a project under "${client.name}"',
+    verb: 'delete this client',
+  )) {
+    return false;
+  }
+  if (!context.mounted) return false;
+  return _confirmDeleteCascading(
+    context,
+    noun: 'client',
+    name: client.name,
+    cascadeTitle: 'Delete client and everything under it?',
+    cascadeClause: 'Deleting the client removes all of it',
+    delete: () => db.deleteClient(client.id),
+    impact: () => db.clientDeleteImpact(client.id),
+    cascade: () => db.deleteClientCascade(client.id),
+  );
+}
 
 Future<bool> confirmDeleteProject(
   BuildContext context,
   AppDatabase db,
   Project project,
-) => _confirmDeleteCascading(
-  context,
-  noun: 'project',
-  name: project.title,
-  cascadeTitle: 'Delete project and everything under it?',
-  cascadeClause: 'Deleting the project removes all of it',
-  delete: () => db.deleteProject(project.id),
-  impact: () => db.projectDeleteImpact(project.id),
-  cascade: () => db.deleteProjectCascade(project.id),
-);
+) async {
+  if (await _blockedByRunningTimer(
+    context,
+    bound: () => db.isTimerBoundToProject(project.id),
+    where: '"${project.title}"',
+    verb: 'delete this project',
+  )) {
+    return false;
+  }
+  if (!context.mounted) return false;
+  return _confirmDeleteCascading(
+    context,
+    noun: 'project',
+    name: project.title,
+    cascadeTitle: 'Delete project and everything under it?',
+    cascadeClause: 'Deleting the project removes all of it',
+    delete: () => db.deleteProject(project.id),
+    impact: () => db.projectDeleteImpact(project.id),
+    cascade: () => db.deleteProjectCascade(project.id),
+  );
+}
 
 Future<bool> confirmDeleteTask(
   BuildContext context,
   AppDatabase db,
   Task task,
-) => _confirmDeleteCascading(
-  context,
-  noun: 'task',
-  name: task.title,
-  cascadeTitle: 'Delete task and its time entries?',
-  cascadeClause: 'Deleting the task removes them',
-  delete: () => db.deleteTask(task.id),
-  impact: () => db.taskDeleteImpact(task.id),
-  cascade: () => db.deleteTaskCascade(task.id),
-);
+) async {
+  if (await _blockedByRunningTimer(
+    context,
+    bound: () => db.isTimerBoundToTask(task.id),
+    where: '"${task.title}"',
+    verb: 'delete this task',
+  )) {
+    return false;
+  }
+  if (!context.mounted) return false;
+  return _confirmDeleteCascading(
+    context,
+    noun: 'task',
+    name: task.title,
+    cascadeTitle: 'Delete task and its time entries?',
+    cascadeClause: 'Deleting the task removes them',
+    delete: () => db.deleteTask(task.id),
+    impact: () => db.taskDeleteImpact(task.id),
+    cascade: () => db.deleteTaskCascade(task.id),
+  );
+}
 
 // Archiving is reversible, so it takes a light confirm (not the destructive
 // delete flow) that also teaches where the item goes — the side panel's "Show
@@ -169,6 +231,15 @@ Future<bool> confirmArchiveClient(
   AppDatabase db,
   Client client,
 ) async {
+  if (await _blockedByRunningTimer(
+    context,
+    bound: () => db.isTimerBoundToClient(client.id),
+    where: 'a project under "${client.name}"',
+    verb: 'archive this client',
+  )) {
+    return false;
+  }
+  if (!context.mounted) return false;
   final ok = await confirmAction(
     context,
     title: 'Archive client?',
@@ -187,6 +258,15 @@ Future<bool> confirmArchiveProject(
   AppDatabase db,
   Project project,
 ) async {
+  if (await _blockedByRunningTimer(
+    context,
+    bound: () => db.isTimerBoundToProject(project.id),
+    where: '"${project.title}"',
+    verb: 'archive this project',
+  )) {
+    return false;
+  }
+  if (!context.mounted) return false;
   final ok = await confirmAction(
     context,
     title: 'Archive project?',
