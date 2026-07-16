@@ -207,6 +207,45 @@ Future<bool> confirmDeleteTask(
   return true;
 }
 
+// Archiving is reversible, so it takes a light confirm (not the destructive
+// delete flow) that also teaches where the item goes — the side panel's "Show
+// archived" toggle. Unarchive is immediate (no dialog); the caller handles it.
+// Returns true only if the row was archived.
+Future<bool> confirmArchiveClient(
+  BuildContext context,
+  AppDatabase db,
+  Client client,
+) async {
+  final ok = await confirmAction(
+    context,
+    title: 'Archive client?',
+    message: '"${client.name}" and its projects will be hidden from the active '
+        'list. Show or restore them anytime with "Show archived" at the bottom '
+        'of the list.',
+    confirmLabel: 'Archive',
+  );
+  if (!ok) return false;
+  await db.archiveClient(client.id);
+  return true;
+}
+
+Future<bool> confirmArchiveProject(
+  BuildContext context,
+  AppDatabase db,
+  Project project,
+) async {
+  final ok = await confirmAction(
+    context,
+    title: 'Archive project?',
+    message: '"${project.title}" will be hidden from the active list. Show or '
+        'restore it anytime with "Show archived" at the bottom of the list.',
+    confirmLabel: 'Archive',
+  );
+  if (!ok) return false;
+  await db.archiveProject(project.id);
+  return true;
+}
+
 Future<bool> confirmDeleteEntry(
   BuildContext context,
   AppDatabase db,
