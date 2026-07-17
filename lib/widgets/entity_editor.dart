@@ -38,23 +38,29 @@ Future<T?> showEntityEditor<T>(
     builder: (ctx) => Padding(
       // Lift the sheet clear of the on-screen keyboard.
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SheetGrabHandle(),
-          // The handle supplies the top gap; content keeps the sides + bottom.
-          Flexible(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppTokens.spaceLg,
-                0,
-                AppTokens.spaceLg,
-                AppTokens.spaceLg,
+      // Keep the action row clear of the system navigation bar. SafeArea's
+      // bottom inset collapses to 0 while the keyboard is up (viewInsets above
+      // already consumes it), so the two compose without double-spacing.
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SheetGrabHandle(),
+            // The handle supplies the top gap; content keeps the sides + bottom.
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppTokens.spaceLg,
+                  0,
+                  AppTokens.spaceLg,
+                  AppTokens.spaceLg,
+                ),
+                child: builder(ctx),
               ),
-              child: builder(ctx),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );
