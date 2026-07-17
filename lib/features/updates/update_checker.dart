@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -89,7 +90,21 @@ class UpdateChecker {
           ? UpdateAvailable(release)
           : const UpToDate();
     } catch (e) {
-      return CheckFailed('$e');
+      // Turn transport failures into human copy rather than surfacing the raw
+      // exception. Match on the string (not `e is SocketException`) so this file
+      // stays free of `dart:io` and compiles for web. A timeout or DNS/connect
+      // failure means "offline"; anything else is an unexpected error.
+      final text = e.toString();
+      final offline =
+          e is TimeoutException ||
+          text.contains('SocketException') ||
+          text.contains('Failed host lookup') ||
+          text.contains('ClientException');
+      return CheckFailed(
+        offline
+            ? 'No internet connection — check your network and try again.'
+            : "Couldn't reach the update server. Try again later.",
+      );
     }
   }
 }

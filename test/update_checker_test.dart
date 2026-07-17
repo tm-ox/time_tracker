@@ -83,5 +83,22 @@ void main() {
       final status = await _checker('v0.9.0-beta.7', status: 403).check();
       expect(status, isA<CheckFailed>());
     });
+
+    test('offline failures map to friendly connection copy, not raw text',
+        () async {
+      final checker = UpdateChecker(
+        currentTag: 'v0.9.0-beta.7',
+        client: MockClient(
+          (_) async => throw http.ClientException(
+            "SocketException: Failed host lookup: 'api.github.com'",
+          ),
+        ),
+      );
+      final status = await checker.check();
+      expect(status, isA<CheckFailed>());
+      final reason = (status as CheckFailed).reason;
+      expect(reason, contains('No internet connection'));
+      expect(reason, isNot(contains('SocketException')));
+    });
   });
 }

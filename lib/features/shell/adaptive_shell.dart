@@ -494,9 +494,7 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           ),
         );
       case CheckFailed(:final reason):
-        messenger.showSnackBar(
-          SnackBar(content: Text("Couldn't check for updates: $reason")),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(reason)));
     }
   }
 
@@ -1082,26 +1080,34 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                                     width: AppTokens.strokeThin,
                                   ),
                                 ),
-                                child: Column(
-                                  children: [
-                                    // Grab handle — drag it to follow the finger,
-                                    // release to fling/snap open or closed.
-                                    GestureDetector(
-                                      behavior: HitTestBehavior
-                                          .opaque, // catch drags on the whole strip, not just the 4px bar
-                                      onVerticalDragUpdate: (d) => _sheetCtrl
-                                          .value -= d.delta.dy / sheetHeight,
-                                      onVerticalDragEnd: (d) =>
-                                          _settleSheet(d.primaryVelocity ?? 0),
-                                      child: const SheetGrabHandle(),
-                                    ),
-                                    Expanded(
-                                      child: panel(
-                                        before: _closePanel,
-                                        showFooter: false,
+                                // Inset the panel content off the system
+                                // navigation bar; with edge-to-edge + a
+                                // transparent system nav bar the sheet would
+                                // otherwise bleed its search header into that
+                                // zone. top:false — the grab handle owns the top.
+                                child: SafeArea(
+                                  top: false,
+                                  child: Column(
+                                    children: [
+                                      // Grab handle — drag it to follow the finger,
+                                      // release to fling/snap open or closed.
+                                      GestureDetector(
+                                        behavior: HitTestBehavior
+                                            .opaque, // catch drags on the whole strip, not just the 4px bar
+                                        onVerticalDragUpdate: (d) => _sheetCtrl
+                                            .value -= d.delta.dy / sheetHeight,
+                                        onVerticalDragEnd: (d) =>
+                                            _settleSheet(d.primaryVelocity ?? 0),
+                                        child: const SheetGrabHandle(),
                                       ),
-                                    ),
-                                  ],
+                                      Expanded(
+                                        child: panel(
+                                          before: _closePanel,
+                                          showFooter: false,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
