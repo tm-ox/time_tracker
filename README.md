@@ -151,9 +151,9 @@ just helping test it.
 
    | Platform | Data folder |
    |---|---|
-   | **Linux** | `~/.local/share/dev.craftox.timedart/` |
-   | **macOS** | `~/Library/Application Support/dev.craftox.timedart/` |
-   | **Windows** | `%APPDATA%\craftox\timedart\` |
+   | **Linux** | `~/.local/share/timedart/` |
+   | **macOS** | `~/Library/Application Support/timedart/` |
+   | **Windows** | `%APPDATA%\timedart\` |
    | **Android** | removed automatically on uninstall |
 
 Exported backups and PDFs live wherever you saved them — remove those separately. Want to keep your
@@ -175,8 +175,8 @@ flutter build linux       # release build
 For iterative work there's `./dev.sh`: it runs `build_runner watch` (regenerating `*.g.dart` from
 drift on save) alongside `flutter run -d linux`, and hot-reloads on changes under `lib/`.
 
-The database lives in the platform app-support directory (`~/.local/share/dev.craftox.timedart/` on
-Linux), not the project folder.
+The database lives in the platform data directory (`~/.local/share/timedart/` on Linux), not the
+project folder.
 
 ## Roadmap
 

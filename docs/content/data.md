@@ -51,9 +51,9 @@ Everything timedart stores — your database, settings, and saved logo — lives
 
 | Platform | Data folder |
 |---|---|
-| **Linux** | `~/.local/share/dev.craftox.timedart/` |
-| **macOS** | `~/Library/Application Support/dev.craftox.timedart/` |
-| **Windows** | `%APPDATA%\craftox\timedart\` — paste that into the File Explorer address bar |
+| **Linux** | `~/.local/share/timedart/` |
+| **macOS** | `~/Library/Application Support/timedart/` |
+| **Windows** | `%APPDATA%\timedart\` — paste that into the File Explorer address bar |
 | **Android** | *Nothing to do* — Android erases all of an app's data automatically when you uninstall it. |
 
 > **Note:** Any invoice PDFs or backup files you exported are saved wherever you chose to put them at the time (for example your Downloads or Documents folder) — they live outside the app's data folder, so delete those separately if you want them gone too.
