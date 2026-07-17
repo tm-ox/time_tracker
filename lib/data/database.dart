@@ -839,7 +839,10 @@ class AppDatabase extends _$AppDatabase {
   );
 
   static QueryExecutor _open() => driftDatabase(
-    name: 'time_tracker',
+    // The on-disk file is `timedart.sqlite`. Installs from before the rename
+    // hold `time_tracker.sqlite`; migrateLegacyDatabaseFile() (called at
+    // startup, before this opens) renames it across so no data is orphaned.
+    name: 'timedart',
     native: const DriftNativeOptions(
       databaseDirectory:
           getApplicationSupportDirectory, // ~/.local/share, not ~/Documents
