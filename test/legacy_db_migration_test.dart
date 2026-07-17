@@ -3,70 +3,100 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timedart/data/legacy_db_migration_io.dart';
 
-// Coverage for the pre-1.0 database-file rename (time_tracker.sqlite →
-// timedart.sqlite). Exercises the directory-injected core against a real temp
-// directory, so no path_provider channel is needed.
+// Coverage for the pre-1.0 database move: from the bundle-id folder under the
+// legacy name (time_tracker.sqlite) to a plainly-named `timedart` folder as
+// timedart.sqlite. Exercises the directory-injected core (moveLegacyDatabaseFile)
+// against real temp directories, so no path_provider channel is needed.
 
 void main() {
-  late Directory dir;
+  late Directory root;
+  late Directory oldDir;
+  late Directory newDir;
 
   setUp(() async {
-    dir = await Directory.systemTemp.createTemp('timedart_legacy_db');
+    root = await Directory.systemTemp.createTemp('timedart_legacy_db');
+    oldDir = await Directory('${root.path}/dev.craftox.timedart').create();
+    newDir = Directory('${root.path}/timedart');
   });
   tearDown(() async {
-    if (await dir.exists()) await dir.delete(recursive: true);
+    if (await root.exists()) await root.delete(recursive: true);
   });
 
-  File legacy([String suffix = '']) =>
-      File('${dir.path}${Platform.pathSeparator}time_tracker.sqlite$suffix');
-  File renamed([String suffix = '']) =>
-      File('${dir.path}${Platform.pathSeparator}timedart.sqlite$suffix');
+  File oldFile(String name, [String suffix = '']) =>
+      File('${oldDir.path}${Platform.pathSeparator}$name$suffix');
+  File newFile([String suffix = '']) =>
+      File('${newDir.path}${Platform.pathSeparator}timedart.sqlite$suffix');
 
-  test('renames the legacy file, preserving contents', () async {
-    await legacy().writeAsString('DB-BYTES');
+  test('moves the legacy file into the new folder, preserving contents',
+      () async {
+    await oldFile('time_tracker.sqlite').writeAsString('DB-BYTES');
 
-    await renameLegacyDatabaseFile(dir.path);
+    await moveLegacyDatabaseFile(oldDir.path, newDir.path);
 
-    expect(await legacy().exists(), isFalse);
-    expect(await renamed().exists(), isTrue);
-    expect(await renamed().readAsString(), 'DB-BYTES');
+    expect(await oldFile('time_tracker.sqlite').exists(), isFalse);
+    expect(await newFile().exists(), isTrue);
+    expect(await newFile().readAsString(), 'DB-BYTES');
   });
 
   test('moves the -wal/-shm sidecars alongside the main file', () async {
-    await legacy().writeAsString('main');
-    await legacy('-wal').writeAsString('wal');
-    await legacy('-shm').writeAsString('shm');
+    await oldFile('time_tracker.sqlite').writeAsString('main');
+    await oldFile('time_tracker.sqlite', '-wal').writeAsString('wal');
+    await oldFile('time_tracker.sqlite', '-shm').writeAsString('shm');
 
-    await renameLegacyDatabaseFile(dir.path);
+    await moveLegacyDatabaseFile(oldDir.path, newDir.path);
 
-    expect(await renamed('-wal').readAsString(), 'wal');
-    expect(await renamed('-shm').readAsString(), 'shm');
-    expect(await legacy('-wal').exists(), isFalse);
-    expect(await legacy('-shm').exists(), isFalse);
+    expect(await newFile('-wal').readAsString(), 'wal');
+    expect(await newFile('-shm').readAsString(), 'shm');
+    expect(await oldFile('time_tracker.sqlite', '-wal').exists(), isFalse);
+  });
+
+  test('also relocates an already-renamed timedart.sqlite', () async {
+    await oldFile('timedart.sqlite').writeAsString('already-renamed');
+
+    await moveLegacyDatabaseFile(oldDir.path, newDir.path);
+
+    expect(await newFile().readAsString(), 'already-renamed');
+    expect(await oldFile('timedart.sqlite').exists(), isFalse);
+  });
+
+  test('coinciding directories degrade to an in-place rename (defensive)',
+      () async {
+    // moveLegacyDatabaseFile must never destroy data if handed the same path
+    // for both directories.
+    await oldFile('time_tracker.sqlite').writeAsString('DB-BYTES');
+
+    await moveLegacyDatabaseFile(oldDir.path, oldDir.path);
+
+    expect(
+      await File('${oldDir.path}/timedart.sqlite').readAsString(),
+      'DB-BYTES',
+    );
+    expect(await oldFile('time_tracker.sqlite').exists(), isFalse);
   });
 
   test('is a no-op when there is no legacy file (fresh install)', () async {
-    await renameLegacyDatabaseFile(dir.path);
-    expect(await renamed().exists(), isFalse);
+    await moveLegacyDatabaseFile(oldDir.path, newDir.path);
+    expect(await newFile().exists(), isFalse);
   });
 
-  test('does not clobber an existing timedart.sqlite', () async {
-    await legacy().writeAsString('OLD');
-    await renamed().writeAsString('CURRENT');
+  test('does not clobber an existing timedart.sqlite in the new folder',
+      () async {
+    await newDir.create(recursive: true);
+    await oldFile('time_tracker.sqlite').writeAsString('OLD');
+    await newFile().writeAsString('CURRENT');
 
-    await renameLegacyDatabaseFile(dir.path);
+    await moveLegacyDatabaseFile(oldDir.path, newDir.path);
 
-    // The current file is left untouched; the stale legacy file is not moved.
-    expect(await renamed().readAsString(), 'CURRENT');
+    expect(await newFile().readAsString(), 'CURRENT');
   });
 
   test('is idempotent — safe to run twice', () async {
-    await legacy().writeAsString('DB-BYTES');
+    await oldFile('time_tracker.sqlite').writeAsString('DB-BYTES');
 
-    await renameLegacyDatabaseFile(dir.path);
-    await renameLegacyDatabaseFile(dir.path);
+    await moveLegacyDatabaseFile(oldDir.path, newDir.path);
+    await moveLegacyDatabaseFile(oldDir.path, newDir.path);
 
-    expect(await renamed().readAsString(), 'DB-BYTES');
-    expect(await legacy().exists(), isFalse);
+    expect(await newFile().readAsString(), 'DB-BYTES');
+    expect(await oldFile('time_tracker.sqlite').exists(), isFalse);
   });
 }

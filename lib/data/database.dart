@@ -1,8 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'id.dart';
+import 'legacy_db_migration.dart';
 
 part 'database.g.dart'; // generated — doesn't exist until you run build_runner
 
@@ -839,14 +839,13 @@ class AppDatabase extends _$AppDatabase {
   );
 
   static QueryExecutor _open() => driftDatabase(
-    // The on-disk file is `timedart.sqlite`. Installs from before the rename
-    // hold `time_tracker.sqlite`; migrateLegacyDatabaseFile() (called at
-    // startup, before this opens) renames it across so no data is orphaned.
+    // The on-disk file is `timedart.sqlite`, in a plainly-named `timedart`
+    // folder (see appDatabaseDirectory) rather than the bundle-id folder.
+    // Installs from before this held `dev.craftox.timedart/time_tracker.sqlite`;
+    // migrateLegacyDatabaseFile() (called at startup, before this opens) moves
+    // it across so no data is orphaned.
     name: 'timedart',
-    native: const DriftNativeOptions(
-      databaseDirectory:
-          getApplicationSupportDirectory, // ~/.local/share, not ~/Documents
-    ),
+    native: const DriftNativeOptions(databaseDirectory: appDatabaseDirectory),
     // Web demo: drift_flutter branches platforms internally, so this block is
     // ignored on native. Assets ship in web/ (version-matched to drift). No
     // COOP/COEP headers → storage falls back to IndexedDB (fine for a demo).
