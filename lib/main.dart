@@ -30,7 +30,7 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         final width = MediaQuery.sizeOf(context).width;
         final scale = width < AppTokens.breakpointMd
-            ? 0.85
+            ? 0.9
             : 1.0; // mobile shrink
         return MediaQuery.withClampedTextScaling(
           minScaleFactor: scale,
