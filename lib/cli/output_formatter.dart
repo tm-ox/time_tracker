@@ -405,3 +405,11 @@ String formatDelete(DeleteOutcome o, {required bool json}) {
   return 'Refusing to delete ${o.kind} "${o.label}" without --force.$has\n'
       'Re-run with --force to delete it${o.impact.total > 0 ? ' and everything under it' : ''}.';
 }
+
+// ── `help --json` rendering (issue #283) ───────────────────────────────────
+
+/// Render the [manifest] built by `buildHelpManifest` (see
+/// `help_manifest.dart`) as pretty-printed JSON — the sole output of
+/// `timedart help --json`.
+String formatHelpManifestJson(Map<String, Object?> manifest) =>
+    const JsonEncoder.withIndent('  ').convert(manifest);

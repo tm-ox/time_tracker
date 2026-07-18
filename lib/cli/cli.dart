@@ -4,11 +4,13 @@ import 'package:args/command_runner.dart';
 
 import '../data/database.dart';
 import '../features/tracker/timer_store.dart';
+import 'agent_guide_text.g.dart';
 import 'crud_result.dart';
 import 'db_open.dart';
 import 'duration_parser.dart';
 import 'entity_resolver.dart';
 import 'exit_codes.dart';
+import 'help_manifest.dart';
 import 'list_query.dart';
 import 'log_result.dart';
 import 'output_formatter.dart';
@@ -24,38 +26,45 @@ import '../util/parse_rate.dart';
 // (never raw tables) so business rules — and later PowerSync CRUD capture —
 // come for free.
 
+/// Builds the top-level [CommandRunner] — the whole verb tree, wired once.
+/// Factored out of [runTimedartCli] so `help --json` (via [buildHelpManifest])
+/// can walk the exact same live tree in a test, without spawning a process or
+/// capturing stdout.
+CommandRunner<int> buildTimedartRunner() =>
+    _TimedartRunner(
+        'timedart',
+        'timedart companion CLI — a DB peer of the app.\n\n'
+            '${versionLine()}',
+      )
+      ..argParser.addFlag(
+        'version',
+        negatable: false,
+        help: 'Print the CLI version, DB schema version and sync-awareness.',
+      )
+      ..argParser.addFlag(
+        'json',
+        abbr: 'j',
+        negatable: false,
+        help: 'Emit machine-readable JSON instead of human text.',
+      )
+      ..argParser.addOption(
+        'db',
+        help:
+            'Path to the timedart database (overrides TIMEDART_DB and the '
+            'default per-platform location). May be a file or a directory.',
+      )
+      ..addCommand(TimerCommand())
+      ..addCommand(ListCommand())
+      ..addCommand(LogCommand())
+      ..addCommand(ClientCommand())
+      ..addCommand(ProjectCommand())
+      ..addCommand(TaskCommand())
+      ..addCommand(GuideCommand());
+
 /// Run the CLI for [args]; returns the process exit code. Never calls
 /// `exit()` itself — `bin/timedart.dart` owns that.
 Future<int> runTimedartCli(List<String> args) async {
-  final runner =
-      _TimedartRunner(
-          'timedart',
-          'timedart companion CLI — a DB peer of the app.\n\n'
-              '${versionLine()}',
-        )
-        ..argParser.addFlag(
-          'version',
-          negatable: false,
-          help: 'Print the CLI version, DB schema version and sync-awareness.',
-        )
-        ..argParser.addFlag(
-          'json',
-          abbr: 'j',
-          negatable: false,
-          help: 'Emit machine-readable JSON instead of human text.',
-        )
-        ..argParser.addOption(
-          'db',
-          help:
-              'Path to the timedart database (overrides TIMEDART_DB and the '
-              'default per-platform location). May be a file or a directory.',
-        )
-        ..addCommand(TimerCommand())
-        ..addCommand(ListCommand())
-        ..addCommand(LogCommand())
-        ..addCommand(ClientCommand())
-        ..addCommand(ProjectCommand())
-        ..addCommand(TaskCommand());
+  final runner = buildTimedartRunner();
 
   // Whether `--json` was passed, needed by BOTH catch blocks below to choose
   // plain-text vs structured stderr (issue #286). The top-level parse below
@@ -74,6 +83,20 @@ Future<int> runTimedartCli(List<String> args) async {
       wantsJson = top['json'] as bool;
       if (top['version'] as bool) {
         stdout.writeln(versionLine());
+        return CliExit.success;
+      }
+      // `timedart help --json` (issue #283): intercepted here rather than as
+      // its own command — the `args` package already registers a hidden
+      // built-in `help` command (CommandRunner's constructor), and a second
+      // `addCommand` under the same name would throw "Duplicate command".
+      // `--json`/`-j` is a global flag, recognised on either side of the verb
+      // (the `args` parser walks up to the parent grammar for an option the
+      // command's own grammar doesn't define), so this fires for both
+      // `help --json` and `--json help`. No DB is opened.
+      if (top.command?.name == 'help' && wantsJson) {
+        stdout.writeln(
+          formatHelpManifestJson(buildHelpManifest(runner)),
+        );
         return CliExit.success;
       }
     } on FormatException {
@@ -150,6 +173,30 @@ class _TimedartRunner extends CommandRunner<int> {
       '  timedart list projects -j                 # discover ids/names\n'
       '  timedart timer start -p GLOB -t Build -j\n'
       '  timedart timer stop -j                    # record the entry';
+}
+
+/// `timedart guide` — print the full agent-usage guide (issue #283). The
+/// installed binary doesn't carry `docs/`, so the markdown is bundled in as a
+/// generated Dart string constant ([kAgentGuideMarkdown], see
+/// `agent_guide_text.g.dart` / `tool/gen_agent_guide.dart`); this just writes
+/// it verbatim. Read-only — no DB is opened, so it works even with no
+/// database present. An agent's entire bootstrap can be this one command.
+class GuideCommand extends Command<int> {
+  @override
+  final String name = 'guide';
+  @override
+  final String description =
+      'Print the full agent-usage guide (bundled — no DB needed).\n'
+      '\n'
+      'Examples:\n'
+      '  timedart guide\n'
+      '  timedart guide | less';
+
+  @override
+  Future<int> run() async {
+    stdout.writeln(kAgentGuideMarkdown);
+    return CliExit.success;
+  }
 }
 
 /// `timedart timer …` — the running-timer verb group.
