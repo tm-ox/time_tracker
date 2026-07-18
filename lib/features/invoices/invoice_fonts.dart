@@ -74,6 +74,12 @@ const Map<String, InvoiceFont> invoiceFonts = {
     pdfMediumAsset: '$_dir/Spectral-Medium.ttf',
     pdfSemiBoldAsset: '$_dir/Spectral-SemiBold.ttf',
   ),
+  'Plus Jakarta Sans': InvoiceFont(
+    flutterFamily: 'Plus Jakarta Sans',
+    pdfRegularAsset: '$_dir/PlusJakartaSans-Regular.ttf',
+    pdfMediumAsset: '$_dir/PlusJakartaSans-Medium.ttf',
+    pdfSemiBoldAsset: '$_dir/PlusJakartaSans-SemiBold.ttf',
+  ),
 };
 
 /// The display names in picker order.

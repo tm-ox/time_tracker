@@ -167,3 +167,11 @@ flutter:
           weight: 500
         - asset: assets/fonts/Spectral-SemiBold.ttf
           weight: 600
+    - family: Plus Jakarta Sans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
+          weight: 600

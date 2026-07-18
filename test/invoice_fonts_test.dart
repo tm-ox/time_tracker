@@ -9,13 +9,14 @@ import 'package:timedart/features/invoices/invoice_fonts.dart';
 
 void main() {
   group('registry', () {
-    test('exposes the five curated families in picker order', () {
+    test('exposes the six curated families in picker order', () {
       expect(invoiceFontFamilies, [
         'Outfit',
         'IBM Plex Sans',
         'Libre Franklin',
         'Source Serif 4',
         'Spectral',
+        'Plus Jakarta Sans',
       ]);
       // Outfit (the default) leads the picker.
       expect(invoiceFontFamilies.first, defaultInvoiceFontFamily);
