@@ -4,6 +4,7 @@ import 'crud_result.dart';
 import 'exit_codes.dart';
 import 'list_result.dart';
 import 'log_result.dart';
+import 'report_result.dart';
 import 'timer_status_result.dart';
 import 'timer_stop_result.dart';
 
@@ -466,6 +467,69 @@ String formatDelete(DeleteOutcome o, {required bool json}) {
   return 'Refusing to delete ${o.kind} "${o.label}" without --force.$has\n'
       'Re-run with --force to delete it${o.impact.total > 0 ? ' and everything under it' : ''}.';
 }
+
+// ── `report` rendering (issue #287) ────────────────────────────────────────
+
+/// The stable JSON contract for `report`: a plain array (no wrapping object,
+/// matching `list clients`/`list projects`/etc.) of
+/// `{group, groupId, seconds, entries, amount}` — `groupId`/`amount` are
+/// `null` when they don't apply (day-grouping has no entity id; a group with
+/// no resolvable rate has no amount).
+Map<String, Object?> reportRowJson(ReportRow r) => {
+  'group': r.group,
+  'groupId': r.groupId,
+  'seconds': r.seconds,
+  'entries': r.entries,
+  'amount': r.amount,
+};
+
+List<Map<String, Object?>> reportRowsJson(List<ReportRow> rows) => [
+  for (final r in rows) reportRowJson(r),
+];
+
+/// Render `report` rows as an aligned, human-readable table with a trailing
+/// TOTAL row. Money is shown only when at least one row resolved a rate.
+String formatReportHuman(List<ReportRow> rows) {
+  if (rows.isEmpty) return 'No tracked time in this window.';
+
+  final totalSeconds = rows.fold<int>(0, (s, r) => s + r.seconds);
+  final totalEntries = rows.fold<int>(0, (s, r) => s + r.entries);
+  final hasAmount = rows.any((r) => r.amount != null);
+  final totalAmount = hasAmount
+      ? rows.fold<double>(0, (s, r) => s + (r.amount ?? 0))
+      : null;
+
+  final groupWidth = [
+    for (final r in rows) r.group.length,
+    'TOTAL'.length,
+  ].reduce((a, b) => a > b ? a : b);
+
+  String moneyOf(double? amount) =>
+      amount == null ? '' : '\$${amount.toStringAsFixed(2)}';
+  String entriesOf(int n) => '$n ${n == 1 ? 'entry' : 'entries'}';
+
+  final lines = <String>[
+    for (final r in rows)
+      [
+        r.group.padRight(groupWidth + 2),
+        formatElapsed(r.seconds).padRight(14),
+        entriesOf(r.entries).padRight(12),
+        if (hasAmount) moneyOf(r.amount),
+      ].join().trimRight(),
+    [
+      'TOTAL'.padRight(groupWidth + 2),
+      formatElapsed(totalSeconds).padRight(14),
+      entriesOf(totalEntries).padRight(12),
+      if (hasAmount) moneyOf(totalAmount),
+    ].join().trimRight(),
+  ];
+  return lines.join('\n');
+}
+
+/// Render `report` [rows] as JSON when [json] is true, else as a human table.
+String formatReport(List<ReportRow> rows, {required bool json}) => json
+    ? const JsonEncoder.withIndent('  ').convert(reportRowsJson(rows))
+    : formatReportHuman(rows);
 
 // ── `help --json` rendering (issue #283) ───────────────────────────────────
 

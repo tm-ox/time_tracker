@@ -6,6 +6,7 @@ import 'package:timedart/cli/exit_codes.dart';
 import 'package:timedart/cli/list_result.dart';
 import 'package:timedart/cli/log_result.dart';
 import 'package:timedart/cli/output_formatter.dart';
+import 'package:timedart/cli/report_result.dart';
 import 'package:timedart/cli/timer_status_result.dart';
 import 'package:timedart/cli/timer_stop_result.dart';
 import 'package:timedart/cli/version.dart';
@@ -218,6 +219,37 @@ void main() {
       'startedAt',
       'endedAt',
     });
+  });
+
+  test('report JSON keys', () {
+    const row = ReportRow(
+      group: 'ACME Acme Website',
+      groupId: 'p1',
+      seconds: 3600,
+      entries: 2,
+      amount: 100.0,
+    );
+    final arr = _arr(formatReport([row], json: true));
+    final rowJson = arr.single as Map;
+    expect(rowJson.keys.toSet(), {
+      'group',
+      'groupId',
+      'seconds',
+      'entries',
+      'amount',
+    });
+    expect(rowJson['group'], 'ACME Acme Website');
+    expect(rowJson['groupId'], 'p1');
+    expect(rowJson['seconds'], 3600);
+    expect(rowJson['entries'], 2);
+    expect(rowJson['amount'], 100.0);
+  });
+
+  test('report JSON: amount/groupId are null when they don\'t apply', () {
+    const row = ReportRow(group: '2026-07-13', seconds: 60, entries: 1);
+    final rowJson = _arr(formatReport([row], json: true)).single as Map;
+    expect(rowJson['groupId'], isNull);
+    expect(rowJson['amount'], isNull);
   });
 
   test('version line states CLI version, schema version and sync-awareness', () {

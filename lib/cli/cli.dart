@@ -14,6 +14,7 @@ import 'help_manifest.dart';
 import 'list_query.dart';
 import 'log_result.dart';
 import 'output_formatter.dart';
+import 'report_result.dart';
 import 'timer_status.dart';
 import 'timer_stop_result.dart';
 import 'version.dart';
@@ -60,6 +61,7 @@ CommandRunner<int> buildTimedartRunner() =>
       ..addCommand(ProjectCommand())
       ..addCommand(TaskCommand())
       ..addCommand(EntryCommand())
+      ..addCommand(ReportCommand())
       ..addCommand(GuideCommand());
 
 /// Run the CLI for [args]; returns the process exit code. Never calls
@@ -1041,6 +1043,125 @@ class LogCommand extends _CliVerb {
       await db.close();
     }
   }
+}
+
+/// `timedart report [--project] [--client] [--task] [--since] [--until]
+/// [--by]` — aggregate tracked seconds over a window, grouped (issue #287).
+/// Read-only: answers "how much time on X" without dumping raw entries via
+/// `list entries`. Scope filters combine (AND); the date window reuses
+/// exactly the same `--since`/`--until` parsing as `list entries` (`parseAt`,
+/// see duration_parser.dart).
+class ReportCommand extends _CliVerb {
+  @override
+  final String name = 'report';
+  @override
+  final String description =
+      'Aggregate tracked time over a window, grouped by project (default), '
+      'task, client or day.\n'
+      '\n'
+      'Default window when --since/--until are omitted: the current week, '
+      'Monday 00:00 (local time) through now.\n'
+      '\n'
+      'Examples:\n'
+      '  timedart report\n'
+      '  timedart report --by task -p ACME -j\n'
+      '  timedart report --by day --since 2026-07-01 --until 2026-07-31 -j\n'
+      '  timedart report -c Globex --by client -j';
+
+  ReportCommand() {
+    argParser
+      ..addOption(
+        'project',
+        abbr: 'p',
+        help: 'Only entries under this project — a UUID or exact code/title.',
+      )
+      ..addOption(
+        'client',
+        abbr: 'c',
+        help: 'Only entries under this client — a UUID or exact name.',
+      )
+      ..addOption(
+        'task',
+        abbr: 't',
+        help: 'Only entries under this task — a UUID or exact title (scoped '
+            'to --project when both are given).',
+      )
+      ..addOption(
+        'since',
+        help: 'Only entries starting on/after this ISO-8601 date/time '
+            '(inclusive). Default: this week\'s Monday 00:00.',
+      )
+      ..addOption(
+        'until',
+        help: 'Only entries starting on/before this ISO-8601 date/time '
+            '(inclusive). Default: now.',
+      )
+      ..addOption(
+        'by',
+        allowed: ['project', 'task', 'client', 'day'],
+        defaultsTo: 'project',
+        help: 'Group totals by project, task, client or day.',
+      );
+  }
+
+  @override
+  Future<int> run() async {
+    final projectSel = argResults!['project'] as String?;
+    final clientSel = argResults!['client'] as String?;
+    final taskSel = argResults!['task'] as String?;
+    final sinceSel = argResults!['since'] as String?;
+    final untilSel = argResults!['until'] as String?;
+    final groupBy = parseReportGroupBy(argResults!['by'] as String);
+
+    final db = openDb();
+    try {
+      String? projectId;
+      if (projectSel != null && projectSel.isNotEmpty) {
+        projectId = (await resolveProject(db, projectSel)).id;
+      }
+      String? clientId;
+      if (clientSel != null && clientSel.isNotEmpty) {
+        clientId = (await resolveClient(db, clientSel)).id;
+      }
+      String? taskId;
+      if (taskSel != null && taskSel.isNotEmpty) {
+        taskId = (await resolveTaskAnywhere(
+          db,
+          taskSel,
+          projectId: projectId,
+        )).id;
+      }
+
+      final now = DateTime.now();
+      final since = (sinceSel != null && sinceSel.isNotEmpty)
+          ? parseAt(sinceSel, label: '--since')
+          : _defaultReportSince(now);
+      final until = (untilSel != null && untilSel.isNotEmpty)
+          ? parseAt(untilSel, label: '--until')
+          : now;
+
+      final rows = await queryReport(
+        db,
+        projectId: projectId,
+        clientId: clientId,
+        taskId: taskId,
+        since: since,
+        until: until,
+        groupBy: groupBy,
+      );
+      return emit(formatReport(rows, json: json));
+    } finally {
+      await db.close();
+    }
+  }
+}
+
+/// Default `report` window start: the current week's Monday, midnight local
+/// time (the implicit end is `now`) — a "how's this week going" default that
+/// reads naturally and is always overridable via --since/--until.
+DateTime _defaultReportSince(DateTime now) {
+  final startOfDay = DateTime(now.year, now.month, now.day);
+  return startOfDay.subtract(Duration(days: now.weekday - 1));
 }
 
 // ── Entity CRUD (issue #280) ───────────────────────────────────────────────
