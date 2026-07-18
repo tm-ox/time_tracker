@@ -23,6 +23,24 @@ class CliExit {
 
   /// No database file was found at the resolved (or overridden) path.
   static const int dbNotFound = 4;
+
+  /// A named project/task selector matched no live entity.
+  static const int unknownEntity = 5;
+
+  /// A named project/task selector matched more than one live entity — the
+  /// caller must disambiguate (e.g. use the UUID).
+  static const int ambiguousEntity = 6;
+
+  /// An operation that needs a running/paused timer found none active
+  /// (e.g. `stop`, `pause`, `resume` with no timer).
+  static const int noTimerRunning = 7;
+
+  /// `start` found a timer already active, or `resume` found one already
+  /// running — the running clock must not be silently rebound.
+  static const int timerAlreadyRunning = 8;
+
+  /// `pause` found the timer already paused.
+  static const int timerAlreadyPaused = 9;
 }
 
 /// A failure a command can raise to abort with a specific [exitCode] and a

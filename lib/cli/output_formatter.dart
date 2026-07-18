@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'timer_status_result.dart';
+import 'timer_stop_result.dart';
 
 // ── Output formatter (pure) ────────────────────────────────────────────────
 // Result object → deterministic human-readable text OR JSON. No I/O, no clock:
@@ -101,3 +102,61 @@ String formatTimerStatusJson(TimerStatusResult result) =>
 /// Render [result] as JSON when [json] is true, else as human text.
 String formatTimerStatus(TimerStatusResult result, {required bool json}) =>
     json ? formatTimerStatusJson(result) : formatTimerStatusHuman(result);
+
+// ── `timer stop` rendering ─────────────────────────────────────────────────
+
+/// Human text for a completed `timer stop`.
+String formatTimerStopHuman(TimerStopResult r) {
+  if (!r.recorded) {
+    return 'Stopped. No time entry recorded (no task bound or zero elapsed).';
+  }
+  final project = _stopProjectLabel(r);
+  final where = <String>[
+    ?project,
+    ?r.taskTitle,
+  ].join(' / ');
+  final trailer = where.isEmpty ? '' : ' on $where';
+  return 'Stopped. Recorded ${formatElapsed(r.seconds)}$trailer.';
+}
+
+String? _stopProjectLabel(TimerStopResult r) {
+  final code = r.projectCode;
+  final title = r.projectTitle;
+  if (code != null && title != null) return '$code $title';
+  return title ?? code;
+}
+
+/// The stable JSON contract for `timer stop`.
+///
+/// `{"stopped":true,"recorded":<bool>,"entry":<entry|null>}` where an entry is
+/// `{"seconds","project":{id,code?,title}|null,"task":{id,title}|null,
+///   "description","startedAt","endedAt"}`.
+Map<String, Object?> timerStopJson(TimerStopResult r) => {
+  'stopped': true,
+  'recorded': r.recorded,
+  'entry': !r.recorded
+      ? null
+      : {
+          'seconds': r.seconds,
+          'project': r.projectId == null
+              ? null
+              : {
+                  'id': r.projectId,
+                  'code': r.projectCode,
+                  'title': r.projectTitle,
+                },
+          'task': r.taskId == null
+              ? null
+              : {'id': r.taskId, 'title': r.taskTitle},
+          'description': r.description,
+          'startedAt': r.startedAt?.toIso8601String(),
+          'endedAt': r.endedAt?.toIso8601String(),
+        },
+};
+
+String formatTimerStopJson(TimerStopResult r) =>
+    const JsonEncoder.withIndent('  ').convert(timerStopJson(r));
+
+/// Render a `timer stop` [result] as JSON when [json] is true, else human text.
+String formatTimerStop(TimerStopResult result, {required bool json}) =>
+    json ? formatTimerStopJson(result) : formatTimerStopHuman(result);
