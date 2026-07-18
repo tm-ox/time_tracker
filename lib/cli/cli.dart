@@ -13,6 +13,7 @@ import 'log_result.dart';
 import 'output_formatter.dart';
 import 'timer_status.dart';
 import 'timer_stop_result.dart';
+import 'version.dart';
 
 // ── Verb dispatch (args-based) ─────────────────────────────────────────────
 // The CLI spine: a CommandRunner that owns the global flags (`--json`, `--db`),
@@ -27,7 +28,13 @@ Future<int> runTimedartCli(List<String> args) async {
   final runner =
       CommandRunner<int>(
           'timedart',
-          'timedart companion CLI — a DB peer of the app.',
+          'timedart companion CLI — a DB peer of the app.\n\n'
+              '${versionLine()}',
+        )
+        ..argParser.addFlag(
+          'version',
+          negatable: false,
+          help: 'Print the CLI version, DB schema version and sync-awareness.',
         )
         ..argParser.addFlag(
           'json',
@@ -45,6 +52,17 @@ Future<int> runTimedartCli(List<String> args) async {
         ..addCommand(LogCommand());
 
   try {
+    // `--version` is handled before dispatch so it works with no sub-command.
+    // A parse failure here is ignored — runner.run reports it as a UsageException.
+    try {
+      final top = runner.argParser.parse(args);
+      if (top['version'] as bool) {
+        stdout.writeln(versionLine());
+        return CliExit.success;
+      }
+    } on FormatException {
+      // fall through to runner.run for a proper usage message
+    }
     final code = await runner.run(args);
     return code ?? CliExit.success;
   } on CliException catch (e) {
