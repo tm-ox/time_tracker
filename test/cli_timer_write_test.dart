@@ -147,7 +147,8 @@ void main() {
       final s = await _seed(tmp);
       expect(
         await runTimedartCli([
-          'timer', 'start', '--project', 'Ghost', '--db', s.file.path,
+          'timer', 'start', '--project', 'Ghost', '--task', 'Design', //
+          '--db', s.file.path,
         ]),
         CliExit.unknownEntity,
       );
@@ -159,13 +160,15 @@ void main() {
       final s = await _seed(tmp);
       expect(
         await runTimedartCli([
-          'timer', 'start', '--project', 'ACME', '--db', s.file.path,
+          'timer', 'start', '--project', 'ACME', '--task', 'Design', //
+          '--db', s.file.path,
         ]),
         CliExit.success,
       );
       expect(
         await runTimedartCli([
-          'timer', 'start', '--project', 'ACME', '--db', s.file.path,
+          'timer', 'start', '--project', 'ACME', '--task', 'Design', //
+          '--db', s.file.path,
         ]),
         CliExit.timerAlreadyRunning,
       );
@@ -185,6 +188,33 @@ void main() {
         await runTimedartCli(['timer', 'start', '--db', s.file.path]),
         CliExit.usage,
       );
+    });
+
+    test('start with no --task → usage', () async {
+      final s = await _seed(tmp);
+      expect(
+        await runTimedartCli([
+          'timer', 'start', '--project', 'ACME', '--db', s.file.path,
+        ]),
+        CliExit.usage,
+      );
+    });
+
+    test('start --project P --task T → running with task bound', () async {
+      final s = await _seed(tmp);
+      expect(
+        await runTimedartCli([
+          'timer', 'start', '--project', 'ACME', '--task', 'Design', //
+          '--db', s.file.path,
+        ]),
+        CliExit.success,
+      );
+      final db = _inspect(s.file);
+      addTearDown(db.close);
+      final active = await db.activeTimer();
+      expect(active, isNotNull);
+      expect(active!.taskId, s.taskId);
+      expect(active.runningSince, isNotNull);
     });
   });
 

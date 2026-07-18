@@ -1,9 +1,9 @@
 /// The result of `timer stop` — a plain, I/O-free value the formatter renders.
 ///
-/// [recorded] is false when the finished session produced no [TimeEntry] (the
-/// shared [TimerStore.finish] records nothing when no task was bound or elapsed
-/// was zero); the timer is still cleared. When true, the entry fields describe
-/// what landed.
+/// [recorded] is false when the finished session produced no [TimeEntry] — with
+/// a task always bound (the CLI requires `--task` on start), this now only
+/// happens on the zero-elapsed edge case; the timer is still cleared. When true,
+/// the entry fields describe what landed.
 class TimerStopResult {
   final bool recorded;
   final int seconds;

@@ -134,8 +134,7 @@ class TimerStartCommand extends _CliVerb {
   @override
   final String name = 'start';
   @override
-  final String description =
-      'Start a timer against a project (and optional task).';
+  final String description = 'Start a timer against a project and task.';
 
   TimerStartCommand() {
     argParser
@@ -147,7 +146,8 @@ class TimerStartCommand extends _CliVerb {
       ..addOption(
         'task',
         abbr: 't',
-        help: 'Task to track — a UUID or exact title within the project.',
+        help: 'Task to track — a UUID or exact title within the project '
+            '(required).',
       )
       ..addOption(
         'description',
@@ -166,6 +166,15 @@ class TimerStartCommand extends _CliVerb {
       );
     }
     final taskSel = argResults!['task'] as String?;
+    // All time in timedart is task-level (matches the GUI and `log`): without a
+    // task the elapsed time would be silently discarded on stop.
+    if (taskSel == null || taskSel.isEmpty) {
+      throw const CliException(
+        'timer start requires --task <id|name> (every entry belongs to a '
+        'task).',
+        CliExit.usage,
+      );
+    }
     final description = argResults!['description'] as String?;
 
     final db = openDb();
@@ -181,13 +190,11 @@ class TimerStartCommand extends _CliVerb {
       }
 
       final project = await resolveProject(db, projectSel);
-      final task = taskSel == null || taskSel.isEmpty
-          ? null
-          : await resolveTask(db, project.id, taskSel);
+      final task = await resolveTask(db, project.id, taskSel);
 
       await store.start(
         project.id,
-        task?.id,
+        task.id,
         now: now,
         description: description,
       );

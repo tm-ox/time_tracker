@@ -110,7 +110,7 @@ String formatTimerStatus(TimerStatusResult result, {required bool json}) =>
 /// Human text for a completed `timer stop`.
 String formatTimerStopHuman(TimerStopResult r) {
   if (!r.recorded) {
-    return 'Stopped. No time entry recorded (no task bound or zero elapsed).';
+    return 'Stopped. No time entry recorded (zero elapsed time).';
   }
   final project = _stopProjectLabel(r);
   final where = <String>[

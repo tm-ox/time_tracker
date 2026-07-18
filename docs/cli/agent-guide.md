@@ -96,13 +96,14 @@ JSON — idle:
 ```
 
 ### `timer start`
-Start a timer against a project (and optional task). Fails (`8`) if a timer is
-already active.
+Start a timer against a project and task. Fails (`8`) if a timer is already
+active. **All time in timedart is task-level** (matching the GUI and `log`) —
+project-only timing is unsupported, so `--task` is required.
 
 | Arg | Req | Notes |
 | --- | --- | --- |
 | `-p, --project <id\|name>` | yes | Project to track. |
-| `-t, --task <id\|name>` | no | Task within that project. |
+| `-t, --task <id\|name>` | **yes** | Task within that project. |
 | `-d, --description <text>` | no | Session note; becomes the recorded entry's description on `stop`. |
 
 ```
@@ -133,8 +134,8 @@ timedart timer stop --json
 }
 ```
 
-`recorded` is `false` (and `entry` is `null`) when nothing was saved — the timer
-had no bound task or zero elapsed. The timer is cleared either way.
+`recorded` is `false` (and `entry` is `null`) only on the zero-elapsed edge case
+(a task is always bound). The timer is cleared either way.
 
 ### `timer pause` / `timer resume`
 Pause freezes elapsed; resume continues it. `pause` fails `7` (none) / `9`
