@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'crud_result.dart';
+import 'exit_codes.dart';
 import 'list_result.dart';
 import 'log_result.dart';
 import 'timer_status_result.dart';
@@ -10,6 +11,25 @@ import 'timer_stop_result.dart';
 // Result object → deterministic human-readable text OR JSON. No I/O, no clock:
 // given the same result it always renders the same bytes, so both shapes are
 // trivially testable and an agent can rely on the JSON contract.
+
+/// Render a dispatcher-level failure (issue #286) — the [CliException] /
+/// [UsageException] catch blocks in `cli.dart` call this so the shape lives in
+/// one pure, testable place rather than being built inline at the call site.
+///
+/// Under `--json` this is the ONLY thing written to stderr: a single-line
+/// `{"error":{"code":...,"name":...,"message":...}}` object, `name` sourced
+/// from [CliExit.nameFor] so it can never drift from the exit-code table.
+/// Non-JSON mode is unchanged: plain `error: <message>` text.
+String formatCliError({
+  required int code,
+  required String message,
+  required bool json,
+}) {
+  if (!json) return 'error: $message';
+  return const JsonEncoder.withIndent('  ').convert({
+    'error': {'code': code, 'name': CliExit.nameFor(code), 'message': message},
+  });
+}
 
 /// Format elapsed [seconds] as a compact `Hh Mm Ss` string (e.g. `1h 23m 45s`).
 /// Always shows seconds; hides higher units only when zero and nothing above

@@ -53,6 +53,27 @@ class CliExit {
   /// that is already in use (codes are unique). The command line parsed fine;
   /// the *value* clashes with existing data, so it's distinct from [usage].
   static const int constraintViolation = 11;
+
+  /// Single source of truth for code → symbol-name, used by the `--json`
+  /// error envelope (issue #286) so the wire name always matches the constant
+  /// above it. Falls back to `"unknown"` for a code with no defined name
+  /// (there shouldn't be one, but this must never throw while reporting an
+  /// error).
+  static String nameFor(int code) => switch (code) {
+    success => 'success',
+    failure => 'failure',
+    usage => 'usage',
+    schemaMismatch => 'schemaMismatch',
+    dbNotFound => 'dbNotFound',
+    unknownEntity => 'unknownEntity',
+    ambiguousEntity => 'ambiguousEntity',
+    noTimerRunning => 'noTimerRunning',
+    timerAlreadyRunning => 'timerAlreadyRunning',
+    timerAlreadyPaused => 'timerAlreadyPaused',
+    confirmationRequired => 'confirmationRequired',
+    constraintViolation => 'constraintViolation',
+    _ => 'unknown',
+  };
 }
 
 /// A failure a command can raise to abort with a specific [exitCode] and a

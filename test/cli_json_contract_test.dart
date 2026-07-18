@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timedart/cli/crud_result.dart';
+import 'package:timedart/cli/exit_codes.dart';
 import 'package:timedart/cli/list_result.dart';
 import 'package:timedart/cli/log_result.dart';
 import 'package:timedart/cli/output_formatter.dart';
@@ -162,5 +163,68 @@ void main() {
     expect(v, contains(kCliVersion));
     expect(v, contains('schema v16'));
     expect(v, contains('sync:'));
+  });
+
+  // ── Dispatcher error envelope (issue #286) ───────────────────────────────
+
+  test('error JSON shape for an unknown-entity failure (code 5)', () {
+    final text = formatCliError(
+      code: CliExit.unknownEntity,
+      message: 'No live project matches "Ghost".',
+      json: true,
+    );
+    final top = _obj(text);
+    expect(top.keys.toSet(), {'error'});
+    final error = top['error'] as Map;
+    expect(error, {
+      'code': 5,
+      'name': 'unknownEntity',
+      'message': 'No live project matches "Ghost".',
+    });
+  });
+
+  test('error JSON shape for a usage failure (code 2)', () {
+    final text = formatCliError(
+      code: CliExit.usage,
+      message: 'Could not find a command named "bogus".',
+      json: true,
+    );
+    final error = _obj(text)['error'] as Map;
+    expect(error, {
+      'code': 2,
+      'name': 'usage',
+      'message': 'Could not find a command named "bogus".',
+    });
+  });
+
+  test('non-JSON error mode is unchanged plain text', () {
+    final text = formatCliError(
+      code: CliExit.unknownEntity,
+      message: 'No live project matches "Ghost".',
+      json: false,
+    );
+    expect(text, 'error: No live project matches "Ghost".');
+  });
+
+  test('CliExit.nameFor covers every defined code', () {
+    expect(CliExit.nameFor(CliExit.success), 'success');
+    expect(CliExit.nameFor(CliExit.failure), 'failure');
+    expect(CliExit.nameFor(CliExit.usage), 'usage');
+    expect(CliExit.nameFor(CliExit.schemaMismatch), 'schemaMismatch');
+    expect(CliExit.nameFor(CliExit.dbNotFound), 'dbNotFound');
+    expect(CliExit.nameFor(CliExit.unknownEntity), 'unknownEntity');
+    expect(CliExit.nameFor(CliExit.ambiguousEntity), 'ambiguousEntity');
+    expect(CliExit.nameFor(CliExit.noTimerRunning), 'noTimerRunning');
+    expect(CliExit.nameFor(CliExit.timerAlreadyRunning), 'timerAlreadyRunning');
+    expect(CliExit.nameFor(CliExit.timerAlreadyPaused), 'timerAlreadyPaused');
+    expect(
+      CliExit.nameFor(CliExit.confirmationRequired),
+      'confirmationRequired',
+    );
+    expect(
+      CliExit.nameFor(CliExit.constraintViolation),
+      'constraintViolation',
+    );
+    expect(CliExit.nameFor(999), 'unknown');
   });
 }

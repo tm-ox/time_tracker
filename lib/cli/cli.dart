@@ -57,27 +57,46 @@ Future<int> runTimedartCli(List<String> args) async {
         ..addCommand(ProjectCommand())
         ..addCommand(TaskCommand());
 
+  // Whether `--json` was passed, needed by BOTH catch blocks below to choose
+  // plain-text vs structured stderr (issue #286). The top-level parse below
+  // already gives us this for the happy/well-formed-flags path; a genuine
+  // usage error (bad verb/flag) can make that parse throw before we learn the
+  // flag's value, so as a fallback we scan the raw `args` for `--json`/`-j`
+  // directly — crude, but it means a malformed command line still gets a
+  // JSON-shaped usage error when the caller clearly wanted JSON output.
+  var wantsJson = args.contains('--json') || args.contains('-j');
+
   try {
     // `--version` is handled before dispatch so it works with no sub-command.
     // A parse failure here is ignored — runner.run reports it as a UsageException.
     try {
       final top = runner.argParser.parse(args);
+      wantsJson = top['json'] as bool;
       if (top['version'] as bool) {
         stdout.writeln(versionLine());
         return CliExit.success;
       }
     } on FormatException {
-      // fall through to runner.run for a proper usage message
+      // fall through to runner.run for a proper usage message; wantsJson
+      // keeps the raw-args fallback computed above.
     }
     final code = await runner.run(args);
     return code ?? CliExit.success;
   } on CliException catch (e) {
-    stderr.writeln('error: ${e.message}');
+    stderr.writeln(
+      formatCliError(code: e.exitCode, message: e.message, json: wantsJson),
+    );
     return e.exitCode;
   } on UsageException catch (e) {
-    stderr.writeln(e.message);
-    stderr.writeln();
-    stderr.writeln(e.usage);
+    if (wantsJson) {
+      stderr.writeln(
+        formatCliError(code: CliExit.usage, message: e.message, json: true),
+      );
+    } else {
+      stderr.writeln(e.message);
+      stderr.writeln();
+      stderr.writeln(e.usage);
+    }
     return CliExit.usage;
   }
 }

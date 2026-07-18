@@ -77,6 +77,33 @@ spaces. `--json` works on every verb.
 
 Human-readable errors go to **stderr**; JSON/data goes to **stdout**.
 
+## Errors
+
+Every failure routed through the dispatcher (a `CliException` — e.g.
+`unknownEntity`, `constraintViolation` — or a usage error from the arg
+parser) is rendered by one shared function, so the shape below is guaranteed
+regardless of which verb failed.
+
+**Without `--json`**: unchanged plain text on stderr — `error: <message>`
+(usage errors additionally print the command's usage block).
+
+**With `--json`**: a single JSON object on **stderr** (stdout is never
+touched on failure — it carries only success data):
+
+```json
+{ "error": { "code": 5, "name": "unknownEntity", "message": "No live project matches \"Ghost\"." } }
+```
+
+- `code` — the process exit code (matches the [Exit codes](#exit-codes)
+  table above).
+- `name` — the `CliExit` symbol for that code (`"success"`, `"usage"`,
+  `"unknownEntity"`, …).
+- `message` — the same human-readable text the non-JSON path prints.
+
+A usage error (unknown verb/flag, missing required arg) follows the same
+contract — `code: 2, name: "usage"` — as long as `--json`/`-j` appears
+anywhere on the command line, even if the rest of it fails to parse.
+
 ## Commands
 
 ### `timer status`
