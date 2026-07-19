@@ -138,5 +138,31 @@ void main() {
       final code = await runTimedartCli(['bogus']);
       expect(code, CliExit.usage);
     });
+
+    // Issue #286: --json doesn't change the exit code, only how the error is
+    // rendered (see formatCliError / cli_json_contract_test.dart for the
+    // stderr shape). These pin that the dispatcher still exits correctly when
+    // `--json` is present on both a runtime failure and a usage failure —
+    // including the unparseable-args fallback for the latter.
+    test('unknown entity under --json still exits unknownEntity', () async {
+      final file = await _seedDb(tmp);
+      final code = await runTimedartCli([
+        'timer',
+        'start',
+        '--project',
+        'Ghost',
+        '--task',
+        'X',
+        '--json',
+        '--db',
+        file.path,
+      ]);
+      expect(code, CliExit.unknownEntity);
+    });
+
+    test('unknown verb under --json still exits usage', () async {
+      final code = await runTimedartCli(['bogus', '--json']);
+      expect(code, CliExit.usage);
+    });
   });
 }

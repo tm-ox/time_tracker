@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'crud_result.dart';
+import 'exit_codes.dart';
 import 'list_result.dart';
 import 'log_result.dart';
+import 'report_result.dart';
 import 'timer_status_result.dart';
 import 'timer_stop_result.dart';
 
@@ -10,6 +12,25 @@ import 'timer_stop_result.dart';
 // Result object → deterministic human-readable text OR JSON. No I/O, no clock:
 // given the same result it always renders the same bytes, so both shapes are
 // trivially testable and an agent can rely on the JSON contract.
+
+/// Render a dispatcher-level failure (issue #286) — the [CliException] /
+/// [UsageException] catch blocks in `cli.dart` call this so the shape lives in
+/// one pure, testable place rather than being built inline at the call site.
+///
+/// Under `--json` this is the ONLY thing written to stderr: a single-line
+/// `{"error":{"code":...,"name":...,"message":...}}` object, `name` sourced
+/// from [CliExit.nameFor] so it can never drift from the exit-code table.
+/// Non-JSON mode is unchanged: plain `error: <message>` text.
+String formatCliError({
+  required int code,
+  required String message,
+  required bool json,
+}) {
+  if (!json) return 'error: $message';
+  return const JsonEncoder.withIndent('  ').convert({
+    'error': {'code': code, 'name': CliExit.nameFor(code), 'message': message},
+  });
+}
 
 /// Format elapsed [seconds] as a compact `Hh Mm Ss` string (e.g. `1h 23m 45s`).
 /// Always shows seconds; hides higher units only when zero and nothing above
@@ -225,6 +246,67 @@ String formatTasks(List<TaskListItem> items, {required bool json}) => json
     ? const JsonEncoder.withIndent('  ').convert(tasksJson(items))
     : formatTasksHuman(items);
 
+// ── `list entries` + entry edit/delete rendering (issue #284) ──────────────
+
+String formatEntriesHuman(List<EntryListItem> items) {
+  if (items.isEmpty) return 'No entries.';
+  return items
+      .map((e) {
+        final project = e.projectCode != null && e.projectTitle != null
+            ? '${e.projectCode} ${e.projectTitle}'
+            : (e.projectTitle ?? e.projectCode ?? e.projectId);
+        final where = <String>[project, ?e.taskTitle].join(' / ');
+        final desc = (e.description == null || e.description!.isEmpty)
+            ? ''
+            : '  ${e.description}';
+        return '${formatElapsed(e.seconds)}  $where'
+            '  (${e.startedAt.toIso8601String()} → '
+            '${e.endedAt.toIso8601String()})$desc\n  ${e.id}';
+      })
+      .join('\n');
+}
+
+Map<String, Object?> entryJson(EntryListItem e) => {
+  'id': e.id,
+  'projectId': e.projectId,
+  'projectCode': e.projectCode,
+  'projectTitle': e.projectTitle,
+  'taskId': e.taskId,
+  'taskTitle': e.taskTitle,
+  'description': e.description,
+  'seconds': e.seconds,
+  'startedAt': e.startedAt.toIso8601String(),
+  'endedAt': e.endedAt.toIso8601String(),
+};
+
+List<Map<String, Object?>> entriesJson(List<EntryListItem> items) => [
+  for (final e in items) entryJson(e),
+];
+
+String formatEntries(List<EntryListItem> items, {required bool json}) => json
+    ? const JsonEncoder.withIndent('  ').convert(entriesJson(items))
+    : formatEntriesHuman(items);
+
+/// One entry after an `entry edit` (edit only — entries have no add verb; use
+/// `log`). [action] is a past-tense verb ("Updated").
+String formatEntry(
+  EntryListItem e, {
+  required String action,
+  required bool json,
+}) {
+  if (json) {
+    return const JsonEncoder.withIndent('  ').convert({
+      'action': action.toLowerCase(),
+      'entry': entryJson(e),
+    });
+  }
+  final project = e.projectCode != null && e.projectTitle != null
+      ? '${e.projectCode} ${e.projectTitle}'
+      : (e.projectTitle ?? e.projectCode ?? e.projectId);
+  final where = <String>[project, ?e.taskTitle].join(' / ');
+  return '$action entry on $where (${formatElapsed(e.seconds)}).\n  ${e.id}';
+}
+
 // ── `log` rendering ────────────────────────────────────────────────────────
 
 String formatLogHuman(LogResult r) {
@@ -385,3 +467,74 @@ String formatDelete(DeleteOutcome o, {required bool json}) {
   return 'Refusing to delete ${o.kind} "${o.label}" without --force.$has\n'
       'Re-run with --force to delete it${o.impact.total > 0 ? ' and everything under it' : ''}.';
 }
+
+// ── `report` rendering (issue #287) ────────────────────────────────────────
+
+/// The stable JSON contract for `report`: a plain array (no wrapping object,
+/// matching `list clients`/`list projects`/etc.) of
+/// `{group, groupId, seconds, entries, amount}` — `groupId`/`amount` are
+/// `null` when they don't apply (day-grouping has no entity id; a group with
+/// no resolvable rate has no amount).
+Map<String, Object?> reportRowJson(ReportRow r) => {
+  'group': r.group,
+  'groupId': r.groupId,
+  'seconds': r.seconds,
+  'entries': r.entries,
+  'amount': r.amount,
+};
+
+List<Map<String, Object?>> reportRowsJson(List<ReportRow> rows) => [
+  for (final r in rows) reportRowJson(r),
+];
+
+/// Render `report` rows as an aligned, human-readable table with a trailing
+/// TOTAL row. Money is shown only when at least one row resolved a rate.
+String formatReportHuman(List<ReportRow> rows) {
+  if (rows.isEmpty) return 'No tracked time in this window.';
+
+  final totalSeconds = rows.fold<int>(0, (s, r) => s + r.seconds);
+  final totalEntries = rows.fold<int>(0, (s, r) => s + r.entries);
+  final hasAmount = rows.any((r) => r.amount != null);
+  final totalAmount = hasAmount
+      ? rows.fold<double>(0, (s, r) => s + (r.amount ?? 0))
+      : null;
+
+  final groupWidth = [
+    for (final r in rows) r.group.length,
+    'TOTAL'.length,
+  ].reduce((a, b) => a > b ? a : b);
+
+  String moneyOf(double? amount) =>
+      amount == null ? '' : '\$${amount.toStringAsFixed(2)}';
+  String entriesOf(int n) => '$n ${n == 1 ? 'entry' : 'entries'}';
+
+  final lines = <String>[
+    for (final r in rows)
+      [
+        r.group.padRight(groupWidth + 2),
+        formatElapsed(r.seconds).padRight(14),
+        entriesOf(r.entries).padRight(12),
+        if (hasAmount) moneyOf(r.amount),
+      ].join().trimRight(),
+    [
+      'TOTAL'.padRight(groupWidth + 2),
+      formatElapsed(totalSeconds).padRight(14),
+      entriesOf(totalEntries).padRight(12),
+      if (hasAmount) moneyOf(totalAmount),
+    ].join().trimRight(),
+  ];
+  return lines.join('\n');
+}
+
+/// Render `report` [rows] as JSON when [json] is true, else as a human table.
+String formatReport(List<ReportRow> rows, {required bool json}) => json
+    ? const JsonEncoder.withIndent('  ').convert(reportRowsJson(rows))
+    : formatReportHuman(rows);
+
+// ── `help --json` rendering (issue #283) ───────────────────────────────────
+
+/// Render the [manifest] built by `buildHelpManifest` (see
+/// `help_manifest.dart`) as pretty-printed JSON — the sole output of
+/// `timedart help --json`.
+String formatHelpManifestJson(Map<String, Object?> manifest) =>
+    const JsonEncoder.withIndent('  ').convert(manifest);
