@@ -37,6 +37,7 @@ class _ClientFormState extends State<ClientForm> {
   late final _rate = TextEditingController(
     text: rateText(widget.initial?.defaultRate),
   );
+  String? _nameError;
   String? _rateError;
 
   bool get _isEdit => widget.initial != null;
@@ -54,20 +55,21 @@ class _ClientFormState extends State<ClientForm> {
   }
 
   Future<void> _submit() async {
-    if (_name.text.trim().isEmpty) return;
-
+    final name = _name.text.trim();
     final parsed = parseRate(_rate.text);
-    if (parsed.error != null) {
-      setState(() => _rateError = parsed.error);
-      return;
-    }
-    // A client's default rate is required — it's the fallback every project inherits.
-    final rate = parsed.value;
-    if (rate == null) {
-      setState(() => _rateError = 'A default rate is required');
-      return;
-    }
-    setState(() => _rateError = null);
+    // A client's default rate is required — it's the fallback every project
+    // inherits — so a blank rate is an error, not just an unparseable one.
+    final rateError =
+        parsed.error ??
+        (parsed.value == null ? 'A default rate is required' : null);
+    // Surface every required-field error at once (name and rate), then stop —
+    // don't return before setState, or the message never shows (the old bug).
+    setState(() {
+      _nameError = name.isEmpty ? 'Enter a client name' : null;
+      _rateError = rateError;
+    });
+    if (_nameError != null || _rateError != null) return;
+    final rate = parsed.value!;
 
     String? clean(TextEditingController c) =>
         c.text.trim().isEmpty ? null : c.text.trim();
@@ -80,7 +82,7 @@ class _ClientFormState extends State<ClientForm> {
       if (_isEdit) {
         await widget.db.updateClient(
           id: widget.initial!.id,
-          name: _name.text.trim(),
+          name: name,
           contactName: contact,
           email: email,
           phone: phone,
@@ -90,7 +92,7 @@ class _ClientFormState extends State<ClientForm> {
         );
       } else {
         await widget.db.addClient(
-          name: _name.text.trim(),
+          name: name,
           contactName: contact,
           email: email,
           phone: phone,
@@ -148,7 +150,10 @@ class _ClientFormState extends State<ClientForm> {
         TextField(
           controller: _name,
           onSubmitted: (_) => _submit(),
-          decoration: const InputDecoration(labelText: 'Name'),
+          decoration: InputDecoration(
+            label: requiredLabel(context, 'Name'),
+            errorText: _nameError,
+          ),
         ),
         const SizedBox(height: AppTokens.spaceLg),
         TextField(
@@ -188,7 +193,7 @@ class _ClientFormState extends State<ClientForm> {
           keyboardType: TextInputType.number,
           onSubmitted: (_) => _submit(),
           decoration: InputDecoration(
-            labelText: 'Default Rate',
+            label: requiredLabel(context, 'Default Rate'),
             errorText: _rateError,
           ),
         ),

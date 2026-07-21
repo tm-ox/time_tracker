@@ -33,9 +33,9 @@ abstract class InvoiceLayout {
   static const double gridGutter = 6.0;
   static const double fieldValueGap = 4.0;
   static const double fieldPaddingH = 8.0;
-  static const double fieldPaddingV = 6.0;
+  static const double fieldPaddingV = 4.0;
   static const double rowPaddingH = 8.0;
-  static const double rowPaddingV = 6.0;
+  static const double rowPaddingV = 4.0;
   static const double rowMarginBottom = 6.0;
   static const double fieldRadius = 4.0;
 
@@ -102,6 +102,20 @@ abstract class InvoiceLayout {
   // PHONE column's edges, and ADDRESS (an Expanded) fills the org+email span.
   static const double recipientCol = (contentWidth - 2 * gridGutter) / 4;
 
+  // Contact row-1 reflow. A long recipient email can't fit its quarter column
+  // (it would wrap mid-address and unbalance the row), so it takes the full
+  // right half and PHONE drops to a full-width bar beneath it. The fit test is
+  // a shared, deterministic width estimate: both painters read the one bool
+  // [RecipientPlan.emailFillsHalf], so preview and PDF can't drift. It's an
+  // estimate, not glyph-accurate metrics (the plan layer is pure Dart and holds
+  // no font engine), tuned to trip the reflow a touch early rather than risk an
+  // email overflowing its box.
+  static const double _avgGlyphAdvance = 0.55; // × fontValue, per character
+  static double estValueWidth(String s) =>
+      s.length * fontValue * _avgGlyphAdvance;
+  // Inner text width of a quarter-column field box (box width minus H padding).
+  static const double recipientFieldInner = recipientCol - 2 * fieldPaddingH;
+
   // Payment/bank fields wrap into rows of this many columns.
   static const int payColumns = 3;
 
@@ -146,10 +160,17 @@ abstract class InvoiceLayout {
     // Recipient grid row 2.
     final hasTaxCell = doc.recipientAbn != null;
     final hasAddress = doc.recipientAddress != null;
+    // Row-1 contact reflow: does the email overflow its quarter column?
+    final hasEmail = _present(doc.recipientEmail);
+    final emailFillsHalf =
+        hasEmail && estValueWidth(doc.recipientEmail!) > recipientFieldInner;
     final recipient = RecipientPlan(
       showSecondRow: hasAddress || hasTaxCell,
       showAddress: hasAddress,
       showTaxCell: hasTaxCell,
+      showEmail: hasEmail,
+      showPhone: _present(doc.recipientPhone),
+      emailFillsHalf: emailFillsHalf,
     );
 
     // Totals: tax row and reverse-charge statement are mutually exclusive.

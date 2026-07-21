@@ -64,16 +64,28 @@ class PartyPlan {
   const PartyPlan({required this.showInvoiceNumber, required this.attValue});
 }
 
-/// Recipient grid presence. Row 1 (org/email/phone) is always drawn; row 2
+/// Recipient grid presence + row-1 contact reflow. Row 1 draws ORGANISATION on
+/// the left half; the right half (under RE) holds EMAIL beside PHONE. Row 2
 /// (address + buyer tax id) and its cells are conditional.
 class RecipientPlan {
   final bool showSecondRow; // address present OR tax cell present
   final bool showAddress; // recipientAddress present
   final bool showTaxCell; // recipientAbn present
+  final bool showEmail; // recipientEmail present — else no EMAIL box at all
+  final bool showPhone; // recipientPhone present — else no PHONE box at all
+  // A long email can't fit its quarter column, so it takes the whole right
+  // half and PHONE drops to a full-width bar beneath it. Decided once here
+  // (from a shared width estimate) so the preview and PDF can't disagree.
+  // Implies [showEmail]. When only one of email/phone is present, that lone
+  // box fills the right half instead of sitting in its quarter.
+  final bool emailFillsHalf;
   const RecipientPlan({
     required this.showSecondRow,
     required this.showAddress,
     required this.showTaxCell,
+    required this.showEmail,
+    required this.showPhone,
+    required this.emailFillsHalf,
   });
 }
 

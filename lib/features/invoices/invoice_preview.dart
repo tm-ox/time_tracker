@@ -449,19 +449,68 @@ class InvoicePreview extends StatelessWidget {
     // took the contact person.) Second line: ADDRESS spanning the org+email
     // columns, with the tax number aligned under PHONE — or ADDRESS
     // full-width when there's no tax number. Shown only when address/tax exist.
+    final email = _field('EMAIL', doc.recipientEmail, singleLine: true);
+    final phone = _field('PHONE', doc.recipientPhone, singleLine: true);
+    final contactPresent = recipient.showEmail || recipient.showPhone;
+    // Right half (under RE), by what's present:
+    //  • email + phone, short email → EMAIL | PHONE, two quarters.
+    //  • email + phone, long email  → EMAIL fills the half, PHONE drops to a
+    //    full-width bar beneath it (recipient.emailFillsHalf).
+    //  • only one of them present   → that lone box fills the half.
+    //  • neither present            → no right half; ORGANISATION fills the
+    //    whole line (row structure below).
+    // EMAIL/PHONE boxes are omitted entirely when their value is blank. The
+    // central ORG|RE split holds whenever any contact is present.
+    final List<Widget> rightHalf;
+    if (recipient.emailFillsHalf) {
+      rightHalf = [
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              email,
+              if (recipient.showPhone) ...[
+                const SizedBox(height: InvoiceLayout.recipientGap),
+                phone,
+              ],
+            ],
+          ),
+        ),
+      ];
+    } else if (recipient.showEmail && recipient.showPhone) {
+      rightHalf = [
+        Expanded(child: email),
+        const SizedBox(width: InvoiceLayout.gridGutter),
+        Expanded(child: phone),
+      ];
+    } else if (recipient.showEmail) {
+      // Email only: keep it in its quarter, leaving the phone column empty.
+      rightHalf = [
+        Expanded(child: email),
+        const SizedBox(width: InvoiceLayout.gridGutter),
+        const Expanded(child: SizedBox()),
+      ];
+    } else if (recipient.showPhone) {
+      // Phone only: it takes the whole right half.
+      rightHalf = [Expanded(flex: 2, child: phone)];
+    } else {
+      rightHalf = const <Widget>[];
+    }
     return Column(
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Half-width beside the contact block, or the whole line alone.
             Expanded(
-              flex: 2,
+              flex: contactPresent ? 2 : 1,
               child: _field(doc.region.organisationLabel, doc.organisation),
             ),
-            const SizedBox(width: InvoiceLayout.gridGutter),
-            Expanded(child: _field('EMAIL', doc.recipientEmail)),
-            const SizedBox(width: InvoiceLayout.gridGutter),
-            Expanded(child: _field('PHONE', doc.recipientPhone)),
+            if (contactPresent) ...[
+              const SizedBox(width: InvoiceLayout.gridGutter),
+              ...rightHalf,
+            ],
           ],
         ),
         if (recipient.showSecondRow) ...[
@@ -489,28 +538,34 @@ class InvoicePreview extends StatelessWidget {
     );
   }
 
-  Widget _field(String label, String? value) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('$label:', style: _label),
-      const SizedBox(height: InvoiceLayout.fieldValueGap),
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          horizontal: InvoiceLayout.fieldPaddingH,
-          vertical: InvoiceLayout.fieldPaddingV,
-        ),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(InvoiceLayout.fieldRadius),
-        ),
-        child: Text(
-          value == null || value.isEmpty ? '—' : value,
-          style: _value,
-        ),
-      ),
-    ],
-  );
+  // [singleLine] pins the value to one line (ellipsis on overflow) — used for
+  // the contact fields (EMAIL/PHONE), which must never wrap mid-string; the
+  // recipient grid reflows the whole box instead. Others (ADDRESS, LINK) wrap.
+  Widget _field(String label, String? value, {bool singleLine = false}) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label:', style: _label),
+          const SizedBox(height: InvoiceLayout.fieldValueGap),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: InvoiceLayout.fieldPaddingH,
+              vertical: InvoiceLayout.fieldPaddingV,
+            ),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(InvoiceLayout.fieldRadius),
+            ),
+            child: Text(
+              value == null || value.isEmpty ? '—' : value,
+              style: _value,
+              maxLines: singleLine ? 1 : null,
+              overflow: singleLine ? TextOverflow.ellipsis : null,
+            ),
+          ),
+        ],
+      );
 
   // Plain text sized to a single line — content for a cell box or a bare label.
   Widget _txt(String s, {bool right = false, TextStyle? style}) => Text(

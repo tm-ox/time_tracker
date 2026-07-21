@@ -136,7 +136,7 @@ class _TaskFormState extends State<TaskForm> {
           controller: _title,
           autofocus: !_isEdit,
           decoration: InputDecoration(
-            labelText: 'Task',
+            label: requiredLabel(context, 'Task'),
             hintText: 'What is this work?',
             errorText: _titleError,
           ),

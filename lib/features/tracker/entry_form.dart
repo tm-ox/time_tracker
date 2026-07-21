@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:timedart/data/database.dart';
 import 'package:timedart/constants/tokens.dart';
+import 'package:timedart/widgets/app_date_picker.dart';
 import 'package:timedart/widgets/dropdown_field.dart';
 import 'package:timedart/widgets/entity_editor.dart';
 import 'package:timedart/features/deletions.dart';
@@ -96,8 +97,8 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Future<void> _pickStart() async {
-    final date = await showDatePicker(
-      context: context,
+    final date = await showAppDatePicker(
+      context,
       initialDate: _start,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
@@ -235,7 +236,10 @@ class _EntryFormState extends State<EntryForm> {
           initialValue: _selectedTaskId,
           isExpanded: true,
           icon: kDropdownChevron,
-          decoration: InputDecoration(labelText: 'Task', errorText: _taskError),
+          decoration: InputDecoration(
+            label: requiredLabel(context, 'Task'),
+            errorText: _taskError,
+          ),
           items: [
             for (final t in _tasks)
               DropdownMenuItem(value: t.id, child: Text(t.title)),
@@ -256,7 +260,7 @@ class _EntryFormState extends State<EntryForm> {
         InkWell(
           onTap: _pickStart,
           child: InputDecorator(
-            decoration: const InputDecoration(labelText: 'Start'),
+            decoration: InputDecoration(label: requiredLabel(context, 'Start')),
             child: Text(startLabel),
           ),
         ),
@@ -265,7 +269,7 @@ class _EntryFormState extends State<EntryForm> {
         // (a thin divider separates them) so there's a single frame, not two.
         InputDecorator(
           decoration: InputDecoration(
-            labelText: 'Duration',
+            label: requiredLabel(context, 'Duration'),
             errorText: _durationError,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: AppTokens.spaceMd,

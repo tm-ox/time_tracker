@@ -165,7 +165,7 @@ class _InvoiceViewState extends State<InvoiceView> {
                 ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),

@@ -9,6 +9,24 @@ import 'package:timedart/widgets/sheet_grab_handle.dart';
 /// its fields and its submit/cancel/delete logic — the modal counterpart to the
 /// content-pane [EditorSession].
 
+/// A required-field label for [InputDecoration.label]: the field name with a
+/// trailing asterisk in the brand colour (a neutral "this is required" marker,
+/// not an alarm — the field's [InputDecoration.errorText] carries the actual
+/// error, in the theme's error colour, only once a required field is left blank
+/// on save). Every entity form uses this so the required cue reads the same
+/// everywhere.
+Widget requiredLabel(BuildContext context, String text) => Text.rich(
+  TextSpan(
+    text: text,
+    children: [
+      TextSpan(
+        text: ' *',
+        style: TextStyle(color: Theme.of(context).colorScheme.primary),
+      ),
+    ],
+  ),
+);
+
 /// Presents an entity editor adaptively: a centred modal [Dialog] on wide
 /// windows, a bottom sheet (lifted clear of the keyboard) on narrow ones.
 /// Returns whatever the form pops the route with — e.g. the project editor pops

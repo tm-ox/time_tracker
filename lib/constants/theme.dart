@@ -44,6 +44,58 @@ ThemeData buildAppTheme(Brightness brightness) {
     side: BorderSide(color: borderColor, width: AppTokens.strokeThin),
   );
 
+  // Button styles hoisted so the button themes AND the picker action buttons
+  // (date/time Cancel + OK) share one definition — same padding, shape and
+  // hover behaviour everywhere. Primary = tinted fill; ghost = bordered.
+  final filledButtonStyle =
+      FilledButton.styleFrom(
+        shape: buttonShape,
+        padding: buttonPadding,
+        textStyle: buttonTextStyle,
+        side: BorderSide(
+          color: AppTokens.colorBrandPrimary.withValues(alpha: 0.30),
+          width: AppTokens.strokeThin,
+        ),
+      ).copyWith(
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.hovered)
+              ? AppTokens.colorAccentText
+              : AppTokens.colorAccentDim,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.hovered)
+              ? AppTokens.colorOnAccent
+              : AppTokens.colorAccentText,
+        ),
+      );
+  final outlinedButtonStyle =
+      OutlinedButton.styleFrom(
+        shape: buttonShape,
+        padding: buttonPadding,
+        textStyle: buttonTextStyle,
+      ).copyWith(
+        side: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return const BorderSide(
+              color: borderColor,
+              width: AppTokens.strokeThin,
+            );
+          }
+          final hovered =
+              states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.focused);
+          return BorderSide(
+            color: hovered ? scheme.primary : borderColor,
+            width: AppTokens.strokeThin,
+          );
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.hovered)
+              ? AppTokens.colorAccentText
+              : scheme.onSurface,
+        ),
+      );
+
   return ThemeData(
     useMaterial3: true,
     fontFamily:
@@ -147,60 +199,10 @@ ThemeData buildAppTheme(Brightness brightness) {
     // Primary = site .btn-primary: a *tinted* fill (dim green bg + bright green
     // text + faint accent border), not M3's solid fill. Hover inverts to a
     // bright fill with near-black text.
-    filledButtonTheme: FilledButtonThemeData(
-      style:
-          FilledButton.styleFrom(
-            shape: buttonShape,
-            padding: buttonPadding,
-            textStyle: buttonTextStyle,
-            side: BorderSide(
-              color: AppTokens.colorBrandPrimary.withValues(alpha: 0.30),
-              width: AppTokens.strokeThin,
-            ),
-          ).copyWith(
-            backgroundColor: WidgetStateProperty.resolveWith(
-              (states) => states.contains(WidgetState.hovered)
-                  ? AppTokens.colorAccentText
-                  : AppTokens.colorAccentDim,
-            ),
-            foregroundColor: WidgetStateProperty.resolveWith(
-              (states) => states.contains(WidgetState.hovered)
-                  ? AppTokens.colorOnAccent
-                  : AppTokens.colorAccentText,
-            ),
-          ),
-    ),
+    filledButtonTheme: FilledButtonThemeData(style: filledButtonStyle),
     // Ghost = site .btn-ghost: transparent, neutral border at rest, accent
     // border + text on hover.
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style:
-          OutlinedButton.styleFrom(
-            shape: buttonShape,
-            padding: buttonPadding,
-            textStyle: buttonTextStyle,
-          ).copyWith(
-            side: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.disabled)) {
-                return const BorderSide(
-                  color: borderColor,
-                  width: AppTokens.strokeThin,
-                );
-              }
-              final hovered =
-                  states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.focused);
-              return BorderSide(
-                color: hovered ? scheme.primary : borderColor,
-                width: AppTokens.strokeThin,
-              );
-            }),
-            foregroundColor: WidgetStateProperty.resolveWith(
-              (states) => states.contains(WidgetState.hovered)
-                  ? AppTokens.colorAccentText
-                  : scheme.onSurface,
-            ),
-          ),
-    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: outlinedButtonStyle),
     // Text buttons share the button typography; accent-coloured like a link.
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
@@ -278,6 +280,131 @@ ThemeData buildAppTheme(Brightness brightness) {
         ),
         side: BorderSide(color: borderColor, width: AppTokens.strokeThin),
       ),
+    ),
+
+    // ── Date picker ── the stock M3 calendar is the odd one out: it has no
+    // theme entry, so it renders with M3's large corners, tonal-elevated
+    // surface and default header. Flatten it to the same panel the dialogs use
+    // (base surface, no tint/shadow, 8px hairline border, brand-green selection)
+    // so showDatePicker + any embedded CalendarDatePicker match the app. Text
+    // roles inherit Outfit via the textTheme cascade; we set the small labels
+    // explicitly since component themes don't inherit ThemeData(fontFamily:).
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      shape: panelShape,
+      // Flat header on the same surface (no M3 tonal fill).
+      headerBackgroundColor: scheme.surface,
+      headerForegroundColor: scheme.primary,
+      // The big selected-date headline: Raleway Medium Italic in the brand
+      // colour, matching every other modal title (dialogTheme.titleTextStyle).
+      headerHeadlineStyle: TextStyle(
+        fontFamily: AppTokens.fontFamilyHeading,
+        fontStyle: FontStyle.italic,
+        fontWeight: AppTokens.fontWeightHeading,
+        fontSize: 26,
+        color: scheme.primary,
+      ),
+      headerHelpStyle: TextStyle(
+        fontFamily: AppTokens.fontFamily,
+        fontSize: AppTokens.fontSizeSm,
+        color: scheme.onSurfaceVariant,
+      ),
+      weekdayStyle: TextStyle(
+        fontFamily: AppTokens.fontFamily,
+        fontSize: AppTokens.fontSizeXs,
+        color: scheme.onSurfaceVariant,
+      ),
+      dayStyle: const TextStyle(fontFamily: AppTokens.fontFamily),
+      yearStyle: const TextStyle(fontFamily: AppTokens.fontFamily),
+      // Selected day: solid brand-green fill, dark text (like the FAB); today is
+      // a green outline until selected.
+      dayForegroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? scheme.onPrimary
+            : scheme.onSurface,
+      ),
+      dayBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? scheme.primary : null,
+      ),
+      todayForegroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? scheme.onPrimary
+            : scheme.primary,
+      ),
+      todayBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? scheme.primary : null,
+      ),
+      todayBorder: const BorderSide(color: AppTokens.colorBrandPrimary),
+      confirmButtonStyle: filledButtonStyle,
+      cancelButtonStyle: outlinedButtonStyle,
+      yearForegroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? scheme.onPrimary
+            : scheme.onSurface,
+      ),
+      yearBackgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? scheme.primary : null,
+      ),
+      dividerColor: borderColor,
+    ),
+
+    // ── Time picker ── same flattening as the date picker: app-panel shape,
+    // base surface, no elevation; selected hour/minute + AM/PM chips take the
+    // tinted-button treatment (dim-green fill, bright-green text), the dial hand
+    // is brand green.
+    timePickerTheme: TimePickerThemeData(
+      backgroundColor: scheme.surface,
+      elevation: 0,
+      shape: panelShape,
+      // Match the entity-editor / dialog padding (spaceXl all round) so the
+      // picker doesn't read tighter than the rest of the app's modals.
+      padding: const EdgeInsets.all(AppTokens.spaceXl),
+      helpTextStyle: TextStyle(
+        fontFamily: AppTokens.fontFamily,
+        fontSize: AppTokens.fontSizeSm,
+        color: scheme.onSurfaceVariant,
+      ),
+      hourMinuteColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? AppTokens.colorAccentDim
+            : scheme.surfaceContainerHighest,
+      ),
+      hourMinuteTextColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? AppTokens.colorAccentText
+            : scheme.onSurface,
+      ),
+      hourMinuteShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      ),
+      dayPeriodColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? AppTokens.colorAccentDim
+            : Colors.transparent,
+      ),
+      dayPeriodTextColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? AppTokens.colorAccentText
+            : scheme.onSurfaceVariant,
+      ),
+      dayPeriodBorderSide: const BorderSide(color: borderColor),
+      dayPeriodShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        side: const BorderSide(color: borderColor),
+      ),
+      dialBackgroundColor: scheme.surfaceContainerHighest,
+      dialHandColor: scheme.primary,
+      dialTextColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? scheme.onPrimary
+            : scheme.onSurface,
+      ),
+      entryModeIconColor: scheme.primary,
+      confirmButtonStyle: filledButtonStyle,
+      cancelButtonStyle: outlinedButtonStyle,
     ),
 
     // ── Floating action button ──

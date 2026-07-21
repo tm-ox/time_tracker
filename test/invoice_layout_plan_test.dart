@@ -24,6 +24,8 @@ InvoiceDocument _doc({
   String? senderAbn = '11 111 111 111',
   String? attention = 'Alex',
   String organisation = 'Client Co',
+  String? recipientEmail = 'acct@client',
+  String? recipientPhone = '+61 401',
   String? recipientAddress = '2 Client Rd',
   String? recipientAbn = '22 222 222 222',
   InvoiceTax? tax,
@@ -54,8 +56,8 @@ InvoiceDocument _doc({
   attention: attention,
   recipientContact: attention,
   organisation: organisation,
-  recipientEmail: 'acct@client',
-  recipientPhone: '+61 401',
+  recipientEmail: recipientEmail,
+  recipientPhone: recipientPhone,
   recipientAddress: recipientAddress,
   recipientAbn: recipientAbn,
   recipientAbnLabel: region.buyerTaxIdLabel,
@@ -95,6 +97,90 @@ void main() {
       final p = InvoiceLayout.resolve(_doc(recipientAbn: null));
       expect(p.recipient.showSecondRow, isTrue);
       expect(p.recipient.showTaxCell, isFalse);
+    });
+  });
+
+  group('recipient row-1 contact reflow', () {
+    test('short email + phone → side by side, both shown', () {
+      final p = InvoiceLayout.resolve(_doc(recipientEmail: 'jo@x.co'));
+      expect(p.recipient.emailFillsHalf, isFalse);
+      expect(p.recipient.showEmail, isTrue);
+      expect(p.recipient.showPhone, isTrue);
+    });
+
+    test('empty/blank phone → no phone box', () {
+      expect(
+        InvoiceLayout.resolve(_doc(recipientPhone: null)).recipient.showPhone,
+        isFalse,
+      );
+      expect(
+        InvoiceLayout.resolve(_doc(recipientPhone: '   ')).recipient.showPhone,
+        isFalse,
+      );
+    });
+
+    test('empty/blank email → no email box', () {
+      expect(
+        InvoiceLayout.resolve(_doc(recipientEmail: null)).recipient.showEmail,
+        isFalse,
+      );
+      expect(
+        InvoiceLayout.resolve(_doc(recipientEmail: '   ')).recipient.showEmail,
+        isFalse,
+      );
+    });
+
+    test('no email, phone present → phone alone fills the half', () {
+      final p = InvoiceLayout.resolve(_doc(recipientEmail: null));
+      expect(p.recipient.showEmail, isFalse);
+      expect(p.recipient.showPhone, isTrue);
+      expect(p.recipient.emailFillsHalf, isFalse);
+    });
+
+    test('no email and no phone → organisation fills the line', () {
+      final p = InvoiceLayout.resolve(
+        _doc(recipientEmail: null, recipientPhone: null),
+      );
+      expect(p.recipient.showEmail, isFalse);
+      expect(p.recipient.showPhone, isFalse);
+    });
+
+    test('long email overflows its quarter → email fills the right half', () {
+      final p = InvoiceLayout.resolve(
+        _doc(recipientEmail: 'julien@dispensedirect.com.au'),
+      );
+      expect(p.recipient.emailFillsHalf, isTrue);
+    });
+
+    test('empty email never triggers the fill-half reflow', () {
+      expect(
+        InvoiceLayout.resolve(_doc(recipientEmail: null)).recipient.emailFillsHalf,
+        isFalse,
+      );
+      expect(
+        InvoiceLayout.resolve(_doc(recipientEmail: '')).recipient.emailFillsHalf,
+        isFalse,
+      );
+    });
+
+    test('the fill-half threshold is the quarter-column inner width', () {
+      // A string estimated just under the quarter inner width stays inline;
+      // just over it reflows — the boundary both painters share.
+      final underLen =
+          (InvoiceLayout.recipientFieldInner /
+                  (InvoiceLayout.fontValue * 0.55))
+              .floor() -
+          1;
+      final under = 'a' * underLen;
+      final over = 'a' * (underLen + 4);
+      expect(
+        InvoiceLayout.resolve(_doc(recipientEmail: under)).recipient.emailFillsHalf,
+        isFalse,
+      );
+      expect(
+        InvoiceLayout.resolve(_doc(recipientEmail: over)).recipient.emailFillsHalf,
+        isTrue,
+      );
     });
   });
 

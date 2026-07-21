@@ -125,28 +125,36 @@ Future<Uint8List> buildBrandedInvoicePdf({
   final sym = currencySymbol(doc.currency);
   String moneyNum(double a) => a.toStringAsFixed(2);
 
-  pw.Widget field(String label, String? value) => pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-      pw.Text('$label:', style: labelStyle),
-      pw.SizedBox(height: _p(InvoiceLayout.fieldValueGap)),
-      pw.Container(
-        width: double.infinity,
-        padding: pw.EdgeInsets.symmetric(
-          horizontal: _p(InvoiceLayout.fieldPaddingH),
-          vertical: _p(InvoiceLayout.fieldPaddingV),
-        ),
-        decoration: pw.BoxDecoration(
-          color: surface,
-          borderRadius: pw.BorderRadius.circular(_p(InvoiceLayout.fieldRadius)),
-        ),
-        child: pw.Text(
-          value == null || value.isEmpty ? '—' : value,
-          style: valueStyle,
-        ),
-      ),
-    ],
-  );
+  // [singleLine] pins the value to one line (clip on overflow) — used for the
+  // contact fields (EMAIL/PHONE), which must never wrap mid-string; the
+  // recipient grid reflows the whole box instead. Mirrors invoice_preview.dart.
+  pw.Widget field(String label, String? value, {bool singleLine = false}) =>
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text('$label:', style: labelStyle),
+          pw.SizedBox(height: _p(InvoiceLayout.fieldValueGap)),
+          pw.Container(
+            width: double.infinity,
+            padding: pw.EdgeInsets.symmetric(
+              horizontal: _p(InvoiceLayout.fieldPaddingH),
+              vertical: _p(InvoiceLayout.fieldPaddingV),
+            ),
+            decoration: pw.BoxDecoration(
+              color: surface,
+              borderRadius: pw.BorderRadius.circular(
+                _p(InvoiceLayout.fieldRadius),
+              ),
+            ),
+            child: pw.Text(
+              value == null || value.isEmpty ? '—' : value,
+              style: valueStyle,
+              maxLines: singleLine ? 1 : null,
+              overflow: singleLine ? pw.TextOverflow.clip : pw.TextOverflow.span,
+            ),
+          ),
+        ],
+      );
 
   final rowDecoration = pw.BoxDecoration(
     color: surface,
@@ -368,17 +376,59 @@ Future<Uint8List> buildBrandedInvoicePdf({
         // ── Recipient grid ── ORGANISATION (half) | EMAIL (quarter) | PHONE
         // (quarter) on one line; ADDRESS spans the org+email columns with the
         // tax number aligned under PHONE (or ADDRESS full-width when there's no
-        // tax number). Mirrors invoice_preview.dart's recipient grid.
+        // tax number). A long email takes the whole right half with PHONE
+        // dropping to a full-width bar beneath it, and PHONE is omitted when
+        // empty (plan.recipient). Mirrors invoice_preview.dart's recipient grid.
         pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
+            // Half-width beside the contact block, or the whole line alone.
             pw.Expanded(
-              flex: 2,
+              flex: (plan.recipient.showEmail || plan.recipient.showPhone)
+                  ? 2
+                  : 1,
               child: field(doc.region.organisationLabel, doc.organisation),
             ),
-            pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
-            pw.Expanded(child: field('EMAIL', doc.recipientEmail)),
-            pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
-            pw.Expanded(child: field('PHONE', doc.recipientPhone)),
+            // Right half — same cases as invoice_preview.dart's _recipientGrid.
+            if (plan.recipient.showEmail || plan.recipient.showPhone) ...[
+              pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
+              if (plan.recipient.emailFillsHalf)
+                pw.Expanded(
+                  flex: 2,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      field('EMAIL', doc.recipientEmail, singleLine: true),
+                      if (plan.recipient.showPhone) ...[
+                        pw.SizedBox(height: _p(InvoiceLayout.recipientGap)),
+                        field('PHONE', doc.recipientPhone, singleLine: true),
+                      ],
+                    ],
+                  ),
+                )
+              else if (plan.recipient.showEmail &&
+                  plan.recipient.showPhone) ...[
+                pw.Expanded(
+                  child: field('EMAIL', doc.recipientEmail, singleLine: true),
+                ),
+                pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
+                pw.Expanded(
+                  child: field('PHONE', doc.recipientPhone, singleLine: true),
+                ),
+              ] else if (plan.recipient.showEmail) ...[
+                // Email only: keep it in its quarter, phone column empty.
+                pw.Expanded(
+                  child: field('EMAIL', doc.recipientEmail, singleLine: true),
+                ),
+                pw.SizedBox(width: _p(InvoiceLayout.gridGutter)),
+                pw.Expanded(child: pw.SizedBox()),
+              ] else
+                // Phone only: it takes the whole right half.
+                pw.Expanded(
+                  flex: 2,
+                  child: field('PHONE', doc.recipientPhone, singleLine: true),
+                ),
+            ],
           ],
         ),
         if (plan.recipient.showSecondRow) ...[

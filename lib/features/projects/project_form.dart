@@ -48,6 +48,9 @@ class _ProjectFormState extends State<ProjectForm> {
   late final _rate = TextEditingController(
     text: rateText(widget.initial?.rate),
   );
+  String? _clientError;
+  String? _codeError;
+  String? _titleError;
   String? _rateError;
 
   // The rate field shows the *effective* rate: the project's own rate if set,
@@ -95,17 +98,23 @@ class _ProjectFormState extends State<ProjectForm> {
   bool get _isEdit => widget.initial != null;
 
   Future<void> _submit() async {
-    if (_code.text.trim().isEmpty ||
-        _title.text.trim().isEmpty ||
-        _clientId == null) {
-      return;
-    }
+    final code = _code.text.trim();
+    final title = _title.text.trim();
     final parsed = parseRate(_rate.text);
-    if (parsed.error != null) {
-      setState(() => _rateError = parsed.error);
+    // Flag each required field on its own control (not one combined bail-out),
+    // and set the state before returning so the messages actually render.
+    setState(() {
+      _clientError = _clientId == null ? 'Select a client' : null;
+      _codeError = code.isEmpty ? 'Enter a code' : null;
+      _titleError = title.isEmpty ? 'Enter a title' : null;
+      _rateError = parsed.error;
+    });
+    if (_clientError != null ||
+        _codeError != null ||
+        _titleError != null ||
+        _rateError != null) {
       return;
     }
-    setState(() => _rateError = null);
     // Only persist a rate the user took ownership of; an untouched inherited
     // value stays null so the project keeps following the client's default.
     final rate = _rateOverridden ? parsed.value : null;
@@ -116,15 +125,15 @@ class _ProjectFormState extends State<ProjectForm> {
         await widget.db.updateProject(
           id: widget.initial!.id,
           clientId: _clientId!, // allow reassigning the client
-          code: _code.text.trim(),
-          title: _title.text.trim(),
+          code: code,
+          title: title,
           rate: rate,
         );
       } else {
         createdProjectId = await widget.db.addProject(
           clientId: _clientId!,
-          code: _code.text.trim(),
-          title: _title.text.trim(),
+          code: code,
+          title: title,
           rate: rate,
         );
       }
@@ -178,7 +187,10 @@ class _ProjectFormState extends State<ProjectForm> {
                 ? _clientId
                 : null;
             return InputDecorator(
-              decoration: const InputDecoration(labelText: 'Client'),
+              decoration: InputDecoration(
+                label: requiredLabel(context, 'Client'),
+                errorText: _clientError,
+              ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   isExpanded: true,
@@ -202,13 +214,19 @@ class _ProjectFormState extends State<ProjectForm> {
         TextField(
           controller: _code,
           onSubmitted: (_) => _submit(),
-          decoration: const InputDecoration(labelText: 'Code'),
+          decoration: InputDecoration(
+            label: requiredLabel(context, 'Code'),
+            errorText: _codeError,
+          ),
         ),
         const SizedBox(height: AppTokens.spaceXl),
         TextField(
           controller: _title,
           onSubmitted: (_) => _submit(),
-          decoration: const InputDecoration(labelText: 'Title'),
+          decoration: InputDecoration(
+            label: requiredLabel(context, 'Title'),
+            errorText: _titleError,
+          ),
         ),
         const SizedBox(height: AppTokens.spaceXl),
         TextField(
