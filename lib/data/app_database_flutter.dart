@@ -59,14 +59,33 @@ Future<AppDatabase> openDatabaseForApp() async {
     final activation = await readSyncActivation();
     if (activation.enabled) {
       final synced = await openSyncedAppDatabase();
-      if (activation.seedPending) {
-        await _seedSyncedFromLocal(synced.db, orgId: activation.orgId);
-        await writeSyncActivation(activation.copyWith(seedPending: false));
+      // Seed the local rows into the synced store EXACTLY ONCE, and only when
+      // that store is still empty (first enable). The store persists across
+      // enable/disable toggles and re-syncs from the server on its own, so a
+      // second seed would be catastrophic: the seed's replace-all deletes every
+      // content row first, and those deletes upload — wiping newer synced and
+      // server-side data. The empty-check is a belt-and-suspenders guard on top
+      // of the [seeded] latch: never wipe a populated store.
+      if (!activation.seeded) {
+        if (await _syncedStoreIsEmpty(synced.db)) {
+          await _seedSyncedFromLocal(synced.db, orgId: activation.orgId);
+        }
+        await writeSyncActivation(activation.copyWith(seeded: true));
       }
       return synced.db;
     }
   }
   return openAppDatabase();
+}
+
+/// True when the synced store holds no content rows yet — the only safe time to
+/// seed (see [openDatabaseForApp]). Limited to one row per table so it stays
+/// cheap on a populated store.
+Future<bool> _syncedStoreIsEmpty(AppDatabase db) async {
+  if ((await (db.select(db.clients)..limit(1)).get()).isNotEmpty) return false;
+  if ((await (db.select(db.projects)..limit(1)).get()).isNotEmpty) return false;
+  if ((await (db.select(db.tasks)..limit(1)).get()).isNotEmpty) return false;
+  return (await (db.select(db.timeEntries)..limit(1)).get()).isEmpty;
 }
 
 /// Copy the plain-local database's rows into the freshly-opened synced store,
@@ -75,9 +94,10 @@ Future<AppDatabase> openDatabaseForApp() async {
 /// Phase-1 backup machinery: read the local snapshot, stamp `org_id`, restore
 /// into the synced DB. The inserts land in PowerSync's views → they queue for
 /// upload under this org, and templates/profiles/`app_settings` carry over too
-/// (so onboarding does not replay on the fresh store). The local DB is opened
-/// transiently and closed; it is a different file, so there is no lock contention
-/// with the synced connection.
+/// (so onboarding does not replay on the fresh store). Only ever called against
+/// an empty store, so `restoreBackup`'s leading deletes are no-ops (they never
+/// upload a spurious delete). The local DB is opened transiently and closed; it
+/// is a different file, so there is no lock contention with the synced connection.
 Future<void> _seedSyncedFromLocal(
   AppDatabase syncedDb, {
   required String orgId,
