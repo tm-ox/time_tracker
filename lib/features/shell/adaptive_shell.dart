@@ -433,14 +433,13 @@ class _AdaptiveShellState extends State<AdaptiveShell>
         message:
             'timedart will reopen on the local-only database on the next '
             'launch. Your original local data is intact.\n\n'
-            'Changes made while sync was on stay in the synced copy and will '
-            "not appear in the local database.",
+            'Changes made while sync was on stay in the synced copy — they '
+            "reappear if you re-enable sync, but won't show in the local-only "
+            'database.',
         confirmLabel: 'Disable',
       );
       if (!confirmed || !mounted) return;
-      await writeSyncActivation(
-        current.copyWith(enabled: false, seedPending: false),
-      );
+      await writeSyncActivation(current.copyWith(enabled: false));
       if (!mounted) return;
       setState(() => _syncActive = false);
     } else {
@@ -465,9 +464,9 @@ class _AdaptiveShellState extends State<AdaptiveShell>
         confirmLabel: 'Enable',
       );
       if (!confirmed || !mounted) return;
-      await writeSyncActivation(
-        SyncActivation(enabled: true, orgId: orgId, seedPending: true),
-      );
+      // Preserve the `seeded` latch: only a first-ever enable (seeded == false)
+      // triggers the local→synced seed at startup. Re-enabling must not re-seed.
+      await writeSyncActivation(current.copyWith(enabled: true, orgId: orgId));
       if (!mounted) return;
       setState(() => _syncActive = true);
     }

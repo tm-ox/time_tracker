@@ -14,8 +14,13 @@ import '../legacy_db_migration.dart'; // appDatabaseDirectory (native)
 ///
 /// Enabling/disabling is a persisted intent that takes effect on the next app
 /// launch (the DB executor is bound at construction; a live swap would mean
-/// rebuilding the whole widget tree). [seedPending] marks that the plain-local
-/// rows still need copying into the freshly-opened synced store.
+/// rebuilding the whole widget tree).
+///
+/// [seeded] is a **one-way latch**: false until the plain-local rows have been
+/// copied into the synced store, then true forever. It must never re-arm on a
+/// later enable — the synced store persists across toggles and re-syncs from the
+/// server, so re-seeding would wipe (the seed's replace-all deletes first) newer
+/// synced and server-side rows. Disabling leaves [seeded] untouched.
 class SyncActivation {
   /// Whether the synced (PowerSync) connection should be used.
   final bool enabled;
@@ -23,32 +28,32 @@ class SyncActivation {
   /// The personal `org_id` stamped onto seeded rows — the sync token's `sub`.
   final String orgId;
 
-  /// Set on enable, cleared once the local→synced seed has run.
-  final bool seedPending;
+  /// Whether the first-enable local→synced seed has already run (see class doc).
+  final bool seeded;
 
   const SyncActivation({
     this.enabled = false,
     this.orgId = '',
-    this.seedPending = false,
+    this.seeded = false,
   });
 
-  SyncActivation copyWith({bool? enabled, String? orgId, bool? seedPending}) =>
+  SyncActivation copyWith({bool? enabled, String? orgId, bool? seeded}) =>
       SyncActivation(
         enabled: enabled ?? this.enabled,
         orgId: orgId ?? this.orgId,
-        seedPending: seedPending ?? this.seedPending,
+        seeded: seeded ?? this.seeded,
       );
 
   Map<String, dynamic> toJson() => {
     'enabled': enabled,
     'orgId': orgId,
-    'seedPending': seedPending,
+    'seeded': seeded,
   };
 
   factory SyncActivation.fromJson(Map<String, dynamic> json) => SyncActivation(
     enabled: json['enabled'] == true,
     orgId: json['orgId'] is String ? json['orgId'] as String : '',
-    seedPending: json['seedPending'] == true,
+    seeded: json['seeded'] == true,
   );
 
   @override
@@ -56,10 +61,10 @@ class SyncActivation {
       other is SyncActivation &&
       other.enabled == enabled &&
       other.orgId == orgId &&
-      other.seedPending == seedPending;
+      other.seeded == seeded;
 
   @override
-  int get hashCode => Object.hash(enabled, orgId, seedPending);
+  int get hashCode => Object.hash(enabled, orgId, seeded);
 }
 
 Future<File> _activationFile() async {

@@ -30,19 +30,30 @@ void main() {
 
   group('SyncActivation', () {
     test('round-trips through JSON', () {
-      const a = SyncActivation(
-        enabled: true,
-        orgId: 'timedart',
-        seedPending: true,
-      );
+      const a = SyncActivation(enabled: true, orgId: 'timedart', seeded: true);
       expect(SyncActivation.fromJson(a.toJson()), a);
     });
 
-    test('defaults to sync-off', () {
+    test('defaults to sync-off, unseeded', () {
       const a = SyncActivation();
       expect(a.enabled, isFalse);
       expect(a.orgId, isEmpty);
-      expect(a.seedPending, isFalse);
+      expect(a.seeded, isFalse);
+    });
+
+    test('re-enabling preserves the seeded latch', () {
+      // The bug that lost `test sync`: a re-enable must not re-arm seeding.
+      const afterFirstEnable = SyncActivation(
+        enabled: true,
+        orgId: 'timedart',
+        seeded: true,
+      );
+      final afterDisable = afterFirstEnable.copyWith(enabled: false);
+      final afterReEnable = afterDisable.copyWith(
+        enabled: true,
+        orgId: 'timedart',
+      );
+      expect(afterReEnable.seeded, isTrue);
     });
 
     test('fromJson tolerates missing / wrong-typed keys', () {
