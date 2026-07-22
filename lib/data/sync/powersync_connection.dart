@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift_sqlite_async/drift_sqlite_async.dart';
@@ -32,8 +33,12 @@ openSyncedAppDatabase() async {
   );
   await powerSync.initialize();
   final db = AppDatabase.synced(SqliteAsyncDriftConnection(powerSync));
-  // Start streaming this org's rows down (the read path). Upload is a Phase-4b
-  // seam inside the connector (see TimedartSyncConnector.uploadData).
-  await powerSync.connect(connector: TimedartSyncConnector());
+  // Start streaming this org's rows down (the read path) — but do NOT await it.
+  // Sync is additive/optional: the app must open immediately regardless of
+  // network or token state. connect() runs its auth + streaming loop in the
+  // background (retrying on failure, e.g. an expired dev token); awaiting it
+  // would let a failing sync stall startup. Upload is a Phase-4b seam inside the
+  // connector (see TimedartSyncConnector.uploadData).
+  unawaited(powerSync.connect(connector: TimedartSyncConnector()));
   return (db: db, powerSync: powerSync);
 }
