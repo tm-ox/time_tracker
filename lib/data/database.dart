@@ -35,6 +35,13 @@ class Clients extends Table {
   // live. Distinct from [archivedAt], which is a user-facing "archive" concept.
   // All reads/watch queries filter `deletedAt IS NULL`.
   DateTimeColumn get deletedAt => dateTime().nullable()();
+  // Tenancy scope key for the optional sync layer (PRD #189, Phase 4). NULL on
+  // the pure-local path (sync off) → completely inert, like [deletedAt]; the
+  // enable/seed flow (Phase 4d) stamps it with the personal org_id when sync is
+  // turned on. Sync rules scope each device to `org_id = auth.user_id()`. Only
+  // on the six SYNCED content tables — app_settings/active_timers stay
+  // device-local, so they carry no org_id.
+  TextColumn get orgId => text().nullable()();
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -54,6 +61,7 @@ class Projects extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().nullable().clientDefault(() => DateTime.now())();
   DateTimeColumn get deletedAt => dateTime().nullable()(); // sync tombstone (2b)
+  TextColumn get orgId => text().nullable()(); // scope key (Phase 4)
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -71,6 +79,7 @@ class Tasks extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().nullable().clientDefault(() => DateTime.now())();
   DateTimeColumn get deletedAt => dateTime().nullable()(); // sync tombstone (2b)
+  TextColumn get orgId => text().nullable()(); // scope key (Phase 4)
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -92,6 +101,7 @@ class TimeEntries extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().nullable().clientDefault(() => DateTime.now())();
   DateTimeColumn get deletedAt => dateTime().nullable()(); // sync tombstone (2b)
+  TextColumn get orgId => text().nullable()(); // scope key (Phase 4)
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -122,6 +132,7 @@ class Templates extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().nullable().clientDefault(() => DateTime.now())();
   DateTimeColumn get deletedAt => dateTime().nullable()(); // sync tombstone (2b)
+  TextColumn get orgId => text().nullable()(); // scope key (Phase 4)
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -189,6 +200,7 @@ class Profiles extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().nullable().clientDefault(() => DateTime.now())();
   DateTimeColumn get deletedAt => dateTime().nullable()(); // sync tombstone (2b)
+  TextColumn get orgId => text().nullable()(); // scope key (Phase 4)
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -285,12 +297,26 @@ class AppDatabase extends _$AppDatabase {
   // constructible from any [QueryExecutor] is what lets the non-Flutter CLI
   // (compiled with `dart compile exe`) import this file without pulling in
   // path_provider — a Flutter platform channel unavailable outside the app.
-  AppDatabase(super.executor);
+  AppDatabase(super.executor) : _managedBySync = false;
+
+  /// Opens over a **PowerSync-backed** connection (the optional sync layer,
+  /// PRD #189 Phase 4c). PowerSync owns the schema of the four synced tables
+  /// (clients/projects/tasks/time_entries — as views over its own store), so
+  /// drift must NOT create or migrate them. In this mode the migration creates
+  /// only the four device-local tables and skips the upgrade ladder entirely
+  /// (see [migration]). Everything else about [AppDatabase] is identical, so
+  /// every DAO works unchanged over either connection.
+  AppDatabase.synced(super.executor) : _managedBySync = true;
+
+  /// Whether this database runs over a PowerSync connection (see
+  /// [AppDatabase.synced]) — gates the migration strategy so drift leaves
+  /// PowerSync's managed (synced) tables alone.
+  final bool _managedBySync;
 
   /// The schema version this build ships with. The single source of truth for
   /// both drift's migration ladder and the CLI's schema-version guard (which
   /// refuses to open a DB whose on-disk `user_version` differs from this).
-  static const int latestSchemaVersion = 16;
+  static const int latestSchemaVersion = 17;
 
   @override
   int get schemaVersion => latestSchemaVersion;
@@ -300,8 +326,26 @@ class AppDatabase extends _$AppDatabase {
   // client that has projects) fails loudly instead of silently orphaning rows.
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) => m.createAll(),
+    onCreate: (m) async {
+      // PowerSync path (Phase 4c): PowerSync already created the four synced
+      // tables as views over its store, so createAll() would collide with them.
+      // Create ONLY the four device-local tables here (invoice branding stays
+      // device-local for the trial; app_settings/active_timers are device-local
+      // by design). See AppDatabase.synced.
+      if (_managedBySync) {
+        await m.createTable(templates);
+        await m.createTable(profiles);
+        await m.createTable(appSettings);
+        await m.createTable(activeTimers);
+        return;
+      }
+      await m.createAll();
+    },
     onUpgrade: (m, from, to) async {
+      // PowerSync path: the store is created fresh on each enable and its synced
+      // tables are managed by PowerSync — there is no drift upgrade ladder to
+      // run (the device-local tables are made once, in onCreate).
+      if (_managedBySync) return;
       // v1 → v2: introduce Tasks between Project and TimeEntry. Create the table,
       // add the (nullable) taskId column, then fold each distinct
       // (project, task-string) into one Task and repoint its entries. The old
@@ -351,6 +395,7 @@ class AppDatabase extends _$AppDatabase {
               timeEntries.createdAt,
               timeEntries.updatedAt,
               timeEntries.deletedAt,
+              timeEntries.orgId, // Phase 4 scope key — fills NULL like deletedAt
             ],
             columnTransformer: {
               timeEntries.projectId: const CustomExpression('job_id'),
@@ -380,6 +425,7 @@ class AppDatabase extends _$AppDatabase {
               clients.createdAt,
               clients.updatedAt,
               clients.deletedAt,
+              clients.orgId, // Phase 4 scope key — fills NULL like deletedAt
             ],
             columnTransformer: {
               clients.defaultRate: coalesce([
@@ -476,6 +522,7 @@ class AppDatabase extends _$AppDatabase {
               templates.createdAt,
               templates.updatedAt,
               templates.deletedAt,
+              templates.orgId, // Phase 4 scope key — fills NULL like deletedAt
             ],
             columnTransformer: {
               templates.createdAt: currentDateAndTime,
@@ -724,6 +771,10 @@ class AppDatabase extends _$AppDatabase {
             columnTransformer: {
               clients.id: CustomExpression(mapped('clients', 'id')),
             },
+            // orgId (Phase 4) postdates v13 → absent from the table being
+            // rebuilt; declare it new so the rebuild defaults it NULL (the later
+            // from<17 add-if-missing then no-ops), mirroring projects.archivedAt.
+            newColumns: [clients.orgId],
           ),
         );
         await rekey(
@@ -739,8 +790,9 @@ class AppDatabase extends _$AppDatabase {
             // archivedAt (#246) postdates v13, so it's absent from the old table
             // being rebuilt — declare it new so the rebuild defaults it to NULL
             // (the later from<16 add-if-missing then no-ops). clients.archivedAt
-            // predates v13, so its rekey needs no such declaration.
-            newColumns: [projects.archivedAt],
+            // predates v13, so its rekey needs no such declaration. orgId (Phase
+            // 4) likewise postdates v13 → declared new on every content rekey.
+            newColumns: [projects.archivedAt, projects.orgId],
           ),
         );
         await rekey(
@@ -753,6 +805,7 @@ class AppDatabase extends _$AppDatabase {
                 mapped('projects', 'project_id'),
               ),
             },
+            newColumns: [tasks.orgId], // Phase 4 scope key postdates v13
           ),
         );
         await rekey(
@@ -766,6 +819,7 @@ class AppDatabase extends _$AppDatabase {
               ),
               timeEntries.taskId: CustomExpression(mapped('tasks', 'task_id')),
             },
+            newColumns: [timeEntries.orgId], // Phase 4 scope key postdates v13
           ),
         );
         await rekey(
@@ -775,6 +829,7 @@ class AppDatabase extends _$AppDatabase {
             columnTransformer: {
               templates.id: CustomExpression(mapped('templates', 'id')),
             },
+            newColumns: [templates.orgId], // Phase 4 scope key postdates v13
           ),
         );
         await rekey(
@@ -787,6 +842,7 @@ class AppDatabase extends _$AppDatabase {
                 mapped('templates', 'template_id'),
               ),
             },
+            newColumns: [profiles.orgId], // Phase 4 scope key postdates v13
           ),
         );
 
@@ -842,8 +898,46 @@ class AppDatabase extends _$AppDatabase {
         await addArchivedAt(clients, clients.archivedAt);
         await addArchivedAt(projects, projects.archivedAt);
       }
+      // v16 → v17: tenancy scope key for the optional sync layer (PRD #189,
+      // Phase 4c). Add a nullable `org_id` to the six SYNCED content tables
+      // (app_settings/active_timers stay device-local → no org_id). Nullable, no
+      // default → existing rows are NULL (= unscoped/local), no backfill; sync's
+      // seed step (Phase 4d) stamps the personal org_id when it's enabled. Some
+      // upgrade paths already created the column via an earlier rebuild to the
+      // current shape, so each add is guarded add-if-missing (PRAGMA), mirroring
+      // the v11/v12/v16 blocks.
+      if (from < 17) {
+        Future<bool> tableExists(String name) async => (await customSelect(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
+          variables: [Variable.withString(name)],
+        ).get()).isNotEmpty;
+
+        Future<void> addOrgId(TableInfo t, GeneratedColumn c) async {
+          if (!await tableExists(t.actualTableName)) return; // defensive
+          final cols = await customSelect(
+            'PRAGMA table_info(${t.actualTableName})',
+          ).get();
+          if (!cols.any((r) => r.read<String>('name') == c.name)) {
+            await m.addColumn(t, c);
+          }
+        }
+
+        await addOrgId(clients, clients.orgId);
+        await addOrgId(projects, projects.orgId);
+        await addOrgId(tasks, tasks.orgId);
+        await addOrgId(timeEntries, timeEntries.orgId);
+        await addOrgId(templates, templates.orgId);
+        await addOrgId(profiles, profiles.orgId);
+      }
     },
     beforeOpen: (details) async {
+      // PowerSync path: the synced tables are VIEWS over PowerSync's store, and
+      // SQLite can't enforce a foreign key against a view — so a device-local
+      // table referencing one (e.g. active_timers→projects) would error with FK
+      // enforcement on. Leave it off; PowerSync owns the synced side's
+      // consistency and the plain-local path is where the referential guards
+      // matter.
+      if (_managedBySync) return;
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );

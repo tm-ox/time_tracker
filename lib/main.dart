@@ -22,7 +22,10 @@ void main() async {
   // Rename any pre-1.0 `time_tracker.sqlite` to `timedart.sqlite` before the
   // database opens (no-op on web / fresh installs). Keeps existing users' data.
   await migrateLegacyDatabaseFile();
-  final db = openAppDatabase();
+  // Chooses the plain-local or PowerSync-backed connection by the ENABLE_SYNC
+  // build flag; identical to the old `openAppDatabase()` in every released
+  // (sync-off) build (PRD #189, Phase 4c).
+  final db = await openDatabaseForApp();
   runApp(MyApp(db: db));
 }
 
