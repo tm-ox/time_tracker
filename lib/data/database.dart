@@ -297,7 +297,21 @@ class AppDatabase extends _$AppDatabase {
   // constructible from any [QueryExecutor] is what lets the non-Flutter CLI
   // (compiled with `dart compile exe`) import this file without pulling in
   // path_provider — a Flutter platform channel unavailable outside the app.
-  AppDatabase(super.executor);
+  AppDatabase(super.executor) : _managedBySync = false;
+
+  /// Opens over a **PowerSync-backed** connection (the optional sync layer,
+  /// PRD #189 Phase 4c). PowerSync owns the schema of the four synced tables
+  /// (clients/projects/tasks/time_entries — as views over its own store), so
+  /// drift must NOT create or migrate them. In this mode the migration creates
+  /// only the four device-local tables and skips the upgrade ladder entirely
+  /// (see [migration]). Everything else about [AppDatabase] is identical, so
+  /// every DAO works unchanged over either connection.
+  AppDatabase.synced(super.executor) : _managedBySync = true;
+
+  /// Whether this database runs over a PowerSync connection (see
+  /// [AppDatabase.synced]) — gates the migration strategy so drift leaves
+  /// PowerSync's managed (synced) tables alone.
+  final bool _managedBySync;
 
   /// The schema version this build ships with. The single source of truth for
   /// both drift's migration ladder and the CLI's schema-version guard (which
@@ -312,8 +326,26 @@ class AppDatabase extends _$AppDatabase {
   // client that has projects) fails loudly instead of silently orphaning rows.
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) => m.createAll(),
+    onCreate: (m) async {
+      // PowerSync path (Phase 4c): PowerSync already created the four synced
+      // tables as views over its store, so createAll() would collide with them.
+      // Create ONLY the four device-local tables here (invoice branding stays
+      // device-local for the trial; app_settings/active_timers are device-local
+      // by design). See AppDatabase.synced.
+      if (_managedBySync) {
+        await m.createTable(templates);
+        await m.createTable(profiles);
+        await m.createTable(appSettings);
+        await m.createTable(activeTimers);
+        return;
+      }
+      await m.createAll();
+    },
     onUpgrade: (m, from, to) async {
+      // PowerSync path: the store is created fresh on each enable and its synced
+      // tables are managed by PowerSync — there is no drift upgrade ladder to
+      // run (the device-local tables are made once, in onCreate).
+      if (_managedBySync) return;
       // v1 → v2: introduce Tasks between Project and TimeEntry. Create the table,
       // add the (nullable) taskId column, then fold each distinct
       // (project, task-string) into one Task and repoint its entries. The old
@@ -899,6 +931,13 @@ class AppDatabase extends _$AppDatabase {
       }
     },
     beforeOpen: (details) async {
+      // PowerSync path: the synced tables are VIEWS over PowerSync's store, and
+      // SQLite can't enforce a foreign key against a view — so a device-local
+      // table referencing one (e.g. active_timers→projects) would error with FK
+      // enforcement on. Leave it off; PowerSync owns the synced side's
+      // consistency and the plain-local path is where the referential guards
+      // matter.
+      if (_managedBySync) return;
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );

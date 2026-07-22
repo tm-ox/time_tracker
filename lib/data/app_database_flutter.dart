@@ -3,6 +3,8 @@ import 'package:drift_flutter/drift_flutter.dart';
 
 import 'database.dart';
 import 'legacy_db_migration.dart';
+import 'sync/powersync_connection.dart';
+import 'sync/sync_config.dart';
 
 // ── The Flutter-coupled DB-open path (app-only) ────────────────────────────
 // This file is the ONLY place that imports `drift_flutter` + `path_provider`
@@ -35,3 +37,21 @@ QueryExecutor openAppQueryExecutor() => driftDatabase(
 
 /// Open the app's [AppDatabase] on the Flutter/drift_flutter executor.
 AppDatabase openAppDatabase() => AppDatabase(openAppQueryExecutor());
+
+/// The connection factory main.dart calls at startup. It chooses the database
+/// connection by the compile-time [syncEnabled] flag (PRD #189, Phase 4c):
+///   • sync **off** (every released build) → today's plain local `drift_flutter`
+///     database, byte-for-byte unchanged — the `if` branch below is const-false
+///     and dead-code-eliminated, so no PowerSync code runs;
+///   • sync **on** (a maintainer's `--dart-define=ENABLE_SYNC=true` build) → the
+///     PowerSync-backed connection (own file + `Schema`), which initializes and
+///     connects to stream this org's rows down.
+/// Async because the PowerSync path initializes + connects; the local path just
+/// wraps the synchronous open in a resolved Future.
+Future<AppDatabase> openDatabaseForApp() async {
+  if (syncEnabled) {
+    final synced = await openSyncedAppDatabase();
+    return synced.db;
+  }
+  return openAppDatabase();
+}

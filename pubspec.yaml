@@ -45,6 +45,14 @@ dependencies:
   args: ^2.5.0
   sqlite3: ^3.3.0
 
+  # Optional sync layer (PRD #189, Phase 4). Imported ONLY by the app-only sync
+  # files under lib/data/sync/ (native, behind the ENABLE_SYNC build flag) — never
+  # by AppDatabase or the pure-Dart CLI, so `dart compile exe bin/timedart.dart`
+  # stays Flutter/native-hook free. powersync owns its own SQLite file; drift runs
+  # on top via drift_sqlite_async's SqliteAsyncDriftConnection.
+  powersync: ^2.3.1
+  drift_sqlite_async: ^0.3.1
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
