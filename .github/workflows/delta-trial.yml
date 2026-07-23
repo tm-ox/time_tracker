@@ -1,0 +1,152 @@
+# Delta-sync trial builds (Auth slice 1, #310 / PRD #189) — NOT a release.
+#
+# Builds a delta-sync-ENABLED variant (--dart-define=ENABLE_DELTA_SYNC=true + the
+# Supabase project URL/anon key) for the 2-device round-trip test, and drops the
+# artifacts into a single fixed DRAFT release tagged `delta-trial`. Deliberately
+# separate from release.yml so the public beta is never touched:
+#   * manual only (workflow_dispatch) — never fires on a tag push;
+#   * the tag `delta-trial` does NOT match release.yml's `v*` trigger and does
+#     NOT match the update-checker's `^v?\d+\.\d+\.\d+(-beta\.\d+)?$` regex, so no
+#     device ever offers it as an update and the beta numbering is untouched;
+#   * always draft + make_latest:false — it must never publish.
+#
+# No secret token needed: auth is anon-first + email/PASSWORD (Supabase "Confirm
+# email" OFF → no email sent), so there is no short-lived dev token to refresh.
+# The Supabase URL + anon key are PUBLIC (a publishable client key that ships in
+# the app bundle anyway), held as repo variables:
+#   gh variable set SUPABASE_URL      --repo craftox-labs/timedart
+#   gh variable set SUPABASE_ANON_KEY --repo craftox-labs/timedart
+# Then:
+#   gh workflow run delta-trial.yml --repo craftox-labs/timedart
+#
+# Android signing reuses release.yml's secrets so the trial APK is
+# upgrade-compatible with the installed beta (no signature-mismatch reinstall,
+# shares its data). Sync stays OFF by default in the build — the maintainer opts
+# in via Settings → Enable sync (delta).
+#
+# RELEASE_TAG is intentionally NOT passed → the build reports as DevBuild and the
+# in-app update banner stays silent.
+
+name: Delta-sync trial
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Linux: AppImage + tarball (Device A / desktop) ─────────────────────────
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev
+      - run: flutter config --enable-linux-desktop
+      - run: flutter pub get
+      - name: Build (delta-sync-enabled)
+        run: |
+          flutter build linux --release \
+            --dart-define=ENABLE_DELTA_SYNC=true \
+            --dart-define=SUPABASE_URL="${{ vars.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ vars.SUPABASE_ANON_KEY }}"
+      - name: Tarball
+        run: |
+          tar -czf timedart-delta-linux-x86_64.tar.gz \
+            -C build/linux/x64/release/bundle .
+      - name: AppImage
+        run: |
+          set -eux
+          APPDIR=AppDir
+          mkdir -p "$APPDIR/usr/bin"
+          cp -r build/linux/x64/release/bundle/* "$APPDIR/usr/bin/"
+          cat > "$APPDIR/AppRun" <<'SH'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/timedart" "$@"
+          SH
+          chmod +x "$APPDIR/AppRun"
+          cat > "$APPDIR/timedart.desktop" <<'D'
+          [Desktop Entry]
+          Name=timedart (delta trial)
+          Exec=timedart
+          Icon=timedart
+          Type=Application
+          Categories=Office;Utility;
+          StartupWMClass=timedart
+          D
+          cp assets/logo/timedart_symbol.svg "$APPDIR/timedart.svg"
+          wget -q -O appimagetool \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run \
+            "$APPDIR" timedart-delta-linux-x86_64.AppImage
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: delta-trial
+          name: Delta-sync trial (do not publish)
+          draft: true
+          make_latest: false
+          body: |
+            **Delta-sync-enabled trial builds — not for release.**
+            Sync is OFF by default; enable via Settings → Enable sync (delta),
+            then Account… to create/sign into a shared account on each device.
+            See the 2-device round-trip checklist (#310).
+          files: |
+            timedart-delta-linux-x86_64.tar.gz
+            timedart-delta-linux-x86_64.AppImage
+
+  # ── Android: APK (Device B / phone) ────────────────────────────────────────
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Configure release signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "No ANDROID_KEYSTORE_BASE64 secret — building debug-signed."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          echo "Release signing configured."
+      - name: Build (delta-sync-enabled)
+        run: |
+          flutter build apk --release \
+            --dart-define=ENABLE_DELTA_SYNC=true \
+            --dart-define=SUPABASE_URL="${{ vars.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ vars.SUPABASE_ANON_KEY }}"
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk timedart-delta-android.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: delta-trial
+          name: Delta-sync trial (do not publish)
+          draft: true
+          make_latest: false
+          files: timedart-delta-android.apk
