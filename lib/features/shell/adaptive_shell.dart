@@ -11,6 +11,7 @@ import 'package:timedart/data/database.dart';
 import 'package:timedart/data/backup.dart';
 import 'package:timedart/data/sync/delta/auth_service.dart';
 import 'package:timedart/data/sync/delta/delta_config.dart';
+import 'package:timedart/data/sync/delta/delta_exceptions.dart';
 import 'package:timedart/data/sync/delta/delta_keys.dart';
 import 'package:timedart/data/sync/delta/sync_controller.dart';
 import 'package:timedart/data/sync/delta/sync_queries.dart';
@@ -570,13 +571,16 @@ class _AdaptiveShellState extends State<AdaptiveShell>
     if (sync == null) return;
     // Through DeltaAuthService — the single seam onto Supabase auth — not the
     // raw client, so this stays correct if auth semantics change (email login).
-    final userId = DeltaAuthService(widget.db).currentUserId;
+    final auth = DeltaAuthService(widget.db);
+    final userId = auth.currentUserId;
+    final email = auth.currentUserEmail;
     final orgId = await widget.db.syncSetting(kSyncOrgId);
     if (!mounted) return;
     final lastSynced = sync.lastSyncedAt;
+    final identity = userId == null ? 'no' : (email ?? 'anonymous');
     final rows = <(String, String)>[
       ('Enabled', sync.enabled ? 'yes' : 'no'),
-      ('Signed in', userId == null ? 'no' : 'anonymous'),
+      ('Signed in', identity),
       ('User id', userId ?? '—'),
       ('Org id', orgId ?? '—'),
       ('Last synced', lastSynced == null ? 'never' : '$lastSynced'),
@@ -619,6 +623,180 @@ class _AdaptiveShellState extends State<AdaptiveShell>
         ],
       ),
     );
+  }
+
+  // Passwordless email sign-in / sign-out (Auth slice 1, #310). Maintainer-only,
+  // behind the delta gate. Email-signed-in → offer sign-out; otherwise a
+  // two-step OTP flow (enter email → send code → enter code → verify). Chosen
+  // OTP-code over magic-link so no per-platform deep-link handling is needed.
+  // NB this starts a fresh email session (its own org); it does NOT yet migrate
+  // anon local data onto the email account — that's the linking slice (#311).
+  Future<void> _showSyncAccount() async {
+    if (_sync == null) return;
+    final auth = DeltaAuthService(widget.db);
+    final messenger = ScaffoldMessenger.of(context);
+    final emailCtrl = TextEditingController(text: auth.currentUserEmail ?? '');
+    final codeCtrl = TextEditingController();
+    // Hoisted out of the builder so they survive rebuilds (setDialogState).
+    var codeSent = false;
+    String? error;
+    var busy = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          // Re-read on each rebuild so a completed sign-out flips the UI.
+          final signedInEmail = auth.currentUserEmail;
+
+          void update(void Function() fn) => setDialogState(fn);
+
+          Future<void> run(Future<void> Function() action) async {
+            update(() {
+              busy = true;
+              error = null;
+            });
+            try {
+              await action();
+            } catch (e) {
+              update(() => error = '$e');
+            } finally {
+              update(() => busy = false);
+            }
+          }
+
+          final children = <Widget>[];
+          if (signedInEmail != null) {
+            children.add(Text('Signed in as $signedInEmail.'));
+          } else {
+            children.add(
+              const Text(
+                'Sign in with an email to back up sync to a recoverable '
+                'account. A one-time code will be emailed to you.',
+              ),
+            );
+            children.add(const SizedBox(height: 12));
+            children.add(
+              TextField(
+                controller: emailCtrl,
+                enabled: !busy && !codeSent,
+                keyboardType: TextInputType.emailAddress,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  hintText: 'you@example.com',
+                ),
+              ),
+            );
+            if (codeSent) {
+              children.add(const SizedBox(height: 12));
+              children.add(
+                TextField(
+                  controller: codeCtrl,
+                  enabled: !busy,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Code',
+                    hintText: 'from the email',
+                  ),
+                ),
+              );
+            }
+          }
+          if (error != null) {
+            children.add(const SizedBox(height: 12));
+            children.add(
+              Text(
+                error!,
+                style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+              ),
+            );
+          }
+
+          final actions = <Widget>[
+            TextButton(
+              onPressed: busy ? null : () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ];
+          if (signedInEmail != null) {
+            actions.add(
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () => run(() async {
+                          await auth.signOut();
+                          if (dialogContext.mounted) {
+                            Navigator.of(dialogContext).pop();
+                          }
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Signed out — local data kept.'),
+                            ),
+                          );
+                        }),
+                child: const Text('Sign out'),
+              ),
+            );
+          } else if (!codeSent) {
+            actions.add(
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () => run(() async {
+                          final email = emailCtrl.text.trim();
+                          if (email.isEmpty) {
+                            throw const DeltaSyncException('Enter an email.');
+                          }
+                          await auth.sendEmailOtp(email);
+                          update(() => codeSent = true);
+                        }),
+                child: const Text('Send code'),
+              ),
+            );
+          } else {
+            actions.add(
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () => run(() async {
+                          await auth.verifyEmailOtp(
+                            email: emailCtrl.text.trim(),
+                            token: codeCtrl.text.trim(),
+                          );
+                          if (dialogContext.mounted) {
+                            Navigator.of(dialogContext).pop();
+                          }
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Signed in as ${emailCtrl.text.trim()}.',
+                              ),
+                            ),
+                          );
+                        }),
+                child: const Text('Verify'),
+              ),
+            );
+          }
+
+          return AlertDialog(
+            title: const Text('Sync account'),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: children,
+              ),
+            ),
+            actions: actions,
+          );
+        },
+      ),
+    );
+    emailCtrl.dispose();
+    codeCtrl.dispose();
   }
 
   // Shared release dialog: the version + markdown notes, and a button that opens
@@ -916,6 +1094,10 @@ class _AdaptiveShellState extends State<AdaptiveShell>
               : null,
           onSyncDetails: deltaSyncConfigured
               ? () async => run(_showSyncDetails)
+              : null,
+          // Maintainer-only email sign-in / sign-out (Auth slice 1, #310).
+          onSyncAccount: deltaSyncConfigured
+              ? () async => run(_showSyncAccount)
               : null,
           // Same footer as the normal panel; Shortcuts only where keys are live.
           onShowHelp: keyboardNav ? () => showShortcutsHelp(context) : null,

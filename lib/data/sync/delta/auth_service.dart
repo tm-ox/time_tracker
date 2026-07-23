@@ -9,9 +9,18 @@ import 'package:timedart/data/sync/delta/sync_queries.dart';
 // Phase 5a delta-sync (#294) — anonymous auth + org resolution + adoption.
 //
 // Anonymous-first (decision locked 2026-07-23): the first sign-in mints a
-// personal org-of-one via the `handle_new_user` trigger. Full email login is
-// deferred. The session persists (supabase_flutter storage) and silent-refreshes
-// across restarts, so this signs in once, not every launch.
+// personal org-of-one via the `handle_new_user` trigger. The session persists
+// (supabase_flutter storage) and silent-refreshes across restarts, so this
+// signs in once, not every launch.
+//
+// Auth slice 1 (#310) adds passwordless email sign-in (OTP code) + sign-out on
+// top of the anon base, so a maintainer can prove a recoverable, server-backed
+// identity. Chosen OTP-code over magic-link: a link needs per-platform
+// deep-link plumbing; a 6-digit code is entered in-app, no URL scheme.
+// Anon stays the default. NB email sign-in here starts a FRESH email session
+// (its own personal org) — it does NOT link onto the live anon user; that
+// zero-migration upgrade is slice 2 (#311). So identity state is cleared on
+// every account change to keep the org/cursor cache honest.
 
 class DeltaAuthService {
   DeltaAuthService(this._db, {SupabaseClient? client})
@@ -24,6 +33,50 @@ class DeltaAuthService {
   String? get currentUserId => _client.auth.currentUser?.id;
 
   bool get isSignedIn => currentUserId != null;
+
+  /// The signed-in user's email, or null for an anonymous / signed-out session.
+  String? get currentUserEmail => _client.auth.currentUser?.email;
+
+  /// Whether the current session is an anonymous one (vs an email account).
+  /// False when signed out (no user) or signed in with email.
+  bool get isAnonymous => _client.auth.currentUser?.isAnonymous ?? false;
+
+  /// Send a one-time passwordless sign-in code to [email]. Creates the user if
+  /// they don't exist yet. The code arrives by email; the caller then passes it
+  /// to [verifyEmailOtp]. (Supabase also emails a magic link off the same call;
+  /// we ignore it and use the OTP token — no deep-link handling needed.)
+  Future<void> sendEmailOtp(String email) =>
+      _client.auth.signInWithOtp(email: email, shouldCreateUser: true);
+
+  /// Verify the emailed [token] for [email], establishing an email session.
+  /// This replaces any prior (anon) session rather than linking onto it, so the
+  /// identity cache is dropped — the next sync pass re-resolves the email
+  /// account's own org. Returns the user id.
+  Future<String> verifyEmailOtp({
+    required String email,
+    required String token,
+  }) async {
+    final res = await _client.auth.verifyOTP(
+      email: email,
+      token: token,
+      type: OtpType.email,
+    );
+    final id = res.user?.id;
+    if (id == null) {
+      throw const DeltaSyncException('email verification returned no user');
+    }
+    await _db.clearSyncIdentityState();
+    return id;
+  }
+
+  /// Sign out of the Supabase session. Does NOT wipe local data (local stays the
+  /// source of truth) — only the identity cache is dropped so a later sign-in
+  /// re-resolves cleanly. The next enabled sync trigger will mint a fresh anon
+  /// session per [ensureSignedIn], the same anon-first default as a first launch.
+  Future<void> signOut() async {
+    await _client.auth.signOut();
+    await _db.clearSyncIdentityState();
+  }
 
   /// Ensure there's an anonymous session, returning the user id. A no-op (just
   /// returns the existing id) if a persisted session was restored on launch.
