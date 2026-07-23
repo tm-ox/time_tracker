@@ -95,7 +95,7 @@ The whole database as one portable file (PRD #189, Phase 1). `BackupSnapshot` is
 _Avoid_: dump, snapshot (for the file), sync (unrelated — that's Phase 4).
 
 **Row audit timestamps** (`createdAt` / `updatedAt`):
-Every table carries `createdAt` and `updatedAt` (schema v11, PRD #189 Phase 2a) — the change-tracking sync will do last-write-wins on. New rows get them from a Dart `clientDefault`; `updatedAt` is re-stamped on every update at the single `AppDatabase` mutation choke-point (no feature code writes drift directly, so it can't be bypassed). The columns are nullable purely so the `ALTER ADD COLUMN` migration is legal (SQLite forbids a non-constant default on add); the v11 migration backfills existing rows to the migration time.
+Every table carries `createdAt` and `updatedAt` (schema v11, PRD #189 Phase 2a) — the change-tracking sync will do last-write-wins on. New rows get them from a Dart `clientDefault`; `updatedAt` is re-stamped on every update at the single `AppDatabase` mutation choke-point (no *feature* code writes drift directly, so it can't be bypassed). One deliberate exception: the delta-sync `fromRemote` apply path (`applyRemoteClient` in `lib/data/sync/delta/sync_queries.dart`, an `extension on AppDatabase`) writes a pulled row with the **remote's** `updatedAt` verbatim, precisely so it is *not* re-stamped — a re-stamp would make every applied row look newer than its source and feed a push↔pull echo. Row-level LWW relies on that clock being preserved. The columns are nullable purely so the `ALTER ADD COLUMN` migration is legal (SQLite forbids a non-constant default on add); the v11 migration backfills existing rows to the migration time.
 _Avoid_: modified date, mtime.
 
 **Soft-delete (`deletedAt` tombstone)**:
