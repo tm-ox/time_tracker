@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:timedart/data/database.dart';
+import 'package:timedart/data/sync/delta/delta_exceptions.dart';
 import 'package:timedart/data/sync/delta/delta_keys.dart';
 import 'package:timedart/data/sync/delta/supabase_init.dart';
 import 'package:timedart/data/sync/delta/sync_queries.dart';
@@ -32,7 +33,7 @@ class DeltaAuthService {
     final res = await _client.auth.signInAnonymously();
     final id = res.user?.id;
     if (id == null) {
-      throw StateError('anonymous sign-in returned no user');
+      throw const DeltaSyncException('anonymous sign-in returned no user');
     }
     return id;
   }
@@ -49,7 +50,7 @@ class DeltaAuthService {
     if (rows.isEmpty) {
       // The handle_new_user trigger creates the membership on sign-up; an empty
       // result means the session isn't fully established yet.
-      throw StateError('no membership row for the current user');
+      throw const DeltaSyncException('no membership row for the current user');
     }
     final orgId = rows.first['org_id'] as String;
     await _db.setSyncSetting(kSyncOrgId, orgId);

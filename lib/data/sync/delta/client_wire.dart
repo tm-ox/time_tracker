@@ -51,7 +51,8 @@ class RemoteClient {
   final DateTime? updatedAt;
   final DateTime? deletedAt;
 
-  /// Server-authored ordering key (`public.sync_seq`). Absent only in tests /
+  /// Server-authored ordering key: the `server_seq` column, stamped by trigger
+  /// from the shared `public.sync_seq` sequence. Absent only in tests /
   /// hand-built rows; every row PostgREST returns carries one.
   final int? serverSeq;
 

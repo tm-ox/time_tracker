@@ -16,6 +16,9 @@ import 'package:timedart/data/sync/delta/sync_transport.dart';
 // (`app_settings`) so each device tracks its own progress. Sync is gated on
 // entitlement (`orgs.plan != 'free'`): a free org never touches the network.
 
+/// The free (local-only) plan value in `orgs.plan`; anything else is entitled.
+const String kFreePlan = 'free';
+
 /// What one sync pass did — surfaced to the "Sync now" UI and logs.
 class SyncResult {
   /// Rows pushed to the server this pass.
@@ -81,7 +84,7 @@ class DeltaSyncService {
   Future<bool> _isEntitled() async {
     final rows = await _client.from('orgs').select('plan').limit(1);
     if (rows.isEmpty) return false;
-    return rows.first['plan'] != 'free';
+    return rows.first['plan'] != kFreePlan;
   }
 
   Future<SyncResult> _syncClients() async {
@@ -92,6 +95,17 @@ class DeltaSyncService {
 
   /// Push dirty clients (updatedAt past the watermark), then advance the
   /// watermark to the newest row pushed. Tombstones ride through as upserts.
+  ///
+  /// Watermark-model caveat (5a shortcut): a row just *pulled* from another
+  /// device carries that device's clock, which is often above this device's
+  /// push watermark — so it gets re-selected here and re-pushed ONCE. That costs
+  /// a spurious upsert + `server_seq` bump + re-pull, but it converges (the
+  /// re-pull LWW-skips on equal `updatedAt`) and is idempotent, so it's benign
+  /// at this data scale. The obvious "fix" — advancing the watermark to the max
+  /// *applied* `updatedAt` after a pull — is UNSAFE: it would strand a local
+  /// edit whose `updatedAt` is below a pulled row's clock (that edit would never
+  /// push = a lost update). The real fix is a per-row dirty flag / `sync_outbox`
+  /// table, deferred to 5b; the watermark is deliberately the 5a stand-in.
   Future<int> _pushClients() async {
     final since = await _readWatermark();
     final dirty = await _db.clientsToPush(since);
