@@ -352,7 +352,10 @@ class _DocPageBody extends StatelessWidget {
               left: left,
               right: AppTokens.space2xl,
               top: AppTokens.spaceXl,
-              bottom: AppTokens.spaceXl,
+              // Clear the system nav bar (mobile edge-to-edge) so the prev/next
+              // controls aren't overlapped; 0 on desktop.
+              bottom:
+                  AppTokens.spaceXl + MediaQuery.viewPaddingOf(context).bottom,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

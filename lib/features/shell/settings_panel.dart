@@ -341,13 +341,13 @@ class _SettingsPanelState extends State<SettingsPanel> {
         ),
       if (sync.enabled && widget.onSyncAccount != null)
         _ActionRow(
-          label: 'Account…',
+          label: 'Account',
           icon: Icons.person_outline,
           onTap: () => widget.onSyncAccount!(),
         ),
       if (sync.enabled && widget.onSyncDetails != null)
         _ActionRow(
-          label: 'Sync details…',
+          label: 'Sync details',
           icon: Icons.info_outline,
           onTap: () => widget.onSyncDetails!(),
         ),
