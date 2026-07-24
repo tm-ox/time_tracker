@@ -10,7 +10,13 @@ import 'package:timedart/features/docs/docs_screen.dart';
 /// selected from the side panel. Also the home for future non-invoicing
 /// settings once there's more than Templates/Profiles to navigate to.
 class SettingsHome extends StatefulWidget {
-  const SettingsHome({super.key});
+  const SettingsHome({super.key, this.footerOnly = false});
+
+  /// When true, render only the links + version footer (no logo / no "select
+  /// an item" prompt) — used as the footer beneath the narrow full-page
+  /// Settings list, where the sections themselves are the screen. The full
+  /// placeholder (logo + prompt + footer) is the wide content-pane home.
+  final bool footerOnly;
 
   @override
   State<SettingsHome> createState() => _SettingsHomeState();
@@ -42,31 +48,12 @@ class _SettingsHomeState extends State<SettingsHome> {
     final versionLabel = _version.isEmpty
         ? 'timedart'
         : 'timedart · v$_version$_channel';
-    return Column(
+
+    // Links + version — pinned to the baseline of the placeholder, and reused
+    // on its own as the narrow full-page Settings footer.
+    final footer = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Logo + instruction stay centred in the space above the footer.
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SvgPicture.asset(
-                  'assets/logo/timedart_logo_stacked.svg',
-                  height: narrow ? 140 : 200,
-                ),
-                const SizedBox(height: AppTokens.spaceXl),
-                Text(
-                  // Narrow opens the list from the bottom menu, not a side panel.
-                  'Select an item from the ${narrow ? 'menu' : 'panel'} to edit.',
-                  style: t.textTheme.bodyLarge?.copyWith(
-                    color: t.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Links + version pinned to the baseline.
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -93,6 +80,41 @@ class _SettingsHomeState extends State<SettingsHome> {
             color: t.colorScheme.onSurfaceVariant,
           ),
         ),
+      ],
+    );
+
+    if (widget.footerOnly) {
+      return Padding(
+        padding: const EdgeInsets.only(top: AppTokens.spaceMd),
+        child: footer,
+      );
+    }
+
+    return Column(
+      children: [
+        // Logo + instruction stay centred in the space above the footer.
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SvgPicture.asset(
+                  'assets/logo/timedart_logo_stacked.svg',
+                  height: narrow ? 140 : 200,
+                ),
+                const SizedBox(height: AppTokens.spaceXl),
+                Text(
+                  // Narrow opens the list from the bottom menu, not a side panel.
+                  'Select an item from the ${narrow ? 'menu' : 'panel'} to edit.',
+                  style: t.textTheme.bodyLarge?.copyWith(
+                    color: t.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        footer,
       ],
     );
   }

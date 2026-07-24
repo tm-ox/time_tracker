@@ -1040,38 +1040,13 @@ class _AdaptiveShellState extends State<AdaptiveShell>
     // with page_header.dart). Narrow (mobile) has no left-aligned header logo, so
     // match the tracker's plain spaceLg inset on all sides; the extra spaceMd
     // otherwise reads as too much horizontal padding.
-    Widget buildContent({required bool wide}) => _stretchContent
-        ? LayoutBuilder(
-            builder: (context, c) {
-              final margin = wide
-                  ? ((c.maxWidth - AppTokens.maxContentWidth) / 2).clamp(
-                      0.0,
-                      double.infinity,
-                    )
-                  : 0.0;
-              final left = wide
-                  ? margin + AppTokens.spaceLg + AppTokens.spaceMd
-                  : AppTokens.spaceLg;
-              return Padding(
-                // Narrow: trim the bottom inset — the bottom nav bar below
-                // already separates content from the chrome (matches
-                // content_body.dart; keep the two in sync).
-                padding: EdgeInsets.fromLTRB(
-                  left,
-                  AppTokens.spaceLg,
-                  AppTokens.spaceLg,
-                  wide ? AppTokens.spaceLg : AppTokens.spaceMd,
-                ),
-                child: animatedDetail,
-              );
-            },
-          )
-        : ContentBody(child: animatedDetail);
-
-    // In the narrow layout the panel lives in a drawer, so every action must
+    // In the narrow layout a panel lives in a drawer, so every action must
     // close the drawer first to reveal the content pane it just changed.
     // `before` runs that pop; in the wide layout it's null (panel is persistent).
-    Widget panel({
+
+    // The settings sections panel. It's the wide right pane in Settings mode,
+    // and (narrow) the full-page Settings body reached from the gear.
+    Widget settingsPanelView({
       VoidCallback? before,
       bool keyboardNav = false,
       bool showFooter = true,
@@ -1081,11 +1056,8 @@ class _AdaptiveShellState extends State<AdaptiveShell>
         action();
       }
 
-      // In Settings mode the right column is the settings panel instead of the
-      // client/project tree; the content pane shows the matching preview.
-      if (_inSettings) {
-        final detail = _detail;
-        return SettingsPanel(
+      final detail = _detail;
+      return SettingsPanel(
           db: widget.db,
           selectedTemplateId: detail is _TemplateEditorDetail
               ? detail.template?.id
@@ -1139,6 +1111,19 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           cursorFocusNode: keyboardNav ? _settingsCursor : null,
           searchFocusNode: keyboardNav ? _settingsSearch : null,
         );
+    }
+
+    // The client/project tree. It's the wide right pane in Tracker mode, and
+    // (narrow) the drawer sheet the centre button raises — in every mode, so
+    // clients stay reachable even while the Settings body is showing.
+    Widget trackerPanelView({
+      VoidCallback? before,
+      bool keyboardNav = false,
+      bool showFooter = true,
+    }) {
+      void run(VoidCallback action) {
+        before?.call();
+        action();
       }
 
       return SidePanel(
@@ -1163,6 +1148,67 @@ class _AdaptiveShellState extends State<AdaptiveShell>
         showFooter: showFooter,
         autofocus: keyboardNav,
       );
+    }
+
+    // Which panel the right pane / sheet shows. Settings mode → the sections
+    // panel; otherwise the client/project tree.
+    Widget panel({
+      VoidCallback? before,
+      bool keyboardNav = false,
+      bool showFooter = true,
+    }) => _inSettings
+        ? settingsPanelView(
+            before: before,
+            keyboardNav: keyboardNav,
+            showFooter: showFooter,
+          )
+        : trackerPanelView(
+            before: before,
+            keyboardNav: keyboardNav,
+            showFooter: showFooter,
+          );
+
+    Widget buildContent({required bool wide}) {
+      // Narrow: the Settings gear lands directly on the sections list as a
+      // full-page screen (the drawer sheet is reserved for the client/project
+      // tree). Editors opened from a row still render via animatedDetail below,
+      // since _detail is then a *_EditorDetail (not _Settings).
+      if (!wide && _detail is _Settings) {
+        return Column(
+          children: [
+            Expanded(child: settingsPanelView(showFooter: false)),
+            const SettingsHome(footerOnly: true),
+            const SizedBox(height: AppTokens.spaceMd),
+          ],
+        );
+      }
+      return _stretchContent
+          ? LayoutBuilder(
+              builder: (context, c) {
+                final margin = wide
+                    ? ((c.maxWidth - AppTokens.maxContentWidth) / 2).clamp(
+                        0.0,
+                        double.infinity,
+                      )
+                    : 0.0;
+                final left = wide
+                    ? margin + AppTokens.spaceLg + AppTokens.spaceMd
+                    : AppTokens.spaceLg;
+                return Padding(
+                  // Narrow: trim the bottom inset — the bottom nav bar below
+                  // already separates content from the chrome (matches
+                  // content_body.dart; keep the two in sync).
+                  padding: EdgeInsets.fromLTRB(
+                    left,
+                    AppTokens.spaceLg,
+                    AppTokens.spaceLg,
+                    wide ? AppTokens.spaceLg : AppTokens.spaceMd,
+                  ),
+                  child: animatedDetail,
+                );
+              },
+            )
+          : ContentBody(child: animatedDetail);
     }
 
     return LayoutBuilder(
@@ -1369,7 +1415,10 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                             child: Padding(
                               padding: const EdgeInsets.all(AppTokens.spaceSm),
                               child: Icon(
-                                _panelOpen ? Icons.close : Icons.menu,
+                                // The sheet is the client/project tree, so the
+                                // rest glyph reads as "clients" not a generic
+                                // menu; close when the sheet is open.
+                                _panelOpen ? Icons.close : Icons.people_outline,
                                 color: _panelOpen
                                     ? AppTokens.colorOnAccent
                                     : AppTokens.colorAccentText,
@@ -1474,7 +1523,11 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                                         child: const SheetGrabHandle(),
                                       ),
                                       Expanded(
-                                        child: panel(
+                                        // Always the client/project tree, even
+                                        // in Settings mode (the sections list is
+                                        // the full-page body now) — so the
+                                        // centre button always reaches clients.
+                                        child: trackerPanelView(
                                           before: _closePanel,
                                           showFooter: false,
                                         ),
