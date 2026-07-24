@@ -1014,23 +1014,6 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           onSessionReady: (s) => _activeEditor = s,
         ),
     };
-    // Cross-fade between content-pane pages on a _detail change. PageTransitionSwitcher
-    // fires only when its child's Key changes, so key by the page *type* — switching
-    // between two templates keeps the same key here and is handled by the editor's own
-    // ValueKey below, rather than fading between two editors.
-    final animatedDetail = PageTransitionSwitcher(
-      duration: const Duration(milliseconds: 300),
-      transitionBuilder: (child, primary, secondary) => FadeThroughTransition(
-        animation: primary,
-        secondaryAnimation: secondary,
-        fillColor: Colors.transparent, // no flash of canvasColor between pages
-        child: child,
-      ),
-      child: KeyedSubtree(
-        key: ValueKey(_detail.runtimeType),
-        child: detailView,
-      ),
-    );
     // Preview pages (settings + per-project invoice) keep the left edge aligned with
     // the page header (same inset as the centred content column) but stretch
     // right to the panel divider so the preview + controls use the extra width.
@@ -1171,12 +1154,14 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           );
 
     Widget buildContent({required bool wide}) {
-      // Narrow: the Settings gear lands directly on the sections list as a
-      // full-page screen (the drawer sheet is reserved for the client/project
-      // tree). Editors opened from a row still render via animatedDetail below,
-      // since _detail is then a *_EditorDetail (not _Settings).
+      // The composed page for the current _detail, in its own chrome.
+      final Widget page;
       if (!wide && _detail is _Settings) {
-        return Column(
+        // Narrow: the Settings gear lands directly on the sections list as a
+        // full-page (full-bleed, no ContentBody) screen — the drawer sheet is
+        // reserved for the client/project tree. Editors opened from a row still
+        // render below, since _detail is then a *_EditorDetail (not _Settings).
+        page = Column(
           children: [
             Expanded(
               child: settingsPanelView(showFooter: false, showBadge: false),
@@ -1184,34 +1169,53 @@ class _AdaptiveShellState extends State<AdaptiveShell>
             const SettingsHome(footerOnly: true),
           ],
         );
+      } else if (_stretchContent) {
+        page = LayoutBuilder(
+          builder: (context, c) {
+            final margin = wide
+                ? ((c.maxWidth - AppTokens.maxContentWidth) / 2).clamp(
+                    0.0,
+                    double.infinity,
+                  )
+                : 0.0;
+            final left = wide
+                ? margin + AppTokens.spaceLg + AppTokens.spaceMd
+                : AppTokens.spaceLg;
+            return Padding(
+              // Narrow: trim the bottom inset — the bottom nav bar below
+              // already separates content from the chrome (matches
+              // content_body.dart; keep the two in sync).
+              padding: EdgeInsets.fromLTRB(
+                left,
+                AppTokens.spaceLg,
+                AppTokens.spaceLg,
+                wide ? AppTokens.spaceLg : AppTokens.spaceMd,
+              ),
+              child: detailView,
+            );
+          },
+        );
+      } else {
+        page = ContentBody(child: detailView);
       }
-      return _stretchContent
-          ? LayoutBuilder(
-              builder: (context, c) {
-                final margin = wide
-                    ? ((c.maxWidth - AppTokens.maxContentWidth) / 2).clamp(
-                        0.0,
-                        double.infinity,
-                      )
-                    : 0.0;
-                final left = wide
-                    ? margin + AppTokens.spaceLg + AppTokens.spaceMd
-                    : AppTokens.spaceLg;
-                return Padding(
-                  // Narrow: trim the bottom inset — the bottom nav bar below
-                  // already separates content from the chrome (matches
-                  // content_body.dart; keep the two in sync).
-                  padding: EdgeInsets.fromLTRB(
-                    left,
-                    AppTokens.spaceLg,
-                    AppTokens.spaceLg,
-                    wide ? AppTokens.spaceLg : AppTokens.spaceMd,
-                  ),
-                  child: animatedDetail,
-                );
-              },
-            )
-          : ContentBody(child: animatedDetail);
+      // Cross-fade between content pages on a _detail change — including
+      // in/out of the narrow Settings screen, so it animates the same as the
+      // tracker and editor pages. PageTransitionSwitcher fires only when its
+      // child's Key changes, so key by page *type*; switching between two
+      // templates keeps the same key here and is handled by the editor's own
+      // ValueKey. The whole composed page (with its chrome) is the animated
+      // unit, so full-bleed Settings and ContentBody-wrapped pages each fade as
+      // a whole without a mid-transition chrome swap.
+      return PageTransitionSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (child, primary, secondary) => FadeThroughTransition(
+          animation: primary,
+          secondaryAnimation: secondary,
+          fillColor: Colors.transparent, // no flash of canvasColor between pages
+          child: child,
+        ),
+        child: KeyedSubtree(key: ValueKey(_detail.runtimeType), child: page),
+      );
     }
 
     return LayoutBuilder(
