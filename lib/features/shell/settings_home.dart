@@ -76,7 +76,12 @@ class _SettingsHomeState extends State<SettingsHome> {
     // beneath it — the sections list above is the screen, so this stays short.
     if (widget.footerOnly) {
       return Padding(
-        padding: const EdgeInsets.only(top: AppTokens.spaceXs),
+        // Extra bottom room so the links clear the bottom nav bar and stay
+        // comfortably tappable.
+        padding: const EdgeInsets.only(
+          top: AppTokens.spaceXs,
+          bottom: AppTokens.spaceLg,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

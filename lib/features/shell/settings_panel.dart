@@ -659,6 +659,11 @@ class _SettingsPanelState extends State<SettingsPanel> {
             ),
             _EntityRow() => _EntityTile(
               name: row.name,
+              icon: switch (row.section) {
+                _Section.templates => Icons.description_outlined,
+                _Section.profiles => Icons.business_outlined,
+                _Section.general || _Section.sync => Icons.circle_outlined,
+              },
               isDefault: row.isDefault,
               selected: switch (row.section) {
                 _Section.templates => row.id == widget.selectedTemplateId,
@@ -751,12 +756,16 @@ class _SectionHeaderTile extends StatelessWidget {
 class _EntityTile extends StatelessWidget {
   const _EntityTile({
     required this.name,
+    required this.icon,
     required this.isDefault,
     required this.selected,
     required this.onTap,
     this.onEdit,
   });
   final String name;
+  // Leading glyph for the row — one per section (template vs profile), so the
+  // list rows read the same as the icon-led action rows above them.
+  final IconData icon;
   final bool isDefault;
   final bool selected;
   final VoidCallback onTap;
@@ -768,6 +777,12 @@ class _EntityTile extends StatelessWidget {
     return panelRowTile(
       context: context,
       selected: selected,
+      horizontalTitleGap: AppTokens.spaceXs,
+      leading: Icon(
+        icon,
+        size: AppTokens.iconSm,
+        color: t.colorScheme.onSurfaceVariant,
+      ),
       title: Row(
         children: [
           Flexible(
