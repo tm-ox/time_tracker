@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:timedart/constants/layout.dart';
 import 'package:timedart/constants/tokens.dart';
 import 'package:timedart/features/docs/docs_screen.dart';
 
@@ -10,7 +9,13 @@ import 'package:timedart/features/docs/docs_screen.dart';
 /// selected from the side panel. Also the home for future non-invoicing
 /// settings once there's more than Templates/Profiles to navigate to.
 class SettingsHome extends StatefulWidget {
-  const SettingsHome({super.key});
+  const SettingsHome({super.key, this.footerOnly = false});
+
+  /// When true, render only the links + version footer (no logo / no "select
+  /// an item" prompt) — used as the footer beneath the narrow full-page
+  /// Settings list, where the sections themselves are the screen. The full
+  /// placeholder (logo + prompt + footer) is the wide content-pane home.
+  final bool footerOnly;
 
   @override
   State<SettingsHome> createState() => _SettingsHomeState();
@@ -38,10 +43,54 @@ class _SettingsHomeState extends State<SettingsHome> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final narrow = context.isNarrow;
     final versionLabel = _version.isEmpty
         ? 'timedart'
         : 'timedart · v$_version$_channel';
+
+    final linksRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextButton.icon(
+          onPressed: () => launchUrl(_websiteUri),
+          icon: const Icon(Icons.public, size: AppTokens.iconSm),
+          label: const Text('Visit website'),
+        ),
+        const SizedBox(width: AppTokens.spaceSm),
+        TextButton.icon(
+          onPressed: () => openDocs(context),
+          icon: const Icon(Icons.menu_book_outlined, size: AppTokens.iconSm),
+          label: const Text('Documentation'),
+        ),
+      ],
+    );
+    final versionText = Text(
+      versionLabel,
+      style: t.textTheme.labelSmall?.copyWith(
+        color: t.colorScheme.onSurfaceVariant,
+      ),
+    );
+
+    // Narrow full-page Settings footer: compact, version on top with the links
+    // beneath it — the sections list above is the screen, so this stays short.
+    if (widget.footerOnly) {
+      return Padding(
+        // Equal breathing room above and below the links (matching gaps), so
+        // they clear the bottom nav bar and stay comfortably tappable.
+        padding: const EdgeInsets.only(
+          top: AppTokens.spaceXs,
+          bottom: AppTokens.spaceLg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            versionText,
+            const SizedBox(height: AppTokens.spaceLg),
+            linksRow,
+          ],
+        ),
+      );
+    }
+
     return Column(
       children: [
         // Logo + instruction stay centred in the space above the footer.
@@ -52,12 +101,13 @@ class _SettingsHomeState extends State<SettingsHome> {
               children: [
                 SvgPicture.asset(
                   'assets/logo/timedart_logo_stacked.svg',
-                  height: narrow ? 140 : 200,
+                  height: 200,
                 ),
                 const SizedBox(height: AppTokens.spaceXl),
                 Text(
-                  // Narrow opens the list from the bottom menu, not a side panel.
-                  'Select an item from the ${narrow ? 'menu' : 'panel'} to edit.',
+                  // Full placeholder is the wide content pane only; narrow
+                  // renders the sections list itself (see AdaptiveShell).
+                  'Select an item from the panel to edit.',
                   style: t.textTheme.bodyLarge?.copyWith(
                     color: t.colorScheme.primary,
                   ),
@@ -66,33 +116,10 @@ class _SettingsHomeState extends State<SettingsHome> {
             ),
           ),
         ),
-        // Links + version pinned to the baseline.
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextButton.icon(
-              onPressed: () => launchUrl(_websiteUri),
-              icon: const Icon(Icons.public, size: AppTokens.iconSm),
-              label: const Text('Visit website'),
-            ),
-            const SizedBox(width: AppTokens.spaceSm),
-            TextButton.icon(
-              onPressed: () => openDocs(context),
-              icon: const Icon(
-                Icons.menu_book_outlined,
-                size: AppTokens.iconSm,
-              ),
-              label: const Text('Documentation'),
-            ),
-          ],
-        ),
+        // Links + version pinned to the baseline of the placeholder.
+        linksRow,
         const SizedBox(height: AppTokens.spaceMd),
-        Text(
-          versionLabel,
-          style: t.textTheme.labelSmall?.copyWith(
-            color: t.colorScheme.onSurfaceVariant,
-          ),
-        ),
+        versionText,
       ],
     );
   }

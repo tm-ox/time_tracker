@@ -44,6 +44,7 @@ class SettingsPanel extends StatefulWidget {
     this.onFocusPanel,
     this.settingsActive = false,
     this.showFooter = true,
+    this.showBadge = true,
     this.autofocus = false,
     this.cursorFocusNode,
     this.searchFocusNode,
@@ -116,6 +117,9 @@ class SettingsPanel extends StatefulWidget {
   final bool settingsActive;
   // Suppressed in the wide layout — the header carries those actions there.
   final bool showFooter;
+  // The Craftox branding badge at the very bottom. Suppressed on the narrow
+  // full-page Settings screen, which supplies its own links + version footer.
+  final bool showBadge;
   final bool autofocus;
 
   @override
@@ -337,13 +341,13 @@ class _SettingsPanelState extends State<SettingsPanel> {
         ),
       if (sync.enabled && widget.onSyncAccount != null)
         _ActionRow(
-          label: 'Account…',
+          label: 'Account',
           icon: Icons.person_outline,
           onTap: () => widget.onSyncAccount!(),
         ),
       if (sync.enabled && widget.onSyncDetails != null)
         _ActionRow(
-          label: 'Sync details…',
+          label: 'Sync details',
           icon: Icons.info_outline,
           onTap: () => widget.onSyncDetails!(),
         ),
@@ -563,7 +567,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
               onOpenTracker: widget.onOpenTracker,
               settingsActive: widget.settingsActive,
             ),
-          const CraftoxBadge(),
+          if (widget.showBadge) const CraftoxBadge(),
         ],
       ),
     );
@@ -655,6 +659,11 @@ class _SettingsPanelState extends State<SettingsPanel> {
             ),
             _EntityRow() => _EntityTile(
               name: row.name,
+              icon: switch (row.section) {
+                _Section.templates => Icons.description_outlined,
+                _Section.profiles => Icons.business_outlined,
+                _Section.general || _Section.sync => Icons.circle_outlined,
+              },
               isDefault: row.isDefault,
               selected: switch (row.section) {
                 _Section.templates => row.id == widget.selectedTemplateId,
@@ -747,12 +756,16 @@ class _SectionHeaderTile extends StatelessWidget {
 class _EntityTile extends StatelessWidget {
   const _EntityTile({
     required this.name,
+    required this.icon,
     required this.isDefault,
     required this.selected,
     required this.onTap,
     this.onEdit,
   });
   final String name;
+  // Leading glyph for the row — one per section (template vs profile), so the
+  // list rows read the same as the icon-led action rows above them.
+  final IconData icon;
   final bool isDefault;
   final bool selected;
   final VoidCallback onTap;
@@ -764,6 +777,12 @@ class _EntityTile extends StatelessWidget {
     return panelRowTile(
       context: context,
       selected: selected,
+      horizontalTitleGap: AppTokens.spaceXs,
+      leading: Icon(
+        icon,
+        size: AppTokens.iconSm,
+        color: t.colorScheme.onSurfaceVariant,
+      ),
       title: Row(
         children: [
           Flexible(

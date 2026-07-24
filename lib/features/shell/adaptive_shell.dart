@@ -246,6 +246,22 @@ class _AdaptiveShellState extends State<AdaptiveShell>
   // The single gate every _detail transition goes through, so an unsaved
   // change in the open Template/Profile editor can never be silently
   // discarded. No-ops if `next` targets the entity already open.
+  // The unsaved-changes gate shared by every path that leaves the active
+  // Template/Profile editor. Returns true if it's safe to leave (nothing dirty,
+  // or the user saved / discarded); false to stay put (cancelled, or save
+  // failed validation). Any leave path MUST await this before mutating _detail,
+  // or a dirty edit is silently discarded — see _navigateTo and _selectProject.
+  Future<bool> _confirmLeaveActiveEditor() async {
+    if (!(_activeEditor?.isDirty ?? false)) return true;
+    final action = await confirmUnsavedChanges(context);
+    if (action == null) return false; // stay put, keep editing
+    if (action == UnsavedChangesAction.save) {
+      final ok = await _activeEditor?.save() ?? true;
+      if (!ok) return false; // validation failed; stay on the editor
+    }
+    return true;
+  }
+
   Future<void> _navigateTo(_Detail next) async {
     final cur = _detail;
     final sameEntity = switch ((cur, next)) {
@@ -256,14 +272,7 @@ class _AdaptiveShellState extends State<AdaptiveShell>
       _ => false,
     };
     if (sameEntity) return;
-    if (_activeEditor?.isDirty ?? false) {
-      final action = await confirmUnsavedChanges(context);
-      if (action == null) return; // stay put, keep editing
-      if (action == UnsavedChangesAction.save) {
-        final ok = await _activeEditor?.save() ?? true;
-        if (!ok) return; // validation failed; stay on the editor
-      }
-    }
+    if (!await _confirmLeaveActiveEditor()) return;
 
     if (!mounted) return;
     final wasInSettings = _inSettings; // reads the *old* _detail
@@ -285,10 +294,20 @@ class _AdaptiveShellState extends State<AdaptiveShell>
   }
 
   void _showTracker() => _navigateTo(const _Tracker());
-  void _selectProject(String id) => setState(() {
-    _selectedProjectId = id;
-    _detail = const _Tracker(); // picking a project returns you to the timer
-  });
+  // Picking a project returns you to the timer. The narrow drawer now shows the
+  // client tree even while a Template/Profile editor is open, so this leave path
+  // must run the same unsaved-changes gate as _navigateTo and clear the active
+  // editor — otherwise selecting a project mid-edit discards the edit silently
+  // and orphans _activeEditor.
+  Future<void> _selectProject(String id) async {
+    if (!await _confirmLeaveActiveEditor()) return;
+    if (!mounted) return;
+    setState(() {
+      _selectedProjectId = id;
+      _detail = const _Tracker();
+      _activeEditor = null;
+    });
+  }
 
   // Client/project editing are modals (like task/entry), so they open over the
   // content pane rather than replacing it.
@@ -1014,23 +1033,6 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           onSessionReady: (s) => _activeEditor = s,
         ),
     };
-    // Cross-fade between content-pane pages on a _detail change. PageTransitionSwitcher
-    // fires only when its child's Key changes, so key by the page *type* — switching
-    // between two templates keeps the same key here and is handled by the editor's own
-    // ValueKey below, rather than fading between two editors.
-    final animatedDetail = PageTransitionSwitcher(
-      duration: const Duration(milliseconds: 300),
-      transitionBuilder: (child, primary, secondary) => FadeThroughTransition(
-        animation: primary,
-        secondaryAnimation: secondary,
-        fillColor: Colors.transparent, // no flash of canvasColor between pages
-        child: child,
-      ),
-      child: KeyedSubtree(
-        key: ValueKey(_detail.runtimeType),
-        child: detailView,
-      ),
-    );
     // Preview pages (settings + per-project invoice) keep the left edge aligned with
     // the page header (same inset as the centred content column) but stretch
     // right to the panel divider so the preview + controls use the extra width.
@@ -1040,52 +1042,25 @@ class _AdaptiveShellState extends State<AdaptiveShell>
     // with page_header.dart). Narrow (mobile) has no left-aligned header logo, so
     // match the tracker's plain spaceLg inset on all sides; the extra spaceMd
     // otherwise reads as too much horizontal padding.
-    Widget buildContent({required bool wide}) => _stretchContent
-        ? LayoutBuilder(
-            builder: (context, c) {
-              final margin = wide
-                  ? ((c.maxWidth - AppTokens.maxContentWidth) / 2).clamp(
-                      0.0,
-                      double.infinity,
-                    )
-                  : 0.0;
-              final left = wide
-                  ? margin + AppTokens.spaceLg + AppTokens.spaceMd
-                  : AppTokens.spaceLg;
-              return Padding(
-                // Narrow: trim the bottom inset — the bottom nav bar below
-                // already separates content from the chrome (matches
-                // content_body.dart; keep the two in sync).
-                padding: EdgeInsets.fromLTRB(
-                  left,
-                  AppTokens.spaceLg,
-                  AppTokens.spaceLg,
-                  wide ? AppTokens.spaceLg : AppTokens.spaceMd,
-                ),
-                child: animatedDetail,
-              );
-            },
-          )
-        : ContentBody(child: animatedDetail);
-
-    // In the narrow layout the panel lives in a drawer, so every action must
+    // In the narrow layout a panel lives in a drawer, so every action must
     // close the drawer first to reveal the content pane it just changed.
     // `before` runs that pop; in the wide layout it's null (panel is persistent).
-    Widget panel({
+
+    // The settings sections panel. It's the wide right pane in Settings mode,
+    // and (narrow) the full-page Settings body reached from the gear.
+    Widget settingsPanelView({
       VoidCallback? before,
       bool keyboardNav = false,
       bool showFooter = true,
+      bool showBadge = true,
     }) {
       void run(VoidCallback action) {
         before?.call();
         action();
       }
 
-      // In Settings mode the right column is the settings panel instead of the
-      // client/project tree; the content pane shows the matching preview.
-      if (_inSettings) {
-        final detail = _detail;
-        return SettingsPanel(
+      final detail = _detail;
+      return SettingsPanel(
           db: widget.db,
           selectedTemplateId: detail is _TemplateEditorDetail
               ? detail.template?.id
@@ -1131,6 +1106,7 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           onFocusPanel: keyboardNav ? _focusPanel : null,
           settingsActive: true,
           showFooter: showFooter,
+          showBadge: showBadge,
           autofocus: keyboardNav,
           // Keyboard nav wired only where the panel is persistent (wide) —
           // mirrors SidePanel below, so Tab/Ctrl-h/Ctrl-l pane-switching can
@@ -1139,6 +1115,19 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           cursorFocusNode: keyboardNav ? _settingsCursor : null,
           searchFocusNode: keyboardNav ? _settingsSearch : null,
         );
+    }
+
+    // The client/project tree. It's the wide right pane in Tracker mode, and
+    // (narrow) the drawer sheet the centre button raises — in every mode, so
+    // clients stay reachable even while the Settings body is showing.
+    Widget trackerPanelView({
+      VoidCallback? before,
+      bool keyboardNav = false,
+      bool showFooter = true,
+    }) {
+      void run(VoidCallback action) {
+        before?.call();
+        action();
       }
 
       return SidePanel(
@@ -1162,6 +1151,89 @@ class _AdaptiveShellState extends State<AdaptiveShell>
         settingsActive: false,
         showFooter: showFooter,
         autofocus: keyboardNav,
+      );
+    }
+
+    // Which panel the right pane / sheet shows. Settings mode → the sections
+    // panel; otherwise the client/project tree.
+    Widget panel({
+      VoidCallback? before,
+      bool keyboardNav = false,
+      bool showFooter = true,
+    }) => _inSettings
+        ? settingsPanelView(
+            before: before,
+            keyboardNav: keyboardNav,
+            showFooter: showFooter,
+          )
+        : trackerPanelView(
+            before: before,
+            keyboardNav: keyboardNav,
+            showFooter: showFooter,
+          );
+
+    Widget buildContent({required bool wide}) {
+      // The composed page for the current _detail, in its own chrome.
+      final Widget page;
+      if (!wide && _detail is _Settings) {
+        // Narrow: the Settings gear lands directly on the sections list as a
+        // full-page (full-bleed, no ContentBody) screen — the drawer sheet is
+        // reserved for the client/project tree. Editors opened from a row still
+        // render below, since _detail is then a *_EditorDetail (not _Settings).
+        page = Column(
+          children: [
+            Expanded(
+              child: settingsPanelView(showFooter: false, showBadge: false),
+            ),
+            const SettingsHome(footerOnly: true),
+          ],
+        );
+      } else if (_stretchContent) {
+        page = LayoutBuilder(
+          builder: (context, c) {
+            final margin = wide
+                ? ((c.maxWidth - AppTokens.maxContentWidth) / 2).clamp(
+                    0.0,
+                    double.infinity,
+                  )
+                : 0.0;
+            final left = wide
+                ? margin + AppTokens.spaceLg + AppTokens.spaceMd
+                : AppTokens.spaceLg;
+            return Padding(
+              // Narrow: trim the bottom inset — the bottom nav bar below
+              // already separates content from the chrome (matches
+              // content_body.dart; keep the two in sync).
+              padding: EdgeInsets.fromLTRB(
+                left,
+                AppTokens.spaceLg,
+                AppTokens.spaceLg,
+                wide ? AppTokens.spaceLg : AppTokens.spaceMd,
+              ),
+              child: detailView,
+            );
+          },
+        );
+      } else {
+        page = ContentBody(child: detailView);
+      }
+      // Cross-fade between content pages on a _detail change — including
+      // in/out of the narrow Settings screen, so it animates the same as the
+      // tracker and editor pages. PageTransitionSwitcher fires only when its
+      // child's Key changes, so key by page *type*; switching between two
+      // templates keeps the same key here and is handled by the editor's own
+      // ValueKey. The whole composed page (with its chrome) is the animated
+      // unit, so full-bleed Settings and ContentBody-wrapped pages each fade as
+      // a whole without a mid-transition chrome swap.
+      return PageTransitionSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (child, primary, secondary) => FadeThroughTransition(
+          animation: primary,
+          secondaryAnimation: secondary,
+          fillColor: Colors.transparent, // no flash of canvasColor between pages
+          child: child,
+        ),
+        child: KeyedSubtree(key: ValueKey(_detail.runtimeType), child: page),
       );
     }
 
@@ -1342,7 +1414,12 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                               colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
                             ),
                           ),
-                          onTap: _showTracker,
+                          // Close the client sheet if it's open, so the tab
+                          // lands on its page rather than behind a raised sheet.
+                          onTap: () {
+                            _closePanel();
+                            _showTracker();
+                          },
                         ),
                         // Pronounced centre button — opens/closes the list panel.
                         // Styled like the app's primary button: muted accent-dim
@@ -1369,6 +1446,8 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                             child: Padding(
                               padding: const EdgeInsets.all(AppTokens.spaceSm),
                               child: Icon(
+                                // Menu at rest, close when the sheet is open.
+                                // (A clients-specific glyph is a later pass.)
                                 _panelOpen ? Icons.close : Icons.menu,
                                 color: _panelOpen
                                     ? AppTokens.colorOnAccent
@@ -1389,7 +1468,12 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                             size: AppTokens.iconLg,
                             color: c,
                           ),
-                          onTap: _openSettings,
+                          // Close the client sheet if it's open, so the tab
+                          // lands on its page rather than behind a raised sheet.
+                          onTap: () {
+                            _closePanel();
+                            _openSettings();
+                          },
                         ),
                       ],
                     ),
@@ -1474,7 +1558,11 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                                         child: const SheetGrabHandle(),
                                       ),
                                       Expanded(
-                                        child: panel(
+                                        // Always the client/project tree, even
+                                        // in Settings mode (the sections list is
+                                        // the full-page body now) — so the
+                                        // centre button always reaches clients.
+                                        child: trackerPanelView(
                                           before: _closePanel,
                                           showFooter: false,
                                         ),
