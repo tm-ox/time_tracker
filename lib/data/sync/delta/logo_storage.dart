@@ -53,21 +53,20 @@ String _extForMime(String? mime) {
 
 /// FNV-1a 64-bit over the bytes, as exactly 16 lowercase hex chars.
 /// Deterministic and content-addressed — good enough for cache-busting (not a
-/// security hash). The multiply relies on native two's-complement 64-bit
-/// wraparound (the app's synced platforms are all 64-bit native); the result is
-/// emitted UNSIGNED via two 32-bit halves so a negative accumulator can't leak a
-/// leading '-' into the object path.
+/// security hash). Uses [BigInt] masked to 64 bits so the multiply wraps
+/// identically on every target INCLUDING the web demo: a plain `int` can't hold
+/// the 0xcbf29ce484222325 offset basis under dart2js (JS numbers are doubles),
+/// and native 64-bit wraparound wouldn't reproduce there. BigInt computes the
+/// same unsigned 64-bit value everywhere; padded to a full 16 hex digits.
 String _fnv1a64Hex(Uint8List bytes) {
-  var hash = 0xcbf29ce484222325;
-  const prime = 0x100000001b3;
+  final mask = (BigInt.one << 64) - BigInt.one;
+  var hash = BigInt.parse('cbf29ce484222325', radix: 16);
+  final prime = BigInt.parse('100000001b3', radix: 16);
   for (final b in bytes) {
-    hash ^= b;
-    hash = hash * prime; // wraps at 64 bits on native
+    hash ^= BigInt.from(b);
+    hash = (hash * prime) & mask; // wrap at 64 bits
   }
-  final hi = (hash >> 32) & 0xFFFFFFFF;
-  final lo = hash & 0xFFFFFFFF;
-  return hi.toRadixString(16).padLeft(8, '0') +
-      lo.toRadixString(16).padLeft(8, '0');
+  return hash.toRadixString(16).padLeft(16, '0');
 }
 
 /// Thin wrapper over the `logos` bucket. Injectable [client] for tests.
