@@ -517,6 +517,26 @@ void main() {
       expect(await db.outboxRowIds(kTableTemplates), unorderedEquals([a, b]));
     });
 
+    test('setDefault does NOT bump updatedAt on unrelated (non-default) rows',
+        () async {
+      // Regression (#320 review): an unfiltered clear-write bumped every row's
+      // updatedAt without enqueuing it → its clock races the server and a
+      // concurrent remote edit loses LWW. c is a non-default row: setDefault(b)
+      // must leave c untouched.
+      final a = await seedTemplate();
+      await db.setDefaultTemplate(a);
+      final b = await seedTemplate();
+      final c = await seedTemplate(); // non-default, never touched
+      final cBefore = (await db.templateByIdIncludingDeleted(c))!.updatedAt;
+      await db.clearOutbox(
+          kTableTemplates, await db.outboxRowIds(kTableTemplates));
+      await db.setDefaultTemplate(b);
+      expect((await db.templateByIdIncludingDeleted(c))!.updatedAt, cBefore,
+          reason: 'unrelated row clock must not advance');
+      expect(await db.outboxRowIds(kTableTemplates), unorderedEquals([a, b]),
+          reason: 'only the cleared-old + new default are enqueued');
+    });
+
     test('insert/update/delete enqueue profiles', () async {
       final id = await db.insertProfile(ProfilesCompanion.insert(name: 'P'));
       expect(await db.outboxRowIds(kTableProfiles), [id]);

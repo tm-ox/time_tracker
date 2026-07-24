@@ -51,17 +51,23 @@ String _extForMime(String? mime) {
   }
 }
 
-/// FNV-1a 64-bit over the bytes, as 16 lowercase hex chars. Deterministic and
-/// content-addressed — good enough for cache-busting (not a security hash). Runs
-/// on native int wraparound (the app's synced platforms are all 64-bit native).
+/// FNV-1a 64-bit over the bytes, as exactly 16 lowercase hex chars.
+/// Deterministic and content-addressed — good enough for cache-busting (not a
+/// security hash). The multiply relies on native two's-complement 64-bit
+/// wraparound (the app's synced platforms are all 64-bit native); the result is
+/// emitted UNSIGNED via two 32-bit halves so a negative accumulator can't leak a
+/// leading '-' into the object path.
 String _fnv1a64Hex(Uint8List bytes) {
   var hash = 0xcbf29ce484222325;
   const prime = 0x100000001b3;
   for (final b in bytes) {
     hash ^= b;
-    hash = (hash * prime) & 0xFFFFFFFFFFFFFFFF;
+    hash = hash * prime; // wraps at 64 bits on native
   }
-  return hash.toRadixString(16).padLeft(16, '0');
+  final hi = (hash >> 32) & 0xFFFFFFFF;
+  final lo = hash & 0xFFFFFFFF;
+  return hi.toRadixString(16).padLeft(8, '0') +
+      lo.toRadixString(16).padLeft(8, '0');
 }
 
 /// Thin wrapper over the `logos` bucket. Injectable [client] for tests.

@@ -235,12 +235,30 @@ class DeltaSyncService {
       if (bytes != null && bytes.isNotEmpty && orgId != null) {
         final path = logoObjectPath(orgId, p.id, bytes, p.logoMime);
         if (p.logoPath != path) {
-          await _logos.upload(path, bytes, p.logoMime);
-          await _db.setLocalLogoPath(p.id, path);
+          try {
+            await _logos.upload(path, bytes, p.logoMime);
+            await _db.setLocalLogoPath(p.id, path);
+          } catch (_) {
+            // Storage failed (e.g. the `logos` bucket isn't created yet, or a
+            // transient error). Do NOT let it wedge the whole pass — keep this
+            // profile queued (re-enqueue so it survives the outbox clear, which
+            // only drops rows queued BEFORE the pass snapshot) and skip pushing
+            // it this pass; other tables + the pull still run, and the logo
+            // uploads on a later pass. Without this, a user with a logo and no
+            // bucket would deadlock ALL sync (adoption enqueues every profile).
+            await _db.markDirtyForSync(kTableProfiles, [p.id]);
+            continue;
+          }
         }
         rows.add({...profileToWire(p), 'logo_path': path});
       } else {
-        rows.add(profileToWire(p));
+        // No local logo → force logo_path/logo_mime null on the wire AND clear
+        // any stale local path. Otherwise a REMOVAL never propagates: the row
+        // would keep advertising the old Storage object and other devices would
+        // re-download it (resurrecting the deleted logo). logoPath is sync-
+        // internal (no UI writes it), so the push path owns keeping it correct.
+        if (p.logoPath != null) await _db.setLocalLogoPath(p.id, null);
+        rows.add({...profileToWire(p), 'logo_path': null, 'logo_mime': null});
       }
     }
     return rows;

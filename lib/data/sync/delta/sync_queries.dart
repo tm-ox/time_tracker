@@ -170,9 +170,10 @@ extension DeltaSyncQueries on AppDatabase {
   // (would echo) — like the `fromRemote` apply path. They touch only the
   // logo-carrying columns.
 
-  /// Persist the Storage [path] a just-uploaded local logo now lives at, without
-  /// bumping the clock or enqueuing (push-side, after upload).
-  Future<void> setLocalLogoPath(String profileId, String path) =>
+  /// Persist the Storage [path] a just-uploaded local logo now lives at (or
+  /// null to clear a stale path when the logo was removed), without bumping the
+  /// clock or enqueuing (push-side, after upload/removal).
+  Future<void> setLocalLogoPath(String profileId, String? path) =>
       (update(profiles)..where((p) => p.id.equals(profileId)))
           .write(ProfilesCompanion(logoPath: Value(path)));
 

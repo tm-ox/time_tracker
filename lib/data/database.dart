@@ -1739,9 +1739,15 @@ class AppDatabase extends _$AppDatabase {
           ..where((x) => x.isDefault.equals(true) & x.id.equals(id).not()))
         .map((r) => r.id)
         .get();
-    await update(templates).write(
-      TemplatesCompanion(isDefault: const Value(false), updatedAt: Value(now)),
-    );
+    // Clear ONLY the current default(s) — the rows we enqueue below. An
+    // unfiltered write would bump every row's updatedAt without enqueuing them,
+    // racing their local clocks ahead of the server so a concurrent remote edit
+    // to one loses LWW and is silently dropped (#320 review).
+    if (cleared.isNotEmpty) {
+      await (update(templates)..where((x) => x.id.isIn(cleared))).write(
+        TemplatesCompanion(isDefault: const Value(false), updatedAt: Value(now)),
+      );
+    }
     await (update(templates)..where((x) => x.id.equals(id))).write(
       TemplatesCompanion(isDefault: const Value(true), updatedAt: Value(now)),
     );
@@ -1790,9 +1796,12 @@ class AppDatabase extends _$AppDatabase {
           ..where((x) => x.isDefault.equals(true) & x.id.equals(id).not()))
         .map((r) => r.id)
         .get();
-    await update(profiles).write(
-      ProfilesCompanion(isDefault: const Value(false), updatedAt: Value(now)),
-    );
+    // Clear ONLY the current default(s) — see setDefaultTemplate (#320 review).
+    if (cleared.isNotEmpty) {
+      await (update(profiles)..where((x) => x.id.isIn(cleared))).write(
+        ProfilesCompanion(isDefault: const Value(false), updatedAt: Value(now)),
+      );
+    }
     await (update(profiles)..where((x) => x.id.equals(id))).write(
       ProfilesCompanion(isDefault: const Value(true), updatedAt: Value(now)),
     );

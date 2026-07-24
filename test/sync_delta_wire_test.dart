@@ -421,6 +421,14 @@ void main() {
           isTrue);
       expect(logoObjectPath('o', 'p', bytesA, null).endsWith('.bin'), isTrue);
     });
+
+    test('hash segment is exactly 16 lowercase hex chars (no signed "-")', () {
+      // Regression: FNV-1a on native is signed → the old code leaked a leading
+      // '-' and never padded. Path shape must be <org>/<profileId>-<16hex>.<ext>.
+      final p = logoObjectPath('org1', 'pr1', bytesA, 'image/png');
+      final hashPart = p.substring('org1/pr1-'.length, p.length - '.png'.length);
+      expect(hashPart, matches(RegExp(r'^[0-9a-f]{16}$')));
+    });
   });
 
   group('per-table LWW conveniences delegate to the one rule', () {
