@@ -593,9 +593,10 @@ class _AdaptiveShellState extends State<AdaptiveShell>
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Sync details'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Column(
+        content: dialogContent(
+          dialogContext,
+          maxWidth: 460,
+          Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -607,7 +608,10 @@ class _AdaptiveShellState extends State<AdaptiveShell>
                       children: [
                         TextSpan(
                           text: '$label: ',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(dialogContext).colorScheme.primary,
+                          ),
                         ),
                         TextSpan(text: value),
                       ],
@@ -618,7 +622,7 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Close'),
           ),
@@ -741,7 +745,7 @@ class _AdaptiveShellState extends State<AdaptiveShell>
           }
 
           final actions = <Widget>[
-            TextButton(
+            OutlinedButton(
               onPressed: busy ? null : () => Navigator.of(dialogContext).pop(),
               child: const Text('Close'),
             ),
@@ -801,9 +805,9 @@ class _AdaptiveShellState extends State<AdaptiveShell>
 
           return AlertDialog(
             title: const Text('Sync account'),
-            content: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
+            content: dialogContent(
+              dialogContext,
+              Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: children,
