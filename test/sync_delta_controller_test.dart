@@ -184,6 +184,45 @@ void main() {
     expect(calls, 2);
   });
 
+  test('interaction triggers are throttled; other triggers bypass the throttle',
+      () async {
+    var calls = 0;
+    var now = DateTime.fromMillisecondsSinceEpoch(5000);
+    final c = SyncController(
+      db,
+      runner: () async {
+        calls++;
+        return const SyncResult(pushed: 1);
+      },
+      clock: () => now,
+      enablePeriodic: false,
+      startEnabled: true,
+      interactionThrottle: const Duration(seconds: 30),
+    );
+
+    // First navigation nudge runs a pass and stamps the attempt time.
+    await c.requestSync(SyncTrigger.interaction);
+    expect(calls, 1);
+
+    // A second nudge inside the window is dropped, even after time advances but
+    // stays under the throttle.
+    await c.requestSync(SyncTrigger.interaction);
+    expect(calls, 1);
+    now = now.add(const Duration(seconds: 20));
+    await c.requestSync(SyncTrigger.interaction);
+    expect(calls, 1);
+
+    // A non-interaction trigger is never throttled — fires immediately.
+    await c.requestSync(SyncTrigger.foreground);
+    expect(calls, 2);
+
+    // Past the window, the nudge runs again. (foreground above re-stamped the
+    // attempt time, so measure from there.)
+    now = now.add(const Duration(seconds: 31));
+    await c.requestSync(SyncTrigger.interaction);
+    expect(calls, 3);
+  });
+
   test('requestSync after dispose is a no-op that does not run or notify',
       () async {
     var calls = 0;
