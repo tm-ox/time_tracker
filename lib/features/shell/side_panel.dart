@@ -560,6 +560,7 @@ class _ShowArchivedToggle extends StatelessWidget {
                 fontSize: AppTokens.fontSizeSm,
               ),
             ),
+            const SizedBox(height: AppTokens.space2xl),
           ],
         ),
       ),
